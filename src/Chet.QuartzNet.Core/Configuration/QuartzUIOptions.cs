@@ -84,6 +84,11 @@ public class QuartzUIOptions
     /// 数据库提供程序，默认为 MySql
     /// </summary>
     public DatabaseProvider DatabaseProvider { get; set; } = DatabaseProvider.MySql;
+
+    /// <summary>
+    /// 邮件通知配置
+    /// </summary>
+    public EmailOptions EmailOptions { get; set; } = new EmailOptions();
 }
 
 /// <summary>

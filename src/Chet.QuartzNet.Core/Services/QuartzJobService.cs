@@ -242,42 +242,67 @@ public class QuartzJobService : IQuartzJobService
         try
         {
             var jobKey = new JobKey(jobName, jobGroup);
-            await _scheduler.ResumeJob(jobKey, cancellationToken);
-
+            
             // 获取作业信息
             var jobInfo = await _jobStorage.GetJobAsync(jobName, jobGroup, cancellationToken);
-            if (jobInfo != null)
+            if (jobInfo == null)
             {
-                jobInfo.Status = JobStatus.Normal;
+                return ApiResponseDto<bool>.ErrorResponse("作业不存在");
+            }
 
-                // 获取触发器信息，更新下次执行时间
+            // 检查作业是否在调度器中存在
+            var jobExists = await _scheduler.CheckExists(jobKey, cancellationToken);
+
+            if (jobExists)
+            {
+                // 如果作业存在，先尝试恢复
+                await _scheduler.ResumeJob(jobKey, cancellationToken);
+                
+                // 检查是否有触发器，如果没有则重新调度
                 var triggers = await _scheduler.GetTriggersOfJob(jobKey, cancellationToken);
-                if (triggers.Any())
+                if (!triggers.Any())
                 {
-                    var nextFireTimes = triggers.Select(t => t.GetNextFireTimeUtc())
-                                               .Where(t => t.HasValue)
-                                               .OrderBy(t => t.Value)
-                                               .ToList();
+                    _logger.LogInformation("作业 {JobKey} 恢复后没有触发器，重新调度作业", $"{jobGroup}.{jobName}");
+                    await ScheduleJobAsync(jobInfo, cancellationToken);
+                }
+            }
+            else
+            {
+                // 如果作业不存在，重新调度作业
+                _logger.LogInformation("作业 {JobKey} 在调度器中不存在，重新调度作业", $"{jobGroup}.{jobName}");
+                await ScheduleJobAsync(jobInfo, cancellationToken);
+            }
 
-                    if (nextFireTimes.Any())
-                    {
-                        jobInfo.NextRunTime = nextFireTimes.First().Value.DateTime;
-                    }
-
-                    var previousFireTimes = triggers.Select(t => t.GetPreviousFireTimeUtc())
+            // 更新作业状态
+            jobInfo.Status = JobStatus.Normal;
+            jobInfo.UpdateTime = DateTime.Now;
+            
+            // 获取触发器信息，更新下次执行时间
+            var updatedTriggers = await _scheduler.GetTriggersOfJob(jobKey, cancellationToken);
+            if (updatedTriggers.Any())
+            {
+                var nextFireTimes = updatedTriggers.Select(t => t.GetNextFireTimeUtc())
                                                    .Where(t => t.HasValue)
-                                                   .OrderByDescending(t => t.Value)
+                                                   .OrderBy(t => t.Value)
                                                    .ToList();
 
-                    if (previousFireTimes.Any())
-                    {
-                        jobInfo.PreviousRunTime = previousFireTimes.First().Value.DateTime;
-                    }
+                if (nextFireTimes.Any())
+                {
+                    jobInfo.NextRunTime = nextFireTimes.First().Value.DateTime;
                 }
 
-                jobInfo.UpdateTime = DateTime.Now;
-                await _jobStorage.UpdateJobAsync(jobInfo, cancellationToken);
+                var previousFireTimes = updatedTriggers.Select(t => t.GetPreviousFireTimeUtc())
+                                                       .Where(t => t.HasValue)
+                                                       .OrderByDescending(t => t.Value)
+                                                       .ToList();
+
+                if (previousFireTimes.Any())
+                {
+                    jobInfo.PreviousRunTime = previousFireTimes.First().Value.DateTime;
+                }
             }
+
+            await _jobStorage.UpdateJobAsync(jobInfo, cancellationToken);
 
             _logger.LogInformation("作业恢复成功: {JobKey}", $"{jobGroup}.{jobName}");
             return ApiResponseDto<bool>.SuccessResponse(true, "作业恢复成功");
@@ -312,8 +337,29 @@ public class QuartzJobService : IQuartzJobService
                 _logger.LogInformation("作业注册成功: {JobKey}", $"{jobGroup}.{jobName}");
             }
 
+            // 获取作业信息，检查是否为暂停状态
+            var jobInfoForTrigger = await _jobStorage.GetJobAsync(jobName, jobGroup, cancellationToken);
+            var wasPaused = false;
+            
+            if (jobInfoForTrigger != null && jobInfoForTrigger.Status == JobStatus.Paused)
+            {
+                // 临时将作业状态改为正常，允许手动触发执行
+                wasPaused = true;
+                jobInfoForTrigger.Status = JobStatus.Normal;
+                await _jobStorage.UpdateJobAsync(jobInfoForTrigger, cancellationToken);
+                _logger.LogInformation("临时修改暂停作业状态为正常，允许手动触发: {JobKey}", $"{jobGroup}.{jobName}");
+            }
+
             // 触发作业
             await _scheduler.TriggerJob(jobKey, cancellationToken);
+
+            // 如果原来是暂停状态，执行完毕后恢复为暂停状态
+            if (wasPaused)
+            {
+                jobInfoForTrigger.Status = JobStatus.Paused;
+                await _jobStorage.UpdateJobAsync(jobInfoForTrigger, cancellationToken);
+                _logger.LogInformation("手动触发执行完成，恢复作业暂停状态: {JobKey}", $"{jobGroup}.{jobName}");
+            }
 
             _logger.LogInformation("作业触发成功: {JobKey}", $"{jobGroup}.{jobName}");
             return ApiResponseDto<bool>.SuccessResponse(true, "作业触发成功");

@@ -38,11 +38,27 @@ public static class ServiceCollectionExtensions
             configureOptions?.Invoke(options);
         });
 
+        // 注册EmailOptions为独立服务，供EmailNotificationService使用
+        services.AddSingleton(provider =>
+        {
+            var quartzUIOptions = provider.GetRequiredService<IOptions<QuartzUIOptions>>().Value;
+            return quartzUIOptions.EmailOptions;
+        });
+
         // 注册文件存储
         services.TryAddScoped<IJobStorage, FileJobStorage>();
 
         // 注册Quartz服务
         services.TryAddScoped<IQuartzJobService, QuartzJobService>();
+        // 注册邮件通知服务
+        services.TryAddScoped<IEmailNotificationService, EmailNotificationService>();
+
+        // 注册作业监听器
+        services.TryAddScoped<QuartzJobListener>();
+        // 注册作业类扫描器
+        services.TryAddSingleton<JobClassScanner>();
+        // 注册邮件通知服务
+        services.TryAddScoped<IEmailNotificationService, EmailNotificationService>();
 
         // 注册作业监听器
         services.TryAddScoped<QuartzJobListener>();
@@ -98,6 +114,13 @@ public static class ServiceCollectionExtensions
         services.PostConfigure<QuartzUIOptions>(options =>
         {
             configureOptions?.Invoke(options, services.BuildServiceProvider());
+        });
+
+        // 注册EmailOptions为独立服务，供EmailNotificationService使用
+        services.AddSingleton(provider =>
+        {
+            var quartzUIOptions = provider.GetRequiredService<IOptions<QuartzUIOptions>>().Value;
+            return quartzUIOptions.EmailOptions;
         });
 
         // 注册Quartz服务

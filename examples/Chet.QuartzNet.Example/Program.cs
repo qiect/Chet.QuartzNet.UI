@@ -21,7 +21,15 @@ builder.Services.AddCors(options =>
 
 
 // 配置Quartz UI - 文件存储版本（适合轻量应用）
-builder.Services.AddQuartzUI();
+builder.Services.AddQuartzUI(options =>
+{
+    // 从配置中读取邮件设置
+    var emailSection = builder.Configuration.GetSection("QuartzUI:EmailOptions");
+    if (emailSection.Exists())
+    {
+        emailSection.Bind(options.EmailOptions);
+    }
+});
 // 添加Basic认证服务
 builder.Services.AddQuartzUIBasicAuthentication(builder.Configuration);
 // 添加ClassJob自动注册

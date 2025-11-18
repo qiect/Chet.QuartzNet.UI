@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Quartz;
 using System.Text.Json;
+using Chet.QuartzNet.Core.Configuration;
 
 namespace Chet.QuartzNet.Core.Services
 {
@@ -22,8 +23,8 @@ namespace Chet.QuartzNet.Core.Services
         /// <param name="logger">日志记录器</param>
         public QuartzJobListener(IServiceScopeFactory scopeFactory, ILogger<QuartzJobListener> logger)
         {
-            _scopeFactory = scopeFactory;
-            _logger = logger;
+            _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
@@ -78,12 +79,26 @@ namespace Chet.QuartzNet.Core.Services
                 using var scope = _scopeFactory.CreateScope();
                 var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
                 var jobService = scope.ServiceProvider.GetRequiredService<IQuartzJobService>();
+                var emailService = scope.ServiceProvider.GetService<IEmailNotificationService>();
 
                 // 记录作业日志
                 await jobStorage.AddJobLogAsync(jobLog, cancellationToken);
 
                 // 更新作业的下次执行时间和上次执行时间
                 await jobService.UpdateJobExecutionTimesAsync(context.JobDetail.Key.Name, context.JobDetail.Key.Group, context.Trigger, cancellationToken);
+
+                // 发送邮件通知
+                if (emailService != null)
+                {
+                    await emailService.SendJobExecutionNotificationAsync(
+                        context.JobDetail.Key.Name,
+                        context.JobDetail.Key.Group,
+                        result == null,
+                        jobLog.Message,
+                        jobLog.Duration ?? 0,
+                        jobLog.ErrorMessage,
+                        cancellationToken);
+                }
 
                 _logger.LogInformation("作业执行日志记录成功: {JobKey}, 状态: {Status}",
                     $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}", jobLog.Status);
@@ -135,10 +150,38 @@ namespace Chet.QuartzNet.Core.Services
         /// </summary>
         /// <param name="context">作业执行上下文</param>
         /// <param name="cancellationToken">取消令牌</param>
-        public Task JobToBeExecuted(IJobExecutionContext context, CancellationToken cancellationToken = default)
+        public async Task JobToBeExecuted(IJobExecutionContext context, CancellationToken cancellationToken = default)
         {
-            // 这里不需要记录日志，因为我们在JobExecutionComplete中记录
-            return Task.CompletedTask;
+            try
+            {
+                // 创建作用域来解析IJobStorage
+                using var scope = _scopeFactory.CreateScope();
+                var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
+                
+                // 获取作业信息
+                var jobInfo = await jobStorage.GetJobAsync(context.JobDetail.Key.Name, context.JobDetail.Key.Group, cancellationToken);
+                
+                if (jobInfo != null && jobInfo.Status == JobStatus.Paused)
+                {
+                    // 作业被暂停，记录日志并抛出异常阻止执行
+                    _logger.LogWarning("作业执行被阻止: 作业已被暂停 - {JobKey}", 
+                        $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}");
+                    
+                    // 抛出JobExecutionException来阻止作业执行
+                    throw new JobExecutionException($"作业 {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name} 已被暂停，执行被阻止");
+                }
+            }
+            catch (JobExecutionException)
+            {
+                // 重新抛出JobExecutionException，这是期望的行为
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // 记录检查过程中的错误，但不阻止作业执行
+                _logger.LogError(ex, "检查作业暂停状态时发生错误: {JobKey}",
+                    $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}");
+            }
         }
     }
 }

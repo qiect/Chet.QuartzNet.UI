@@ -44,6 +44,13 @@ public class ApiJob : IJob
             throw new JobExecutionException("作业信息不存在");
         }
 
+        // 检查作业是否被暂停
+        if (jobInfo.Status == JobStatus.Paused)
+        {
+            _logger.LogWarning("API作业执行被跳过: 作业已被暂停 - {JobKey}", $"{jobGroup}.{jobName}");
+            return; // 直接返回，不执行作业
+        }
+
         try
         {
             _logger.LogInformation("开始执行API作业: {JobKey}", $"{jobGroup}.{jobName}");
