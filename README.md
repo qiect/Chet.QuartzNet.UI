@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-# Chet.QuartzNet.UI
-=======
 # Chet.QuartzNet.UI - Quartz.Net 可视化管理库
 
 Chet.QuartzNet.UI 是一个基于 .NET 8.0 开发的轻量级 Quartz.Net 可视化管理库，提供了完整的任务调度管理功能，支持文件存储和数据库存储两种模式。该组件库旨在简化 Quartz.Net 的使用门槛，提供直观、易用的可视化管理界面，使开发人员能够轻松地创建、管理、监控和调试定时作业，无需深入了解 Quartz.Net 的复杂 API。
