@@ -255,34 +255,34 @@ public class EmailNotificationService : IEmailNotificationService
         
         <table style='width: 100%; border-collapse: collapse;'>
             <tr>
-                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 60px;'><strong>作业名称：</strong></td>
+                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 80px;'><strong>作业名称：</strong></td>
                 <td style='padding: 10px; border-bottom: 1px solid #dee2e6;'>{jobName}</td>
             </tr>
             <tr>
-                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 60px;'><strong>作业分组：</strong></td>
+                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 80px;'><strong>作业分组：</strong></td>
                 <td style='padding: 10px; border-bottom: 1px solid #dee2e6;'>{jobGroup}</td>
             </tr>
             <tr>
-                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 60px;'><strong>执行状态：</strong></td>
+                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 80px;'><strong>执行状态：</strong></td>
                 <td style='padding: 10px; border-bottom: 1px solid #dee2e6;'><span style='color: {statusColor}; font-weight: bold;'>{status}</span></td>
             </tr>
             <tr>
-                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 60px;'><strong>执行时间：</strong></td>
+                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 80px;'><strong>执行时间：</strong></td>
                 <td style='padding: 10px; border-bottom: 1px solid #dee2e6;'>{DateTime.Now:yyyy-MM-dd HH:mm:ss}</td>
             </tr>
             <tr>
-                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 60px;'><strong>执行耗时：</strong></td>
+                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 80px;'><strong>执行耗时：</strong></td>
                 <td style='padding: 10px; border-bottom: 1px solid #dee2e6;'>{duration} 毫秒</td>
             </tr>
             <tr>
-                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 60px;'><strong>消息：</strong></td>
+                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 80px;'><strong>消息：</strong></td>
                 <td style='padding: 10px; border-bottom: 1px solid #dee2e6;'>{message}</td>
             </tr>
             {errorRow}
         </table>
         
         <div style='margin-top: 20px; padding: 10px; background-color: #e9ecef; border-radius: 3px; font-size: 12px; color: #6c757d;'>
-            此邮件由 Quartz.NET 调度系统自动发送，请勿回复。
+            此邮件由 Chet.QuartzNET.UI 调度系统自动发送，请勿回复。
         </div>
     </div>
 </div>";
@@ -297,19 +297,19 @@ public class EmailNotificationService : IEmailNotificationService
         
         <table style='width: 100%; border-collapse: collapse;'>
             <tr>
-                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 60px;'><strong>异常时间：</strong></td>
+                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 80px;'><strong>异常时间：</strong></td>
                 <td style='padding: 10px; border-bottom: 1px solid #dee2e6;'>{DateTime.Now:yyyy-MM-dd HH:mm:ss}</td>
             </tr>
             <tr>
-                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 60px;'><strong>异常类型：</strong></td>
+                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 80px;'><strong>异常类型：</strong></td>
                 <td style='padding: 10px; border-bottom: 1px solid #dee2e6;'>{exception.GetType().Name}</td>
             </tr>
             <tr>
-                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 60px;'><strong>异常消息：</strong></td>
+                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 80px;'><strong>异常消息：</strong></td>
                 <td style='padding: 10px; border-bottom: 1px solid #dee2e6; color: #dc3545;'>{exception.Message}</td>
             </tr>
             <tr>
-                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 60px; vertical-align: top;'><strong>堆栈跟踪：</strong></td>
+                <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 80px; vertical-align: top;'><strong>堆栈跟踪：</strong></td>
                 <td style='padding: 10px; border-bottom: 1px solid #dee2e6;'>
                     <pre style='background-color: #f1f3f4; padding: 10px; border-radius: 3px; font-size: 12px; overflow-x: auto;'>{exception.StackTrace}</pre>
                 </td>
@@ -317,7 +317,7 @@ public class EmailNotificationService : IEmailNotificationService
         </table>
         
         <div style='margin-top: 20px; padding: 10px; background-color: #e9ecef; border-radius: 3px; font-size: 12px; color: #6c757d;'>
-            此邮件由 Quartz.NET 调度系统自动发送，请勿回复。
+            此邮件由 Chet.QuartzNET.UI 调度系统自动发送，请勿回复。
         </div>
     </div>
 </div>";

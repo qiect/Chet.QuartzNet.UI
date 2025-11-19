@@ -27,6 +27,22 @@ QuartzNet.UI 提供了完整的邮件通知功能，可以在作业执行完成�
 
 ```json
 {
+    "EmailOptions": {
+      "Enabled": true,
+      "SmtpServer": "smtp.163.com",
+      "SmtpPort": 25,
+      "SenderEmail": "qct154878690@163.com",
+      "SenderName": "Chet.QuartzNET.UI 监控",
+      "SenderPassword": "NZu2MTKbnTrMMfx4",
+      "EnableSsl": false,
+      "SubjectPrefix": "[Chet.QuartzNET.UI]",
+      "Recipients": "154878690@qq.com,qiechangtang@zy-cast.com",
+      "NotifyOnFailure": true,
+      "NotifyOnSuccess": false,
+      "NotifyOnSchedulerError": true
+    }
+}
+{
   "EmailSettings": {
     "SmtpServer": "smtp.example.com",
     "SmtpPort": 587,
@@ -71,20 +87,6 @@ QuartzNet.UI 提供了完整的邮件通知功能，可以在作业执行完成�
 - **异常消息**：异常的简要描述
 - **详细信息**：异常的完整堆栈跟踪
 
-## 样式设计
-
-### 表格样式
-- **布局**：采用HTML表格布局，确保邮件客户端兼容性
-- **字段宽度**：所有字段名列（`<td>`元素）宽度统一设置为120px
-- **边框**：表格边框为1px实线，颜色为#ddd
-- **背景色**：表头背景色为#f5f5f5，内容区域为白色
-- **字体**：使用系统默认字体，确保可读性
-
-### 视觉设计原则
-- **一致性**：所有字段名保持相同的宽度和样式
-- **可读性**：适当的内边距和行高，确保信息清晰
-- **专业性**：简洁的设计风格，适合企业环境使用
-
 ## 使用示例
 
 ### 启用邮件通知
@@ -115,14 +117,3 @@ QuartzNet.UI 提供了完整的邮件通知功能，可以在作业执行完成�
 - 检查邮件模板是否正确加载
 - 验证作业信息是否完整
 - 查看调度器日志中的异常信息
-
-## 更新日志
-
-### 2024-11-18
-- 优化邮件模板样式，统一字段名宽度为120px
-- 提升邮件布局的视觉一致性和美观度
-- 增强作业暂停状态下的触发执行支持
-
----
-
-如需更多帮助，请参考项目文档或联系技术支持团队。

@@ -47,24 +47,20 @@ public static class ServiceCollectionExtensions
 
         // 注册文件存储
         services.TryAddScoped<IJobStorage, FileJobStorage>();
-
         // 注册Quartz服务
         services.TryAddScoped<IQuartzJobService, QuartzJobService>();
         // 注册邮件通知服务
         services.TryAddScoped<IEmailNotificationService, EmailNotificationService>();
-
         // 注册作业监听器
         services.TryAddScoped<QuartzJobListener>();
         // 注册作业类扫描器
         services.TryAddSingleton<JobClassScanner>();
         // 注册邮件通知服务
         services.TryAddScoped<IEmailNotificationService, EmailNotificationService>();
-
         // 注册作业监听器
         services.TryAddScoped<QuartzJobListener>();
         // 注册作业类扫描器
         services.TryAddSingleton<JobClassScanner>();
-
         // 注册Quartz
         services.AddQuartz(q =>
         {
@@ -90,7 +86,6 @@ public static class ServiceCollectionExtensions
         {
             options.WaitForJobsToComplete = true;
         });
-
         // 注册作业调度初始化服务，用于在应用启动时将存储中的作业重新调度到Quartz调度器
         services.AddHostedService<JobSchedulerInitializer>();
 
