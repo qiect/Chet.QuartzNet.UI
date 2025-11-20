@@ -21,9 +21,14 @@ public class QuartzUIOptions
     public string UserName { get; set; } = "Admin";
 
     /// <summary>
-    /// 密码，默认为 "123456"
+    /// 密码
     /// </summary>
     public string Password { get; set; } = "123456";
+
+    /// <summary>
+    /// Basic认证过期时间（天），默认7天
+    /// </summary>
+    public int BasicAuthExpirationDays { get; set; } = 7;
 
     /// <summary>
     /// 存储类型，默认为 File

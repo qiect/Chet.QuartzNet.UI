@@ -284,6 +284,7 @@ public static class ServiceCollectionExtensions
                             TriggerGroup = "DEFAULT",
                             CronExpression = attribute.CronExpression, // 使用特性中的Cron表达式
                             Description = attribute.Description,
+                            JobTypeEnum = JobTypeEnum.DLL,
                             JobType = jobType.AssemblyQualifiedName ?? jobType.FullName ?? string.Empty,
                             Status = JobStatus.Normal,
                             IsEnabled = attribute.Enabled, // 使用特性中配置的启用状态
@@ -462,54 +463,106 @@ public class BasicAuthenticationHandler : AuthenticationHandler<BasicAuthenticat
     {
         if (!Request.Headers.ContainsKey("Authorization"))
         {
+            Logger.LogDebug("Basic认证失败：缺少Authorization头 - 请求路径: {RequestPath}, IP: {RemoteIp}", 
+                Request.Path, Request.HttpContext.Connection.RemoteIpAddress?.ToString());
             return Task.FromResult(AuthenticateResult.Fail("缺少Authorization头"));
         }
-
+    
         var authHeader = Request.Headers["Authorization"].ToString();
         if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Basic ", StringComparison.OrdinalIgnoreCase))
         {
+            Logger.LogDebug("Basic认证失败：无效的Authorization头格式 - 请求路径: {RequestPath}, IP: {RemoteIp}", 
+                Request.Path, Request.HttpContext.Connection.RemoteIpAddress?.ToString());
             return Task.FromResult(AuthenticateResult.Fail("无效的Authorization头格式"));
         }
-
+    
         try
         {
             var credentials = authHeader.Substring("Basic ".Length).Trim();
             var decodedCredentials = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(credentials));
             var parts = decodedCredentials.Split(':');
-
+    
             if (parts.Length != 2)
             {
-                Logger.LogDebug("Basic认证失败：无效的认证格式 - {DecodedCredentials}", decodedCredentials);
+                Logger.LogDebug("Basic认证失败：无效的认证格式 - {DecodedCredentials} - 请求路径: {RequestPath}, IP: {RemoteIp}", 
+                    decodedCredentials, Request.Path, Request.HttpContext.Connection.RemoteIpAddress?.ToString());
                 return Task.FromResult(AuthenticateResult.Fail("无效的认证格式"));
             }
-
+    
             var username = parts[0];
             var password = parts[1];
-            Logger.LogDebug("Basic认证尝试：用户名 = {Username}", username);
-
+            Logger.LogDebug("Basic认证尝试：用户名 = {Username} - 请求路径: {RequestPath}, IP: {RemoteIp}", 
+                username, Request.Path, Request.HttpContext.Connection.RemoteIpAddress?.ToString());
+    
             // 从配置中获取用户名密码
             var validUsername = _quartzUIOptions.CurrentValue.UserName ?? Options.UserName;
             var validPassword = _quartzUIOptions.CurrentValue.Password ?? Options.Password;
             Logger.LogDebug("Basic认证配置：有效用户名 = {ValidUsername}", validUsername);
-
+    
             if (username == validUsername && password == validPassword)
             {
+                // 检查认证是否过期
+                var authCookie = Request.Cookies["QuartzUIAuthExpires"];
+                var isAuthenticated = false;
+                var isExpired = false;
+    
+                if (!string.IsNullOrEmpty(authCookie))
+                {
+                    if (DateTime.TryParse(authCookie, out DateTime authExpires))
+                    {
+                        if (DateTime.UtcNow <= authExpires)
+                        {
+                            isAuthenticated = true;
+                        }
+                        else
+                        {
+                            Logger.LogDebug("Basic认证失败：认证已过期 - 请求路径: {RequestPath}, IP: {RemoteIp}", 
+                                Request.Path, Request.HttpContext.Connection.RemoteIpAddress?.ToString());
+                            isExpired = true;
+                        }
+                    }
+                }
+    
+                if (!isAuthenticated)
+                {
+                    // 认证成功或已过期，设置新的过期时间
+                    var expirationDays = _quartzUIOptions.CurrentValue.BasicAuthExpirationDays;
+                    var expires = DateTime.UtcNow.AddDays(expirationDays);
+                    
+                    // 删除旧cookie
+                    if (isExpired)
+                    {
+                        Response.Cookies.Delete("QuartzUIAuthExpires");
+                    }
+                    
+                    // 设置新cookie
+                    Response.Cookies.Append("QuartzUIAuthExpires", expires.ToString("o"), new CookieOptions
+                    {
+                        HttpOnly = true,
+                        Secure = Request.IsHttps,
+                        SameSite = SameSiteMode.Lax,
+                        Expires = expires
+                    });
+                }
+    
+                // 创建认证票据
                 var claims = new[]
                 {
                     new Claim(ClaimTypes.Name, username),
                     new Claim(ClaimTypes.Role, "QuartzUIAdmin")
                 };
-
+    
                 var identity = new ClaimsIdentity(claims, Scheme.Name);
                 var principal = new ClaimsPrincipal(identity);
                 var ticket = new AuthenticationTicket(principal, Scheme.Name);
-                Logger.LogDebug("Basic认证成功：用户名 = {Username}", username);
-
+                Logger.LogDebug("Basic认证成功：用户名 = {Username} - 请求路径: {RequestPath}, IP: {RemoteIp}", 
+                    username, Request.Path, Request.HttpContext.Connection.RemoteIpAddress?.ToString());
+    
                 return Task.FromResult(AuthenticateResult.Success(ticket));
             }
-
-            Logger.LogWarning("Basic认证失败：用户名或密码错误 - 尝试用户名 = {Username}, 有效用户名 = {ValidUsername}",
-                username, validUsername);
+    
+            Logger.LogDebug("Basic认证失败：用户名或密码错误 - 尝试用户名 = {Username}, 有效用户名 = {ValidUsername} - 请求路径: {RequestPath}, IP: {RemoteIp}",
+                    username, validUsername, Request.Path, Request.HttpContext.Connection.RemoteIpAddress?.ToString());
             return Task.FromResult(AuthenticateResult.Fail("用户名或密码错误"));
         }
         catch (Exception ex)
@@ -521,6 +574,11 @@ public class BasicAuthenticationHandler : AuthenticationHandler<BasicAuthenticat
 
     protected override async Task HandleChallengeAsync(AuthenticationProperties properties)
     {
+        // 添加缓存控制头，防止浏览器缓存认证信息
+        Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+        Response.Headers["Pragma"] = "no-cache";
+        Response.Headers["Expires"] = "0";
+        
         Response.StatusCode = 401;
         Response.Headers["WWW-Authenticate"] = "Basic realm=\"QuartzUI\"";
         await Response.WriteAsync("需要认证");
