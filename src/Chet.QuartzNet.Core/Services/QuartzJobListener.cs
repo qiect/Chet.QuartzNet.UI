@@ -154,21 +154,34 @@ namespace Chet.QuartzNet.Core.Services
         {
             try
             {
-                // 创建作用域来解析IJobStorage
-                using var scope = _scopeFactory.CreateScope();
-                var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
+                // 检查是否是手动触发的作业
+                bool isManualTrigger = context.MergedJobDataMap.TryGetValue("IsManualTrigger", out var manualTriggerValue) && 
+                                      manualTriggerValue is bool && (bool)manualTriggerValue;
                 
-                // 获取作业信息
-                var jobInfo = await jobStorage.GetJobAsync(context.JobDetail.Key.Name, context.JobDetail.Key.Group, cancellationToken);
-                
-                if (jobInfo != null && jobInfo.Status == JobStatus.Paused)
+                if (!isManualTrigger)
                 {
-                    // 作业被暂停，记录日志并抛出异常阻止执行
-                    _logger.LogWarning("作业执行被阻止: 作业已被暂停 - {JobKey}", 
-                        $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}");
+                    // 不是手动触发，检查作业状态
+                    using var scope = _scopeFactory.CreateScope();
+                    var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
                     
-                    // 抛出JobExecutionException来阻止作业执行
-                    throw new JobExecutionException($"作业 {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name} 已被暂停，执行被阻止");
+                    // 获取作业信息
+                    var jobInfo = await jobStorage.GetJobAsync(context.JobDetail.Key.Name, context.JobDetail.Key.Group, cancellationToken);
+                    
+                    if (jobInfo != null && jobInfo.Status == JobStatus.Paused)
+                    {
+                        // 作业被暂停，记录日志并抛出异常阻止执行
+                        _logger.LogWarning("作业执行被阻止: 作业已被暂停 - {JobKey}", 
+                            $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}");
+                        
+                        // 抛出JobExecutionException来阻止作业执行
+                        throw new JobExecutionException($"作业 {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name} 已被暂停，执行被阻止");
+                    }
+                }
+                else
+                {
+                    // 是手动触发的作业，即使处于暂停状态也允许执行
+                    _logger.LogInformation("手动触发作业，忽略暂停状态检查: {JobKey}", 
+                        $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}");
                 }
             }
             catch (JobExecutionException)

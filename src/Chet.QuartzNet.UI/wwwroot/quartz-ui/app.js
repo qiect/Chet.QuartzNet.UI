@@ -468,6 +468,8 @@ new Vue({
             this.isEditing = true;
             this.modalTitle = '编辑作业';
             this.modalVisible = true;
+            // 加载作业类名列表
+            this.fetchJobClasses();
         },
         
         // 保存作业

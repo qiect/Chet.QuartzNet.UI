@@ -419,9 +419,9 @@ public class QuartzJobService : IQuartzJobService
                 }
 
                 // 设置作业数据
+                var jobDataMap = new JobDataMap();
                 if (!string.IsNullOrEmpty(jobInfo.JobData))
                 {
-                    var jobDataMap = new JobDataMap();
                     try
                     {
                         // 解析JSON数据并添加到jobDataMap
@@ -438,9 +438,14 @@ public class QuartzJobService : IQuartzJobService
                     {
                         _logger.LogError(ex, "解析作业数据JSON失败: {JobData}", jobInfo.JobData);
                     }
-                    jobBuilder.UsingJobData(jobDataMap);
                 }
 
+                // 添加手动触发标记
+                jobDataMap.Add("IsManualTrigger", true);
+                
+                // 将作业数据添加到作业构建器
+                jobBuilder.UsingJobData(jobDataMap);
+                
                 // 创建作业详情
                 var jobDetail = jobBuilder.Build();
                 
@@ -448,7 +453,7 @@ public class QuartzJobService : IQuartzJobService
                 await _scheduler.AddJob(jobDetail, true, cancellationToken);
                 
                 // 触发作业
-                await _scheduler.TriggerJob(jobDetail.Key, cancellationToken);
+                await _scheduler.TriggerJob(jobDetail.Key, jobDataMap, cancellationToken);
             }
             else
             {
@@ -464,8 +469,12 @@ public class QuartzJobService : IQuartzJobService
                     _logger.LogInformation("临时修改暂停作业状态为正常，允许手动触发: {JobKey}", $"{jobGroup}.{jobName}");
                 }
 
+                // 创建包含手动触发标记的作业数据
+                var jobDataMap = new JobDataMap();
+                jobDataMap.Add("IsManualTrigger", true);
+                
                 // 直接触发作业，不考虑触发器状态
-                await _scheduler.TriggerJob(jobKey, cancellationToken);
+                await _scheduler.TriggerJob(jobKey, jobDataMap, cancellationToken);
 
                 // 如果原来是暂停状态，执行完毕后恢复为暂停状态
                 if (wasPaused)
@@ -679,12 +688,78 @@ public class QuartzJobService : IQuartzJobService
                 _logger.LogInformation("调度器启动成功");
             }
 
+            // 重新加载所有正常状态的作业到调度器
+            await ReloadNormalJobsAsync(cancellationToken);
+
             return ApiResponseDto<bool>.SuccessResponse(true, "调度器启动成功");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "启动调度器失败");
             return ApiResponseDto<bool>.ErrorResponse($"启动调度器失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 重新加载所有正常状态的作业到调度器
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>任务</returns>
+    private async Task ReloadNormalJobsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // 获取所有存储的作业
+            var allJobs = await _jobStorage.GetAllJobsAsync(cancellationToken);
+            _logger.LogInformation("开始重新加载 {JobCount} 个作业到调度器", allJobs.Count);
+
+            foreach (var jobInfo in allJobs)
+            {
+                try
+                {
+                    // 检查作业是否已经有触发器
+                    var jobKey = new JobKey(jobInfo.JobName, jobInfo.JobGroup);
+                    var triggers = await _scheduler.GetTriggersOfJob(jobKey, cancellationToken);
+
+                    if (triggers.Any())
+                    {
+                        _logger.LogInformation("作业 {JobKey} 已存在 {TriggerCount} 个触发器，跳过重新加载",
+                            $"{jobInfo.JobGroup}.{jobInfo.JobName}", triggers.Count);
+                        continue;
+                    }
+
+                    // 检查作业是否被禁用，如果是禁用状态，不重新加载
+                    if (!jobInfo.IsEnabled)
+                    {
+                        _logger.LogInformation("作业 {JobKey} 处于禁用状态，跳过重新加载",
+                            $"{jobInfo.JobGroup}.{jobInfo.JobName}");
+                        continue;
+                    }
+
+                    // 检查作业状态，如果是暂停状态，不重新加载
+                    if (jobInfo.Status == Chet.QuartzNet.Models.Entities.JobStatus.Paused)
+                    {
+                        _logger.LogInformation("作业 {JobKey} 处于暂停状态，跳过重新加载",
+                            $"{jobInfo.JobGroup}.{jobInfo.JobName}");
+                        continue;
+                    }
+
+                    // 重新调度作业
+                    await ScheduleJobAsync(jobInfo, cancellationToken);
+                    _logger.LogInformation("作业 {JobKey} 重新加载成功", $"{jobInfo.JobGroup}.{jobInfo.JobName}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "重新加载作业失败: {JobKey}", $"{jobInfo.JobGroup}.{jobInfo.JobName}");
+                    // 忽略单个作业的错误，继续处理其他作业
+                }
+            }
+
+            _logger.LogInformation("作业重新加载完成");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "重新加载作业失败");
         }
     }
 

@@ -23,6 +23,8 @@ namespace Chet.QuartzNet.UI.Extensions;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+    private static ILogger? _logger = null;
+
     /// <summary>
     /// 添加QuartzUI服务（文件存储版本）
     /// </summary>
@@ -333,37 +335,6 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// 从配置文件中添加QuartzUI服务
-    /// </summary>
-    /// <param name="services">服务集合</param>
-    /// <param name="configuration">配置</param>
-    /// <returns>服务集合</returns>
-    public static IServiceCollection AddQuartzUIFromConfiguration(this IServiceCollection services, IConfiguration configuration)
-    {
-        var quartzUIOptions = configuration.GetSection("QuartzUI").Get<QuartzUIOptions>();
-
-        if (quartzUIOptions?.StorageType == StorageType.File)
-        {
-            services.AddQuartzUI();
-        }
-        else if (quartzUIOptions?.StorageType == StorageType.Database)
-        {
-            // 这里需要引用EFCore项目，在应用层配置
-            throw new NotSupportedException("数据库版本需要在应用层显式配置，请使用AddQuartzUI重载方法");
-        }
-
-        // 如果启用了Basic认证
-        if (quartzUIOptions?.EnableBasicAuth == true)
-        {
-            services.AddQuartzUIBasicAuthentication(configuration);
-        }
-
-        return services;
-    }
-
-    private static ILogger? _logger = null;
-
-    /// <summary>
     /// 作业调度初始化服务，用于在应用启动时将存储中的作业重新调度到Quartz调度器
     /// </summary>
     private class JobSchedulerInitializer : IHostedService
@@ -476,15 +447,15 @@ public class BasicAuthenticationSchemeOptions : AuthenticationSchemeOptions
 /// </summary>
 public class BasicAuthenticationHandler : AuthenticationHandler<BasicAuthenticationSchemeOptions>
 {
-    private readonly IConfiguration _configuration;
+    private readonly IOptionsMonitor<QuartzUIOptions> _quartzUIOptions;
 
     public BasicAuthenticationHandler(
         IOptionsMonitor<BasicAuthenticationSchemeOptions> options,
         ILoggerFactory logger,
         UrlEncoder encoder,
-        IConfiguration configuration) : base(options, logger, encoder)
+        IOptionsMonitor<QuartzUIOptions> quartzUIOptions) : base(options, logger, encoder)
     {
-        _configuration = configuration;
+        _quartzUIOptions = quartzUIOptions;
     }
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
@@ -508,16 +479,18 @@ public class BasicAuthenticationHandler : AuthenticationHandler<BasicAuthenticat
 
             if (parts.Length != 2)
             {
+                Logger.LogDebug("Basic认证失败：无效的认证格式 - {DecodedCredentials}", decodedCredentials);
                 return Task.FromResult(AuthenticateResult.Fail("无效的认证格式"));
             }
 
             var username = parts[0];
             var password = parts[1];
+            Logger.LogDebug("Basic认证尝试：用户名 = {Username}", username);
 
-            // 从配置文件中读取用户名密码
-            var quartzUIOptions = _configuration.GetSection("QuartzUI").Get<QuartzUIOptions>();
-            var validUsername = quartzUIOptions?.UserName ?? Options.UserName;
-            var validPassword = quartzUIOptions?.Password ?? Options.Password;
+            // 从配置中获取用户名密码
+            var validUsername = _quartzUIOptions.CurrentValue.UserName ?? Options.UserName;
+            var validPassword = _quartzUIOptions.CurrentValue.Password ?? Options.Password;
+            Logger.LogDebug("Basic认证配置：有效用户名 = {ValidUsername}", validUsername);
 
             if (username == validUsername && password == validPassword)
             {
@@ -530,10 +503,13 @@ public class BasicAuthenticationHandler : AuthenticationHandler<BasicAuthenticat
                 var identity = new ClaimsIdentity(claims, Scheme.Name);
                 var principal = new ClaimsPrincipal(identity);
                 var ticket = new AuthenticationTicket(principal, Scheme.Name);
+                Logger.LogDebug("Basic认证成功：用户名 = {Username}", username);
 
                 return Task.FromResult(AuthenticateResult.Success(ticket));
             }
 
+            Logger.LogWarning("Basic认证失败：用户名或密码错误 - 尝试用户名 = {Username}, 有效用户名 = {ValidUsername}",
+                username, validUsername);
             return Task.FromResult(AuthenticateResult.Fail("用户名或密码错误"));
         }
         catch (Exception ex)

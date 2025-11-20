@@ -91,13 +91,12 @@ public class QuartzUIController : ControllerBase
             if (result.Success)
             {
                 _logger.LogInformation("添加作业成功: {JobName}/{JobGroup}", jobDto.JobName, jobDto.JobGroup);
-                return Ok(ApiResponseDto<bool>.SuccessResponse(true, "添加作业成功"));
             }
             else
             {
                 _logger.LogWarning("添加作业失败: {JobName}/{JobGroup}, 原因: {Message}", jobDto.JobName, jobDto.JobGroup, result.Message);
-                return Ok(ApiResponseDto<bool>.ErrorResponse("添加作业失败: " + result.Message));
             }
+            return Ok(result);
         }
         catch (Exception ex)
         {
@@ -118,12 +117,12 @@ public class QuartzUIController : ControllerBase
             if (result.Success)
             {
                 _logger.LogInformation("更新作业成功: {JobName}/{JobGroup}", jobDto.JobName, jobDto.JobGroup);
-                return Ok(ApiResponseDto<bool>.SuccessResponse(true, "更新作业成功"));
             }
             else
             {
-                return Ok(ApiResponseDto<bool>.ErrorResponse("更新作业失败"));
+                _logger.LogWarning("更新作业失败: {JobName}/{JobGroup}, 原因: {Message}", jobDto.JobName, jobDto.JobGroup, result.Message);
             }
+            return Ok(result);
         }
         catch (Exception ex)
         {
@@ -144,12 +143,12 @@ public class QuartzUIController : ControllerBase
             if (result.Success)
             {
                 _logger.LogInformation("删除作业成功: {JobName}/{JobGroup}", jobName, jobGroup);
-                return Ok(ApiResponseDto<bool>.SuccessResponse(true, "删除作业成功"));
             }
             else
             {
-                return Ok(ApiResponseDto<bool>.ErrorResponse("删除作业失败"));
+                _logger.LogWarning("删除作业失败: {JobName}/{JobGroup}, 原因: {Message}", jobName, jobGroup, result.Message);
             }
+            return Ok(result);
         }
         catch (Exception ex)
         {
@@ -170,12 +169,12 @@ public class QuartzUIController : ControllerBase
             if (result.Success)
             {
                 _logger.LogInformation("暂停作业成功: {JobName}/{JobGroup}", jobName, jobGroup);
-                return Ok(ApiResponseDto<bool>.SuccessResponse(true, "暂停作业成功"));
             }
             else
             {
-                return Ok(ApiResponseDto<bool>.ErrorResponse("暂停作业失败"));
+                _logger.LogWarning("暂停作业失败: {JobName}/{JobGroup}, 原因: {Message}", jobName, jobGroup, result.Message);
             }
+            return Ok(result);
         }
         catch (Exception ex)
         {
@@ -196,12 +195,12 @@ public class QuartzUIController : ControllerBase
             if (result.Success)
             {
                 _logger.LogInformation("恢复作业成功: {JobName}/{JobGroup}", jobName, jobGroup);
-                return Ok(ApiResponseDto<bool>.SuccessResponse(true, "恢复作业成功"));
             }
             else
             {
-                return Ok(ApiResponseDto<bool>.ErrorResponse("恢复作业失败"));
+                _logger.LogWarning("恢复作业失败: {JobName}/{JobGroup}, 原因: {Message}", jobName, jobGroup, result.Message);
             }
+            return Ok(result);
         }
         catch (Exception ex)
         {
@@ -214,22 +213,21 @@ public class QuartzUIController : ControllerBase
     /// 立即触发作业
     /// </summary>
     [HttpPost("TriggerJob")]
-        public async Task<ActionResult<ApiResponseDto<bool>>> TriggerJob(string jobName, string jobGroup)
+    public async Task<ActionResult<ApiResponseDto<bool>>> TriggerJob(string jobName, string jobGroup)
+    {
+        try
         {
-            try
+            var result = await _jobService.TriggerJobAsync(jobName, jobGroup);
+            if (result.Success)
             {
-                var result = await _jobService.TriggerJobAsync(jobName, jobGroup);
-                if (result.Success)
-                {
-                    _logger.LogInformation("触发作业成功: {JobName}/{JobGroup}", jobName, jobGroup);
-                    return Ok(result);
-                }
-                else
-                {
-                    _logger.LogError("触发作业失败: {JobName}/{JobGroup}, 错误信息: {ErrorMessage}", jobName, jobGroup, result.Message);
-                    return Ok(result);
-                }
+                _logger.LogInformation("触发作业成功: {JobName}/{JobGroup}", jobName, jobGroup);
             }
+            else
+            {
+                _logger.LogError("触发作业失败: {JobName}/{JobGroup}, 错误信息: {ErrorMessage}", jobName, jobGroup, result.Message);
+            }
+            return Ok(result);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "触发作业失败: {JobName}/{JobGroup}", jobName, jobGroup);
@@ -245,15 +243,16 @@ public class QuartzUIController : ControllerBase
     {
         try
         {
-            var isValid = _jobService.ValidateCronExpression(cronExpression);
-            if (isValid.Success)
+            var result = _jobService.ValidateCronExpression(cronExpression);
+            if (result.Success)
             {
-                return Ok(ApiResponseDto<bool>.SuccessResponse(true, "Cron表达式格式正确"));
+                _logger.LogInformation("验证Cron表达式成功: {CronExpression}", cronExpression);
             }
             else
             {
-                return Ok(ApiResponseDto<bool>.ErrorResponse("Cron表达式格式不正确"));
+                _logger.LogWarning("验证Cron表达式失败: {CronExpression}, 原因: {Message}", cronExpression, result.Message);
             }
+            return Ok(result);
         }
         catch (Exception ex)
         {
@@ -284,11 +283,21 @@ public class QuartzUIController : ControllerBase
     /// 获取作业日志
     /// </summary>
     [HttpGet("GetJobLogs")]
-    public async Task<ActionResult<ApiResponseDto<PagedResponseDto<QuartzJobLogDto>>>> GetJobLogs(string? jobName = null, string? jobGroup = null, LogStatus? status = null, DateTime? startTime = null, DateTime? endTime = null, int pageIndex = 1, int pageSize = 20, string? sortBy = null, string? sortOrder = null)
+    public async Task<ActionResult<ApiResponseDto<PagedResponseDto<QuartzJobLogDto>>>> GetJobLogs(
+        string? jobName = null,
+        string? jobGroup = null,
+        LogStatus? status = null,
+        DateTime? startTime = null,
+        DateTime? endTime = null,
+        int pageIndex = 1,
+        int pageSize = 20,
+        string? sortBy = null,
+        string? sortOrder = null)
     {
         try
         {
-            var result = await _jobService.GetJobLogsAsync(jobName, jobGroup, status, startTime, endTime, pageIndex, pageSize, sortBy, sortOrder);
+            var result = await _jobService.GetJobLogsAsync(
+                jobName, jobGroup, status, startTime, endTime, pageIndex, pageSize, sortBy, sortOrder);
             return Ok(result);
         }
         catch (Exception ex)
@@ -310,12 +319,12 @@ public class QuartzUIController : ControllerBase
             if (result.Success)
             {
                 _logger.LogInformation("调度器启动成功");
-                return Ok(ApiResponseDto<bool>.SuccessResponse(true, "调度器启动成功"));
             }
             else
             {
-                return Ok(ApiResponseDto<bool>.ErrorResponse("调度器启动失败"));
+                _logger.LogWarning("调度器启动失败, 原因: {Message}", result.Message);
             }
+            return Ok(result);
         }
         catch (Exception ex)
         {
@@ -336,12 +345,12 @@ public class QuartzUIController : ControllerBase
             if (result.Success)
             {
                 _logger.LogInformation("调度器停止成功");
-                return Ok(ApiResponseDto<bool>.SuccessResponse(true, "调度器停止成功"));
             }
             else
             {
-                return Ok(ApiResponseDto<bool>.ErrorResponse("调度器停止失败"));
+                _logger.LogWarning("调度器停止失败, 原因: {Message}", result.Message);
             }
+            return Ok(result);
         }
         catch (Exception ex)
         {
@@ -366,6 +375,7 @@ public class QuartzUIController : ControllerBase
             }
             else
             {
+                _logger.LogWarning("邮件配置测试失败");
                 return Ok(ApiResponseDto<bool>.ErrorResponse("邮件配置测试失败，请检查邮件配置"));
             }
         }
