@@ -2,7 +2,7 @@
 <package >
 	<metadata>
 		<id>Chet.QuartzNet.UI</id>
-		<version>0.0.5</version>
+		<version>0.0.6</version>
 		<title>Chet.QuartzNet.UI</title>
 		<authors>Chet</authors>
 		<owners>Chet</owners>
@@ -10,7 +10,7 @@
 		<license type="expression">MIT</license>
 		<projectUrl>https://github.com/qiect/Chet.QuartzNet.UI</projectUrl>
 		<description>轻量级 Quartz.Net 可视化管理 UI 组件，支持文件存储和数据库存储，提供完整的任务调度管理功能</description>
-		<releaseNotes>v0.0.5: 修复作业更新状态保持问题，优化作业初始化逻辑，重新编写邮件通知功能使用指南</releaseNotes>
+		<releaseNotes>v0.0.6: 修复作业类扫描逻辑，增强无障碍访问支持，优化用户体验</releaseNotes>
 		<copyright>Copyright 2025</copyright>
 		<tags>quartz quartz.net scheduler task job cron ui management</tags>
 		<dependencies>
