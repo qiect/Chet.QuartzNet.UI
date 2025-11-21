@@ -821,7 +821,7 @@ new Vue({
             } else if (this.activeTab === 'logs') {
                 this.fetchLogs(this.logPagination.current, this.logPagination.pageSize, null, this.logSorter);
             }
-        }, 5000);
+        }, 60000);
     },
 
     beforeDestroy() {
