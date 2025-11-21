@@ -14,10 +14,10 @@ new Vue({
             jobs: [],
             logs: [],
             activeTab: 'jobs',
-            
+
             // 主题设置
             isDarkTheme: false,
-            
+
             // 分页配置
             jobPagination: {
                 current: 1,
@@ -27,7 +27,7 @@ new Vue({
                 showQuickJumper: true,
                 showTotal: total => `共 ${total} 条记录`
             },
-            
+
             logPagination: {
                 current: 1,
                 pageSize: 10,
@@ -36,11 +36,11 @@ new Vue({
                 showQuickJumper: true,
                 showTotal: total => `共 ${total} 条记录`
             },
-            
+
             // 排序状态
             jobSorter: null,
             logSorter: null,
-            
+
             // 日志搜索表单
             logSearchForm: {
                 jobName: '',
@@ -49,15 +49,15 @@ new Vue({
                 startTime: null,
                 endTime: null
             },
-            
-            
+
+
             // 搜索表单
             searchForm: {
                 jobName: '',
                 jobGroup: '',
                 status: null
             },
-            
+
             // 模态框状态
             modalVisible: false,
             modalTitle: '添加作业',
@@ -79,53 +79,53 @@ new Vue({
                 apiTimeout: 30,
                 skipSslValidation: false
             },
-            
+
             // 定时器
-        refreshTimer: null,
-        
-        // Cron表达式帮助模态框状态
-        cronHelperVisible: false,
-        
-        // 作业类名列表
-        jobClasses: [],
-        
-        // 是否正在加载作业类名
-        loadingJobClasses: false,
-        
-        // 常用Cron表达式列表
-        commonCronExpressions: [
-            { name: '每分钟', expression: '0 * * * * ?', description: '每分钟执行一次' },
-            { name: '每30分钟', expression: '0 0/30 * * * ?', description: '每30分钟执行一次' },
-            { name: '每小时', expression: '0 0 * * * ?', description: '每小时执行一次' },
-            { name: '每2小时', expression: '0 0 0/2 * * ?', description: '每2小时执行一次' },
-            { name: '每天凌晨1点', expression: '0 0 1 * * ?', description: '每天凌晨1点执行' },
-            { name: '每周一上午8点', expression: '0 0 8 ? * MON', description: '每周一上午8点执行' },
-            { name: '每周五下午5点', expression: '0 0 17 ? * FRI', description: '每周五下午5点执行' },
-            { name: '每月1号上午8点', expression: '0 0 8 1 * ?', description: '每月1号上午8点执行' }
-        ],
-        
-        // 列拖动组件配置
-        components: {
-            header: {
-                cell: (h, props, children) => {
-                    const { key, ...restProps } = props;
-                    return h('th', {
-                        ...restProps,
-                        class: 'ant-table-cell',
-                        style: {
-                            resize: 'horizontal',
-                            overflow: 'hidden',
-                            minWidth: '80px',
-                            maxWidth: '500px',
-                            position: 'relative'
-                        }
-                    }, children);
+            refreshTimer: null,
+
+            // Cron表达式帮助模态框状态
+            cronHelperVisible: false,
+
+            // 作业类名列表
+            jobClasses: [],
+
+            // 是否正在加载作业类名
+            loadingJobClasses: false,
+
+            // 常用Cron表达式列表
+            commonCronExpressions: [
+                { name: '每分钟', expression: '0 * * * * ?', description: '每分钟执行一次' },
+                { name: '每30分钟', expression: '0 0/30 * * * ?', description: '每30分钟执行一次' },
+                { name: '每小时', expression: '0 0 * * * ?', description: '每小时执行一次' },
+                { name: '每2小时', expression: '0 0 0/2 * * ?', description: '每2小时执行一次' },
+                { name: '每天凌晨1点', expression: '0 0 1 * * ?', description: '每天凌晨1点执行' },
+                { name: '每周一上午8点', expression: '0 0 8 ? * MON', description: '每周一上午8点执行' },
+                { name: '每周五下午5点', expression: '0 0 17 ? * FRI', description: '每周五下午5点执行' },
+                { name: '每月1号上午8点', expression: '0 0 8 1 * ?', description: '每月1号上午8点执行' }
+            ],
+
+            // 列拖动组件配置
+            components: {
+                header: {
+                    cell: (h, props, children) => {
+                        const { key, ...restProps } = props;
+                        return h('th', {
+                            ...restProps,
+                            class: 'ant-table-cell',
+                            style: {
+                                resize: 'horizontal',
+                                overflow: 'hidden',
+                                minWidth: '80px',
+                                maxWidth: '500px',
+                                position: 'relative'
+                            }
+                        }, children);
+                    }
                 }
             }
-        }
         };
     },
-    
+
     computed: {
         // 作业表格列配置
         jobColumns() {
@@ -135,7 +135,8 @@ new Vue({
                     dataIndex: 'jobName',
                     key: 'jobName',
                     width: 150,
-                    sorter: true
+                    sorter: true,
+                    fixed: 'left'
                 },
                 {
                     title: '作业分组',
@@ -197,7 +198,7 @@ new Vue({
                 }
             ];
         },
-        
+
         // 日志表格列配置
         logColumns() {
             return [
@@ -265,7 +266,7 @@ new Vue({
             ];
         }
     },
-    
+
     methods: {
         // 获取调度器状态
         async fetchSchedulerStatus() {
@@ -297,7 +298,7 @@ new Vue({
             } catch (error) {
                 console.error('获取调度器状态失败:', error);
                 this.$message.error('获取调度器状态失败: ' + (error.message || '网络错误'));
-                
+
                 // 当调度器停止或出现错误时，更新状态为已停止
                 this.schedulerStatus = {
                     isRunning: false,
@@ -306,7 +307,7 @@ new Vue({
                 };
             }
         },
-        
+
         // 获取作业列表
         async fetchJobs(page = 1, pageSize = 10, searchParams = null, sorter = null) {
             this.loading = true;
@@ -341,7 +342,7 @@ new Vue({
                 this.loading = false;
             }
         },
-        
+
         // 获取作业日志
         async fetchLogs(page = 1, pageSize = 10, searchParams = null, sorter = null) {
             this.loading = true;
@@ -358,7 +359,7 @@ new Vue({
                     sortBy: sorter?.field || '',
                     sortOrder: sorter?.order === 'ascend' ? 'asc' : sorter?.order === 'descend' ? 'desc' : ''
                 };
-                
+
                 // 处理日期对象，转换为ISO字符串
                 if (params.startTime instanceof Date) {
                     params.startTime = params.startTime.toISOString();
@@ -367,7 +368,14 @@ new Vue({
                     params.endTime = params.endTime.toISOString();
                 }
                 
-                const response = await axios.get('/api/quartz/GetJobLogs', { params });
+                // 确保status参数类型正确（转换为数字或null）
+                if (params.status === '' || params.status === null || params.status === undefined) {
+                    params.status = null;
+                } else {
+                    params.status = parseInt(params.status);
+                }
+
+                const response = await axios.post('/api/quartz/GetJobLogs', params);
                 if (response.data.success && response.data.data) {
                     this.logs = response.data.data.items || [];
                     this.logPagination.total = response.data.data.totalCount || 0;
@@ -380,7 +388,7 @@ new Vue({
                 this.loading = false;
             }
         },
-        
+
         // 获取作业类名列表
         async fetchJobClasses() {
             try {
@@ -398,7 +406,7 @@ new Vue({
                 this.loadingJobClasses = false;
             }
         },
-        
+
         // 切换调度器状态
         async toggleScheduler() {
             try {
@@ -423,7 +431,7 @@ new Vue({
                 this.$message.error('操作失败: ' + (error.message || '网络错误'));
             }
         },
-        
+
         // 刷新数据
         refreshData() {
             this.fetchSchedulerStatus();
@@ -433,14 +441,12 @@ new Vue({
                 this.fetchLogs(this.logPagination.current, this.logPagination.pageSize);
             }
         },
-        
-        // 显示添加作业模态框
+
+        // 显示添加作业模态框（触发器信息将由后端自动生成）
         showAddModal() {
             this.currentJob = {
                 jobName: '',
                 jobGroup: 'DEFAULT',
-                triggerName: '',
-                triggerGroup: 'DEFAULT',
                 cronExpression: '0 0/1 * * * ?',
                 description: '',
                 jobType: '',
@@ -457,11 +463,11 @@ new Vue({
             this.isEditing = false;
             this.modalTitle = '添加作业';
             this.modalVisible = true;
-            
+
             // 加载作业类名列表
             this.fetchJobClasses();
         },
-        
+
         // 显示编辑作业模态框
         showEditModal(job) {
             this.currentJob = { ...job };
@@ -471,22 +477,20 @@ new Vue({
             // 加载作业类名列表
             this.fetchJobClasses();
         },
-        
+
         // 保存作业
         async handleSave() {
             try {
-                // 验证必填字段
-                if (!this.currentJob.jobName || !this.currentJob.jobGroup || !this.currentJob.triggerName || !this.currentJob.triggerGroup || !this.currentJob.cronExpression || !this.currentJob.jobType) {
+                // 验证必填字段（触发器信息将自动生成）
+                if (!this.currentJob.jobName || !this.currentJob.jobGroup || !this.currentJob.cronExpression || !this.currentJob.jobType) {
                     this.$message.error('请填写必填字段');
                     return;
                 }
 
-                // 转换字段名以匹配后端DTO
+                // 转换字段名以匹配后端DTO（触发器信息将由后端自动生成）
                 const jobData = {
                     JobName: this.currentJob.jobName,
                     JobGroup: this.currentJob.jobGroup,
-                    TriggerName: this.currentJob.triggerName,
-                    TriggerGroup: this.currentJob.triggerGroup,
                     CronExpression: this.currentJob.cronExpression,
                     Description: this.currentJob.description,
                     JobType: this.currentJob.jobType,
@@ -501,10 +505,10 @@ new Vue({
                     SkipSslValidation: this.currentJob.skipSslValidation
                 };
 
-                const response = this.isEditing 
+                const response = this.isEditing
                     ? await axios.put('/api/quartz/UpdateJob', jobData)
                     : await axios.post('/api/quartz/AddJob', jobData);
-                
+
                 if (response.data.success) {
                     this.$message.success(response.data.message);
                     this.modalVisible = false;
@@ -516,12 +520,12 @@ new Vue({
                 this.$message.error('保存作业失败: ' + (error.message || '网络错误'));
             }
         },
-        
+
         // 模态框取消
         handleModalCancel() {
             this.modalVisible = false;
         },
-        
+
         // 删除作业
         async handleDelete(job) {
             try {
@@ -538,7 +542,7 @@ new Vue({
                 this.$message.error('删除失败: ' + (error.message || '网络错误'));
             }
         },
-        
+
         // 暂停作业
         async handlePause(job) {
             try {
@@ -555,7 +559,7 @@ new Vue({
                 this.$message.error('暂停失败: ' + (error.message || '网络错误'));
             }
         },
-        
+
         // 恢复作业
         async handleResume(job) {
             try {
@@ -572,7 +576,7 @@ new Vue({
                 this.$message.error('恢复失败: ' + (error.message || '网络错误'));
             }
         },
-        
+
         // 触发作业
         async handleTrigger(job) {
             try {
@@ -590,12 +594,12 @@ new Vue({
                 this.$message.error('触发失败: ' + (error.message || '网络错误'));
             }
         },
-        
+
         // 搜索
         handleSearch() {
             this.fetchJobs(1, this.jobPagination.pageSize);
         },
-        
+
         // 重置搜索
         resetSearch() {
             this.searchForm = {
@@ -605,7 +609,7 @@ new Vue({
             };
             this.fetchJobs(1, this.jobPagination.pageSize);
         },
-        
+
         // 标签页切换
         handleTabChange(activeKey) {
             this.activeTab = activeKey;
@@ -615,7 +619,7 @@ new Vue({
                 this.fetchLogs(this.logPagination.current, this.logPagination.pageSize, null, this.logSorter);
             }
         },
-        
+
         // 作业表格变化
         handleJobTableChange(pagination, filters, sorter) {
             this.jobPagination.current = pagination.current;
@@ -623,7 +627,7 @@ new Vue({
             this.jobSorter = sorter; // 保存排序状态
             this.fetchJobs(pagination.current, pagination.pageSize, null, sorter);
         },
-        
+
         // 日志表格变化
         handleLogTableChange(pagination, filters, sorter) {
             this.logPagination.current = pagination.current;
@@ -631,13 +635,13 @@ new Vue({
             this.logSorter = sorter; // 保存排序状态
             this.fetchLogs(pagination.current, pagination.pageSize, null, sorter);
         },
-        
+
         // 处理日志搜索
         handleLogSearch() {
             // 重置到第一页
             this.fetchLogs(1, this.logPagination.pageSize);
         },
-        
+
         // 重置日志搜索条件
         handleLogReset() {
             this.logSearchForm = {
@@ -650,7 +654,7 @@ new Vue({
             // 重置后重新获取第一页数据
             this.fetchLogs(1, this.logPagination.pageSize);
         },
-        
+
         // 状态颜色映射
         getJobStatusColor(status) {
             const statusMap = {
@@ -662,7 +666,7 @@ new Vue({
             };
             return statusMap[status] || 'blue';
         },
-        
+
         getJobStatusText(status) {
             const statusMap = {
                 0: '正常',
@@ -673,7 +677,7 @@ new Vue({
             };
             return statusMap[status] || '未知';
         },
-        
+
         getLogStatusColor(status) {
             const statusMap = {
                 0: 'blue',     // Running
@@ -682,7 +686,7 @@ new Vue({
             };
             return statusMap[status] || 'blue';
         },
-        
+
         getLogStatusText(status) {
             const statusMap = {
                 0: '运行中',
@@ -691,7 +695,7 @@ new Vue({
             };
             return statusMap[status] || '未知';
         },
-        
+
         // 格式化日期时间
         formatDateTime(dateTimeStr) {
             if (!dateTimeStr) return '-';
@@ -710,7 +714,7 @@ new Vue({
                 return dateTimeStr || '-';
             }
         },
-        
+
         // 切换主题
         toggleTheme() {
             this.isDarkTheme = !this.isDarkTheme;
@@ -718,7 +722,7 @@ new Vue({
             // 保存主题设置到localStorage
             localStorage.setItem('theme', this.isDarkTheme ? 'dark' : 'light');
         },
-        
+
         // 应用主题
         applyTheme(dark) {
             if (dark) {
@@ -727,46 +731,46 @@ new Vue({
                 document.documentElement.removeAttribute('data-theme');
             }
         },
-        
+
         // 检测系统主题
         detectSystemTheme() {
             return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
         },
-        
+
         // 显示Cron表达式帮助模态框
         showCronHelper() {
             this.cronHelperVisible = true;
         },
-        
+
         // 关闭Cron表达式帮助模态框
         handleCronHelperOk() {
             this.cronHelperVisible = false;
         },
-        
+
         // 取消Cron表达式帮助模态框
         handleCronHelperCancel() {
             this.cronHelperVisible = false;
         },
-        
+
         // 选择Cron表达式
         selectCronExpression(expression) {
             this.currentJob.cronExpression = expression;
             this.cronHelperVisible = false;
             this.$message.success('Cron表达式已更新');
         },
-        
+
         // 验证Cron表达式格式
         validateCronExpression(expression) {
             if (!expression || typeof expression !== 'string') {
                 return false;
             }
-            
+
             // 基本格式验证：6或7个字段，用空格分隔
             const parts = expression.trim().split(/\s+/);
             if (parts.length !== 6 && parts.length !== 7) {
                 return false;
             }
-            
+
             // 验证每个字段
             const patterns = [
                 /^[0-9,\-*\/]+$/,
@@ -777,17 +781,17 @@ new Vue({
                 /^[0-9,\-*\/]+$/,
                 /^[0-9,\-*\/]+$/
             ];
-            
+
             return parts.every((part, index) => {
                 if (index >= patterns.length) return true;
                 return patterns[index].test(part);
             });
         }
     },
-    
+
     mounted() {
         console.log('Vue 2应用初始化...');
-        
+
         // 初始化主题
         const savedTheme = localStorage.getItem('theme');
         if (savedTheme) {
@@ -796,7 +800,7 @@ new Vue({
             this.isDarkTheme = this.detectSystemTheme();
         }
         this.applyTheme(this.isDarkTheme);
-        
+
         // 监听系统主题变化
         if (window.matchMedia) {
             window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
@@ -808,7 +812,7 @@ new Vue({
         }
         this.fetchSchedulerStatus();
         this.fetchJobs();
-        
+
         // 定时刷新数据
         this.refreshTimer = setInterval(() => {
             this.fetchSchedulerStatus();
@@ -819,7 +823,7 @@ new Vue({
             }
         }, 5000);
     },
-    
+
     beforeDestroy() {
         if (this.refreshTimer) {
             clearInterval(this.refreshTimer);

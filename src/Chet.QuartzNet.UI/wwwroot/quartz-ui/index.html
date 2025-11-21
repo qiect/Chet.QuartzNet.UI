@@ -20,497 +20,490 @@
             --primary-color: #1890ff;
             --primary-hover: #40a9ff;
             --primary-active: #096dd9;
-            
             /* 背景色 */
             --bg-primary: #ffffff;
             --bg-secondary: #f0f2f5;
             --bg-tertiary: #f5f5f5;
-            
             /* 文字颜色 */
             --text-primary: #262626;
             --text-secondary: #595959;
             --text-tertiary: #8c8c8c;
-            
             /* 边框颜色 */
             --border-color: #e8e8e8;
-            
             /* 状态颜色 */
             --success-color: #52c41a;
             --error-color: #ff4d4f;
             --warning-color: #faad14;
             --info-color: #1890ff;
-            
             /* 阴影 */
             --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
             --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
         }
-        
+
         /* 简洁深色主题 */
         [data-theme="dark"] {
             /* 主色调 - 清新的蓝色 */
             --primary-color: #1890ff;
             --primary-hover: #40a9ff;
             --primary-active: #096dd9;
-            
             /* 背景色 - 舒适的深灰色 */
-            --bg-primary: #1a1a1a;      /* 主背景 */
-            --bg-secondary: #242424;     /* 次要背景 */
-            --bg-tertiary: #2d2d2d;      /* 输入框背景 */
-            
+            --bg-primary: #1a1a1a; /* 主背景 */
+            --bg-secondary: #242424; /* 次要背景 */
+            --bg-tertiary: #2d2d2d; /* 输入框背景 */
             /* 文字颜色 - 清晰的对比 */
-            --text-primary: #ffffff;     /* 主要文字 */
-            --text-secondary: #d9d9d9;   /* 次要文字 */
-            --text-tertiary: #bfbfbf;    /* 提示文字 */
-            
+            --text-primary: #ffffff; /* 主要文字 */
+            --text-secondary: #d9d9d9; /* 次要文字 */
+            --text-tertiary: #bfbfbf; /* 提示文字 */
             /* 边框颜色 - 柔和的灰色 */
             --border-color: #3a3a3a;
-            
             /* 状态颜色 */
             --success-color: #52c41a;
             --error-color: #ff4d4f;
             --warning-color: #faad14;
             --info-color: #1890ff;
-            
             /* 阴影 */
             --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
             --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
         }
-        
-        /* 简洁深色主题组件样式 */
-        [data-theme="dark"] .ant-table {
-            color: var(--text-primary);
-            background-color: var(--bg-primary);
-        }
-        
-        [data-theme="dark"] .ant-table-thead > tr > th {
-            color: var(--text-primary) !important;
-            background: var(--bg-tertiary) !important;
-        }
-        
-        [data-theme="dark"] .ant-table-tbody > tr > td {
-            color: var(--text-primary) !important;
-            background-color: var(--bg-primary) !important;
-        }
-        
-        [data-theme="dark"] .ant-table-tbody > tr:hover > td {
-            background: var(--bg-secondary) !important;
-        }
-        
-        /* 简洁输入框样式 */
-        [data-theme="dark"] .ant-input,
-        [data-theme="dark"] .ant-select-selector,
-        [data-theme="dark"] .ant-select-selection,
-        [data-theme="dark"] .ant-select-selection--single,
-        [data-theme="dark"] .ant-picker {
-            color: var(--text-primary) !important;
-            background: var(--bg-tertiary) !important;
-            border: 1px solid var(--border-color) !important;
-        }
-        
-        [data-theme="dark"] .ant-input:hover,
-        [data-theme="dark"] .ant-select-selector:hover,
-        [data-theme="dark"] .ant-picker:hover {
-            border-color: var(--primary-hover) !important;
-        }
-        
-        [data-theme="dark"] .ant-input:focus,
-        [data-theme="dark"] .ant-select-focused .ant-select-selector,
-        [data-theme="dark"] .ant-picker-focused {
-            border-color: var(--primary-color) !important;
-        }
-        
-        /* 增强下拉框样式优先级 */
-        [data-theme="dark"] .ant-select-dropdown,
-        [data-theme="dark"] .ant-select-dropdown * {
-            background-color: var(--bg-primary) !important;
-            border-color: var(--border-color) !important;
-            box-shadow: var(--shadow-md) !important;
-        }
-        
-        [data-theme="dark"] .ant-select-dropdown-menu {
-            background-color: var(--bg-primary) !important;
-        }
-        
-        [data-theme="dark"] .ant-select-dropdown-menu-item {
-            color: var(--text-primary) !important;
-            background-color: var(--bg-primary) !important;
-        }
-        
-        [data-theme="dark"] .ant-select-dropdown-menu-item:hover {
-            background-color: rgba(64, 169, 255, 0.1) !important;
-        }
-        
-        [data-theme="dark"] .ant-select-dropdown-menu-item-active {
-            background-color: rgba(64, 169, 255, 0.1) !important;
-        }
-        
-        [data-theme="dark"] .ant-select-dropdown-menu-item-selected {
-            color: var(--primary-color) !important;
-            background-color: rgba(64, 169, 255, 0.1) !important;
-        }
-        
-        [data-theme="dark"] .ant-select-dropdown-menu-item-disabled {
-            color: var(--text-tertiary) !important;
-            background-color: var(--bg-primary) !important;
-        }
-        
-        [data-theme="dark"] .ant-select-dropdown-menu-item-group-title {
-            color: var(--text-secondary) !important;
-            background-color: var(--bg-secondary) !important;
-        }
-        
-        [data-theme="dark"] .ant-select-dropdown-menu-empty {
-            color: var(--text-tertiary) !important;
-            background-color: var(--bg-primary) !important;
-        }
-        
-        [data-theme="dark"] .ant-select-item-option-content {
-            color: var(--text-primary) !important;
-        }
-        
-        [data-theme="dark"] .ant-select-item-option-active {
-            background-color: rgba(64, 169, 255, 0.1) !important;
-        }
-        
-        [data-theme="dark"] .ant-select-item-option-selected {
-            color: var(--primary-color) !important;
-            background-color: rgba(64, 169, 255, 0.1) !important;
-        }
-        
-        /* 简洁按钮样式 */
-        [data-theme="dark"] .ant-btn-primary {
-            background: var(--primary-color) !important;
-            border: 1px solid var(--primary-color) !important;
-            color: white !important;
-        }
-        
-        [data-theme="dark"] .ant-btn-primary:hover {
-            background: var(--primary-hover) !important;
-            border-color: var(--primary-hover) !important;
-        }
-        
-        [data-theme="dark"] .ant-btn-default {
-            background: var(--bg-primary) !important;
-            border: 1px solid var(--border-color) !important;
-            color: var(--text-primary) !important;
-        }
-        
-        [data-theme="dark"] .ant-btn-default:hover {
-            border-color: var(--primary-color) !important;
-            color: var(--primary-color) !important;
-            background: var(--bg-secondary) !important;
-        }
-        
-        /* 简洁模态框样式 */
-        [data-theme="dark"] .ant-modal-content {
-            background: var(--bg-primary) !important;
-            border: 1px solid var(--border-color) !important;
-        }
-        
-        [data-theme="dark"] .ant-modal-header {
-            background: var(--bg-tertiary) !important;
-            border-bottom: 1px solid var(--border-color) !important;
-        }
-        
-        [data-theme="dark"] .ant-modal-title {
-            color: var(--text-primary) !important;
-        }
-        
-        [data-theme="dark"] .ant-modal-body {
-            color: var(--text-secondary) !important;
-        }
-        
-        [data-theme="dark"] .ant-modal-footer {
-            background: var(--bg-tertiary) !important;
-            border-top: 1px solid var(--border-color) !important;
-        }
-        
-        /* 简洁卡片样式 */
-        [data-theme="dark"] .ant-card {
-            background: var(--bg-primary) !important;
-            border: 1px solid var(--border-color) !important;
-        }
-        
-        [data-theme="dark"] .ant-card-head {
-            background: var(--bg-tertiary) !important;
-            border-bottom: 1px solid var(--border-color) !important;
-        }
-        
-        [data-theme="dark"] .ant-card-head-title {
-            color: var(--text-primary) !important;
-        }
-        [data-theme="dark"] .ant-table-tbody > tr {
-            background-color: var(--bg-primary) !important;
-        }
-        
-        /* 简洁深色主题背景 */
-        [data-theme="dark"] body {
-            background: var(--bg-primary);
-        }
-        
-        /* 简洁滚动条样式 */
-        [data-theme="dark"] ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        
-        [data-theme="dark"] ::-webkit-scrollbar-track {
-            background: var(--bg-primary);
-        }
-        
-        [data-theme="dark"] ::-webkit-scrollbar-thumb {
-            background: var(--border-color);
-            border-radius: 4px;
-        }
-        
-        [data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
-            background: var(--border-color);
-        }
-        
-        [data-theme="dark"] .ant-layout {
-            background: var(--bg-primary) !important;
-        }
-        
-        /* 简洁标签页样式 */
-        [data-theme="dark"] .ant-tabs-tab {
-            color: var(--text-secondary) !important;
-        }
-        
-        [data-theme="dark"] .ant-tabs-tab:hover {
-            color: var(--primary-color) !important;
-        }
-        
-        [data-theme="dark"] .ant-tabs-tab-active {
-            color: var(--primary-color) !important;
-        }
-        
-        [data-theme="dark"] .ant-tabs-ink-bar {
-            background: var(--primary-color) !important;
-        }
-        [data-theme="dark"] .ant-pagination {
-            color: var(--text-primary) !important;
-        }
-        
-        [data-theme="dark"] .ant-pagination-item {
-            background-color: var(--bg-primary) !important;
-            border-color: var(--border-color) !important;
-        }
-        
-        [data-theme="dark"] .ant-pagination-item a {
-            color: var(--text-primary) !important;
-        }
-        
-        [data-theme="dark"] .ant-pagination-item-active {
-            background-color: var(--primary-color) !important;
-            border-color: var(--primary-color) !important;
-        }
-        
-        [data-theme="dark"] .ant-pagination-item-active a {
-            color: #fff !important;
-        }
-        
-        [data-theme="dark"] .ant-pagination-prev button,
-        [data-theme="dark"] .ant-pagination-next button {
-            color: var(--text-primary) !important;
-            background-color: var(--bg-primary) !important;
-            border-color: var(--border-color) !important;
-        }
-        
-        [data-theme="dark"] .ant-pagination-prev:hover button,
-        [data-theme="dark"] .ant-pagination-next:hover button,
-        [data-theme="dark"] .ant-pagination-item:hover {
-            border-color: var(--primary-color) !important;
-        }
-        
-        [data-theme="dark"] .ant-pagination-options {
-            color: var(--text-primary) !important;
-        }
-        
-        [data-theme="dark"] .ant-pagination-options-size-changer .ant-select-selector {
-            background-color: var(--bg-tertiary) !important;
-            border-color: var(--border-color) !important;
-        }
-        
+
+            /* 简洁深色主题组件样式 */
+            [data-theme="dark"] .ant-table {
+                color: var(--text-primary);
+                background-color: var(--bg-primary);
+            }
+
+            [data-theme="dark"] .ant-table-thead > tr > th {
+                color: var(--text-primary) !important;
+                background: var(--bg-tertiary) !important;
+            }
+
+            [data-theme="dark"] .ant-table-tbody > tr > td {
+                color: var(--text-primary) !important;
+                background-color: var(--bg-primary) !important;
+            }
+
+            [data-theme="dark"] .ant-table-tbody > tr:hover > td {
+                background: var(--bg-secondary) !important;
+            }
+
+            /* 简洁输入框样式 */
+            [data-theme="dark"] .ant-input,
+            [data-theme="dark"] .ant-select-selector,
+            [data-theme="dark"] .ant-select-selection,
+            [data-theme="dark"] .ant-select-selection--single,
+            [data-theme="dark"] .ant-picker {
+                color: var(--text-primary) !important;
+                background: var(--bg-tertiary) !important;
+                border: 1px solid var(--border-color) !important;
+            }
+
+                [data-theme="dark"] .ant-input:hover,
+                [data-theme="dark"] .ant-select-selector:hover,
+                [data-theme="dark"] .ant-picker:hover {
+                    border-color: var(--primary-hover) !important;
+                }
+
+                [data-theme="dark"] .ant-input:focus,
+                [data-theme="dark"] .ant-select-focused .ant-select-selector,
+                [data-theme="dark"] .ant-picker-focused {
+                    border-color: var(--primary-color) !important;
+                }
+
+            /* 增强下拉框样式优先级 */
+            [data-theme="dark"] .ant-select-dropdown,
+            [data-theme="dark"] .ant-select-dropdown * {
+                background-color: var(--bg-primary) !important;
+                border-color: var(--border-color) !important;
+                box-shadow: var(--shadow-md) !important;
+            }
+
+            [data-theme="dark"] .ant-select-dropdown-menu {
+                background-color: var(--bg-primary) !important;
+            }
+
+            [data-theme="dark"] .ant-select-dropdown-menu-item {
+                color: var(--text-primary) !important;
+                background-color: var(--bg-primary) !important;
+            }
+
+                [data-theme="dark"] .ant-select-dropdown-menu-item:hover {
+                    background-color: rgba(64, 169, 255, 0.1) !important;
+                }
+
+            [data-theme="dark"] .ant-select-dropdown-menu-item-active {
+                background-color: rgba(64, 169, 255, 0.1) !important;
+            }
+
+            [data-theme="dark"] .ant-select-dropdown-menu-item-selected {
+                color: var(--primary-color) !important;
+                background-color: rgba(64, 169, 255, 0.1) !important;
+            }
+
+            [data-theme="dark"] .ant-select-dropdown-menu-item-disabled {
+                color: var(--text-tertiary) !important;
+                background-color: var(--bg-primary) !important;
+            }
+
+            [data-theme="dark"] .ant-select-dropdown-menu-item-group-title {
+                color: var(--text-secondary) !important;
+                background-color: var(--bg-secondary) !important;
+            }
+
+            [data-theme="dark"] .ant-select-dropdown-menu-empty {
+                color: var(--text-tertiary) !important;
+                background-color: var(--bg-primary) !important;
+            }
+
+            [data-theme="dark"] .ant-select-item-option-content {
+                color: var(--text-primary) !important;
+            }
+
+            [data-theme="dark"] .ant-select-item-option-active {
+                background-color: rgba(64, 169, 255, 0.1) !important;
+            }
+
+            [data-theme="dark"] .ant-select-item-option-selected {
+                color: var(--primary-color) !important;
+                background-color: rgba(64, 169, 255, 0.1) !important;
+            }
+
+            /* 简洁按钮样式 */
+            [data-theme="dark"] .ant-btn-primary {
+                background: var(--primary-color) !important;
+                border: 1px solid var(--primary-color) !important;
+                color: white !important;
+            }
+
+                [data-theme="dark"] .ant-btn-primary:hover {
+                    background: var(--primary-hover) !important;
+                    border-color: var(--primary-hover) !important;
+                }
+
+            [data-theme="dark"] .ant-btn-default {
+                background: var(--bg-primary) !important;
+                border: 1px solid var(--border-color) !important;
+                color: var(--text-primary) !important;
+            }
+
+                [data-theme="dark"] .ant-btn-default:hover {
+                    border-color: var(--primary-color) !important;
+                    color: var(--primary-color) !important;
+                    background: var(--bg-secondary) !important;
+                }
+
+            /* 简洁模态框样式 */
+            [data-theme="dark"] .ant-modal-content {
+                background: var(--bg-primary) !important;
+                border: 1px solid var(--border-color) !important;
+            }
+
+            [data-theme="dark"] .ant-modal-header {
+                background: var(--bg-tertiary) !important;
+                border-bottom: 1px solid var(--border-color) !important;
+            }
+
+            [data-theme="dark"] .ant-modal-title {
+                color: var(--text-primary) !important;
+            }
+
+            [data-theme="dark"] .ant-modal-body {
+                color: var(--text-secondary) !important;
+            }
+
+            [data-theme="dark"] .ant-modal-footer {
+                background: var(--bg-tertiary) !important;
+                border-top: 1px solid var(--border-color) !important;
+            }
+
+            /* 简洁卡片样式 */
+            [data-theme="dark"] .ant-card {
+                background: var(--bg-primary) !important;
+                border: 1px solid var(--border-color) !important;
+            }
+
+            [data-theme="dark"] .ant-card-head {
+                background: var(--bg-tertiary) !important;
+                border-bottom: 1px solid var(--border-color) !important;
+            }
+
+            [data-theme="dark"] .ant-card-head-title {
+                color: var(--text-primary) !important;
+            }
+
+            [data-theme="dark"] .ant-table-tbody > tr {
+                background-color: var(--bg-primary) !important;
+            }
+
+            /* 简洁深色主题背景 */
+            [data-theme="dark"] body {
+                background: var(--bg-primary);
+            }
+
+            /* 简洁滚动条样式 */
+            [data-theme="dark"] ::-webkit-scrollbar {
+                width: 8px;
+                height: 8px;
+            }
+
+            [data-theme="dark"] ::-webkit-scrollbar-track {
+                background: var(--bg-primary);
+            }
+
+            [data-theme="dark"] ::-webkit-scrollbar-thumb {
+                background: var(--border-color);
+                border-radius: 4px;
+            }
+
+                [data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+                    background: var(--border-color);
+                }
+
+            [data-theme="dark"] .ant-layout {
+                background: var(--bg-primary) !important;
+            }
+
+            /* 简洁标签页样式 */
+            [data-theme="dark"] .ant-tabs-tab {
+                color: var(--text-secondary) !important;
+            }
+
+                [data-theme="dark"] .ant-tabs-tab:hover {
+                    color: var(--primary-color) !important;
+                }
+
+            [data-theme="dark"] .ant-tabs-tab-active {
+                color: var(--primary-color) !important;
+            }
+
+            [data-theme="dark"] .ant-tabs-ink-bar {
+                background: var(--primary-color) !important;
+            }
+
+            [data-theme="dark"] .ant-pagination {
+                color: var(--text-primary) !important;
+            }
+
+            [data-theme="dark"] .ant-pagination-item {
+                background-color: var(--bg-primary) !important;
+                border-color: var(--border-color) !important;
+            }
+
+                [data-theme="dark"] .ant-pagination-item a {
+                    color: var(--text-primary) !important;
+                }
+
+            [data-theme="dark"] .ant-pagination-item-active {
+                background-color: var(--primary-color) !important;
+                border-color: var(--primary-color) !important;
+            }
+
+                [data-theme="dark"] .ant-pagination-item-active a {
+                    color: #fff !important;
+                }
+
+            [data-theme="dark"] .ant-pagination-prev button,
+            [data-theme="dark"] .ant-pagination-next button {
+                color: var(--text-primary) !important;
+                background-color: var(--bg-primary) !important;
+                border-color: var(--border-color) !important;
+            }
+
+            [data-theme="dark"] .ant-pagination-prev:hover button,
+            [data-theme="dark"] .ant-pagination-next:hover button,
+            [data-theme="dark"] .ant-pagination-item:hover {
+                border-color: var(--primary-color) !important;
+            }
+
+            [data-theme="dark"] .ant-pagination-options {
+                color: var(--text-primary) !important;
+            }
+
+            [data-theme="dark"] .ant-pagination-options-size-changer .ant-select-selector {
+                background-color: var(--bg-tertiary) !important;
+                border-color: var(--border-color) !important;
+            }
+
         /* Cron帮助模态框样式 */
         .cron-helper-content {
             padding: 16px 0;
         }
-        
-        .cron-helper-content h4 {
-            margin-bottom: 12px;
-            color: var(--text-primary);
-            font-weight: 600;
-        }
-        
+
+            .cron-helper-content h4 {
+                margin-bottom: 12px;
+                color: var(--text-primary);
+                font-weight: 600;
+            }
+
         .cron-format-help {
             background: var(--bg-secondary);
             padding: 16px;
             border-radius: 8px;
             border: 1px solid var(--border-color);
         }
-        
-        .cron-format-help p {
-            margin-bottom: 8px;
-            color: var(--text-primary);
-        }
-        
-        .cron-format-help ul {
-            margin: 8px 0;
-            padding-left: 20px;
-        }
-        
-        .cron-format-help li {
-            margin-bottom: 4px;
-            color: var(--text-secondary);
-            line-height: 1.5;
-        }
-        
-        .cron-format-help strong {
-            color: var(--primary-color);
-        }
-        
+
+            .cron-format-help p {
+                margin-bottom: 8px;
+                color: var(--text-primary);
+            }
+
+            .cron-format-help ul {
+                margin: 8px 0;
+                padding-left: 20px;
+            }
+
+            .cron-format-help li {
+                margin-bottom: 4px;
+                color: var(--text-secondary);
+                line-height: 1.5;
+            }
+
+            .cron-format-help strong {
+                color: var(--primary-color);
+            }
+
         /* 深色主题下的Cron帮助样式 - 简洁版 */
         [data-theme="dark"] .cron-helper-content {
             padding: 16px 0;
         }
-        
-        [data-theme="dark"] .cron-helper-content h4 {
-            color: var(--text-primary);
-        }
-        
+
+            [data-theme="dark"] .cron-helper-content h4 {
+                color: var(--text-primary);
+            }
+
         [data-theme="dark"] .cron-format-help {
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
         }
-        
-        [data-theme="dark"] .cron-format-help p {
-            color: var(--text-secondary);
-        }
-        
-        [data-theme="dark"] .cron-format-help ul {
-            color: var(--text-secondary);
-        }
-        
-        [data-theme="dark"] .cron-format-help li {
-            color: var(--text-tertiary);
-        }
-        
-        [data-theme="dark"] .cron-format-help strong {
-            color: var(--primary-color);
-        }
-        
+
+            [data-theme="dark"] .cron-format-help p {
+                color: var(--text-secondary);
+            }
+
+            [data-theme="dark"] .cron-format-help ul {
+                color: var(--text-secondary);
+            }
+
+            [data-theme="dark"] .cron-format-help li {
+                color: var(--text-tertiary);
+            }
+
+            [data-theme="dark"] .cron-format-help strong {
+                color: var(--primary-color);
+            }
+
         /* 简洁列表项样式 */
         [data-theme="dark"] .ant-list-item {
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
         }
-        
-        [data-theme="dark"] .ant-list-item:hover {
-            background: var(--bg-secondary);
-            border-color: var(--primary-color);
-        }
+
+            [data-theme="dark"] .ant-list-item:hover {
+                background: var(--bg-secondary);
+                border-color: var(--primary-color);
+            }
+
         [data-theme="dark"] .cron-format-help {
             background: var(--bg-tertiary);
         }
-        
+
         [data-theme="dark"] .cron-helper-content h4 {
             color: var(--text-primary);
         }
-        
+
         /* 常用表达式列表项悬停效果 */
         .ant-list-item:hover {
             background-color: rgba(24, 144, 255, 0.05);
             transition: background-color 0.2s ease;
         }
-        
+
         [data-theme="dark"] .ant-list-item:hover {
             background-color: rgba(64, 169, 255, 0.1);
         }
-        
+
         /* Cron表达式列表项特殊悬停效果 */
         .cron-helper-content .ant-list-item {
             transition: all 0.2s ease;
             border-left: 3px solid transparent;
         }
-        
-        .cron-helper-content .ant-list-item:hover {
-            border-left-color: var(--primary-color);
-            transform: translateX(2px);
-        }
-        
-        .cron-helper-content .ant-list-item:hover .ant-btn {
-            opacity: 1;
-            transform: scale(1.05);
-        }
-        
-        .cron-helper-content .ant-list-item .ant-btn {
-            opacity: 0.8;
-            transition: all 0.2s ease;
-        }
-        
+
+            .cron-helper-content .ant-list-item:hover {
+                border-left-color: var(--primary-color);
+                transform: translateX(2px);
+            }
+
+                .cron-helper-content .ant-list-item:hover .ant-btn {
+                    opacity: 1;
+                    transform: scale(1.05);
+                }
+
+            .cron-helper-content .ant-list-item .ant-btn {
+                opacity: 0.8;
+                transition: all 0.2s ease;
+            }
+
         /* 模态框样式 */
         [data-theme="dark"] .ant-modal-content {
             background-color: var(--bg-primary);
             color: var(--text-primary);
         }
-        
+
         [data-theme="dark"] .ant-modal-header {
             background-color: var(--bg-tertiary);
             border-bottom-color: var(--border-color);
         }
-        
+
         [data-theme="dark"] .ant-modal-title {
             color: var(--text-primary);
         }
-        
+
         [data-theme="dark"] .ant-form-item-label > label {
             color: var(--text-primary);
         }
-        
+
         [data-theme="dark"] .ant-tabs-tab {
             color: var(--text-secondary);
         }
-        
+
         [data-theme="dark"] .ant-tabs-tab-active {
             color: var(--primary-color);
         }
-        
+
         [data-theme="dark"] .ant-tabs-ink-bar {
             background-color: var(--primary-color);
         }
-        
+
         [data-theme="dark"] .ant-card {
             background-color: var(--bg-primary);
             color: var(--text-primary);
         }
-        
+
         [data-theme="dark"] .ant-card-head {
             background-color: var(--bg-tertiary);
             border-bottom-color: var(--border-color);
         }
-        
+
         [data-theme="dark"] .ant-card-head-title {
             color: var(--text-primary);
         }
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
             transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background-color: var(--bg-secondary);
             color: var(--text-primary);
             min-height: 100vh;
         }
-        
+
         .container {
             padding: 24px;
         }
-        
+
         .header {
             background: var(--bg-primary);
             padding: 24px 32px;
@@ -523,26 +516,26 @@
             flex-wrap: wrap;
             gap: 16px;
         }
-        
-        .header h1 {
-            color: var(--primary-color);
-            margin-bottom: 0;
-            font-size: 28px;
-            font-weight: 600;
-        }
-        
+
+            .header h1 {
+                color: var(--primary-color);
+                margin-bottom: 0;
+                font-size: 28px;
+                font-weight: 600;
+            }
+
         .header-actions {
             display: flex;
             align-items: center;
             gap: 16px;
         }
-        
+
         .scheduler-status {
             display: flex;
             align-items: center;
             gap: 16px;
         }
-        
+
         .status-indicator {
             display: inline-block;
             width: 10px;
@@ -551,75 +544,76 @@
             margin-right: 8px;
             box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
         }
-        
+
         .status-running {
             background-color: var(--success-color);
             animation: pulse 2s infinite;
         }
-        
+
         .status-stopped {
             background-color: var(--error-color);
         }
-        
+
         @keyframes pulse {
             0%, 100% {
                 opacity: 1;
             }
+
             50% {
                 opacity: 0.5;
             }
         }
-        
+
         .content-card {
             background: var(--bg-primary);
             border-radius: 12px;
             box-shadow: var(--shadow-md);
             overflow: hidden;
         }
-        
+
         .search-bar {
             padding: 20px 24px;
             border-bottom: 1px solid var(--border-color);
             background: var(--bg-primary);
         }
-        
+
         .table-container {
             padding: 24px;
             overflow-x: auto;
         }
-        
-        /* 允许表格出现横向滚动条 */
-        .table-container .ant-table {
-            overflow-x: auto;
-            min-width: 100%;
-        }
-        
-        /* 确保表格内容不会换行 */
-        .table-container .ant-table-tbody > tr > td,
-        .table-container .ant-table-thead > tr > th {
-            white-space: nowrap;
-        }
-        
-        /* 确保表格容器有足够的宽度 */
-        .table-container .ant-table-container {
-            overflow-x: auto;
-        }
-        
+
+            /* 允许表格出现横向滚动条 */
+            .table-container .ant-table {
+                overflow-x: auto;
+                min-width: 100%;
+            }
+
+            /* 确保表格内容不会换行 */
+            .table-container .ant-table-tbody > tr > td,
+            .table-container .ant-table-thead > tr > th {
+                white-space: nowrap;
+            }
+
+            /* 确保表格容器有足够的宽度 */
+            .table-container .ant-table-container {
+                overflow-x: auto;
+            }
+
         .action-buttons {
             display: flex;
             gap: 8px;
         }
-        
+
         .modal-form {
             padding: 24px;
         }
-        
+
         .cron-hint {
             color: var(--text-tertiary);
             font-size: 12px;
             margin-top: 4px;
         }
-        
+
         /* 主题切换按钮 */
         .theme-toggle {
             display: flex;
@@ -632,35 +626,35 @@
             cursor: pointer;
             transition: all 0.3s ease;
         }
-        
-        .theme-toggle:hover {
-            background: var(--border-color);
-        }
-        
-        .theme-toggle i {
-            font-size: 14px;
-        }
-        
+
+            .theme-toggle:hover {
+                background: var(--border-color);
+            }
+
+            .theme-toggle i {
+                font-size: 14px;
+            }
+
         /* 响应式设计 */
         @media (max-width: 768px) {
             .container {
                 padding: 12px;
             }
-            
+
             .header {
                 padding: 16px 20px;
                 flex-direction: column;
                 align-items: stretch;
             }
-            
+
             .header-actions {
                 justify-content: space-between;
             }
-            
+
             .search-bar {
                 padding: 16px;
             }
-            
+
             .table-container {
                 padding: 16px;
             }
@@ -728,55 +722,49 @@
                         </div>
 
                         <!-- 作业表格 -->
-        <div class="table-container" style="overflow-x: auto; white-space: nowrap;">
-            <a-table
-                :columns="jobColumns"
-                :data-source="jobs"
-                :loading="loading"
-                :pagination="jobPagination"
-                :row-key="record => record.jobName"
-                @change="handleJobTableChange"
-                :bordered="true"
-                :components="components"
-                :scroll="{ x: true }"
-            >
-                <template slot="status" slot-scope="text, record">
-                    <a-tag :color="getJobStatusColor(record.status)">
-                        {{ getJobStatusText(record.status) }}
-                    </a-tag>
-                </template>
-                <template slot="isEnabled" slot-scope="text, record">
-                    <a-switch :checked="record.isEnabled" disabled />
-                </template>
-                <template slot="nextRunTime" slot-scope="text, record">
-                    {{ formatDateTime(record.nextRunTime) }}
-                </template>
-                <template slot="createTime" slot-scope="text, record">
-                    {{ formatDateTime(record.createTime) }}
-                </template>
-                <template slot="action" slot-scope="text, record">
-                    <div class="action-buttons">
-                        <a-button size="small" @click="showEditModal(record)">编辑</a-button>
-                        <a-button size="small" type="primary" @click="handleTrigger(record)">触发</a-button>
-                        <a-button 
-                            size="small" 
-                            :type="record.status === 1 ? 'primary' : 'default'"
-                            @click="record.status === 1 ? handleResume(record) : handlePause(record)"
-                        >
-                            {{ record.status === 1 ? '恢复' : '暂停' }}
-                        </a-button>
-                        <a-popconfirm
-                            title="确定要删除这个作业吗？"
-                            @confirm="handleDelete(record)"
-                            okText="确定"
-                            cancelText="取消"
-                        >
-                            <a-button size="small" type="danger">删除</a-button>
-                        </a-popconfirm>
-                    </div>
-                </template>
-            </a-table>
-        </div>
+                        <div class="table-container" style="overflow-x: auto; white-space: nowrap;">
+                            <a-table :columns="jobColumns"
+                                     :data-source="jobs"
+                                     :loading="loading"
+                                     :pagination="jobPagination"
+                                     :row-key="record => record.jobName"
+                                     @change="handleJobTableChange"
+                                     :bordered="true"
+                                     :components="components"
+                                     :scroll="{ x: true }">
+                                <template slot="status" slot-scope="text, record">
+                                    <a-tag :color="getJobStatusColor(record.status)">
+                                        {{ getJobStatusText(record.status) }}
+                                    </a-tag>
+                                </template>
+                                <template slot="isEnabled" slot-scope="text, record">
+                                    <a-switch :checked="record.isEnabled" disabled />
+                                </template>
+                                <template slot="nextRunTime" slot-scope="text, record">
+                                    {{ formatDateTime(record.nextRunTime) }}
+                                </template>
+                                <template slot="createTime" slot-scope="text, record">
+                                    {{ formatDateTime(record.createTime) }}
+                                </template>
+                                <template slot="action" slot-scope="text, record">
+                                    <div class="action-buttons">
+                                        <a-button size="small" @click="showEditModal(record)">编辑</a-button>
+                                        <a-button size="small" type="primary" @click="handleTrigger(record)">触发</a-button>
+                                        <a-button size="small"
+                                                  :type="record.status === 1 ? 'primary' : 'default'"
+                                                  @click="record.status === 1 ? handleResume(record) : handlePause(record)">
+                                            {{ record.status === 1 ? '恢复' : '暂停' }}
+                                        </a-button>
+                                        <a-popconfirm title="确定要删除这个作业吗？"
+                                                      @confirm="handleDelete(record)"
+                                                      okText="确定"
+                                                      cancelText="取消">
+                                            <a-button size="small" type="danger">删除</a-button>
+                                        </a-popconfirm>
+                                    </div>
+                                </template>
+                            </a-table>
+                        </div>
                     </a-tab-pane>
 
                     <a-tab-pane key="logs" tab="执行日志">
@@ -791,32 +779,30 @@
                                 </a-col>
                                 <a-col :span="4">
                                     <a-select v-model="logSearchForm.status" placeholder="状态" style="width: 100%">
-                            <a-select-option value="">全部</a-select-option>
-                            <a-select-option value="0">运行中</a-select-option>
-                            <a-select-option value="1">成功</a-select-option>
-                            <a-select-option value="2">失败</a-select-option>
-                        </a-select>
+                                        <a-select-option value="null">全部</a-select-option>
+                                        <a-select-option value="0">运行中</a-select-option>
+                                        <a-select-option value="1">成功</a-select-option>
+                                        <a-select-option value="2">失败</a-select-option>
+                                    </a-select>
                                 </a-col>
                                 <a-col :span="6">
                                     <a-space>
-                            <a-button type="primary" @click="handleLogSearch">搜索</a-button>
-                            <a-button @click="handleLogReset">重置</a-button>
-                        </a-space>
+                                        <a-button type="primary" @click="handleLogSearch">搜索</a-button>
+                                        <a-button @click="handleLogReset">重置</a-button>
+                                    </a-space>
                                 </a-col>
                             </a-row>
                         </div>
                         <div class="table-container" style="overflow-x: auto; white-space: nowrap;">
-                            <a-table
-                                :columns="logColumns"
-                                :data-source="logs"
-                                :loading="loading"
-                                :pagination="logPagination"
-                                :row-key="record => record.logId"
-                                @change="handleLogTableChange"
-                                :bordered="true"
-                                :components="components"
-                                :scroll="{ x: true }"
-                            >
+                            <a-table :columns="logColumns"
+                                     :data-source="logs"
+                                     :loading="loading"
+                                     :pagination="logPagination"
+                                     :row-key="record => record.logId"
+                                     @change="handleLogTableChange"
+                                     :bordered="true"
+                                     :components="components"
+                                     :scroll="{ x: true }">
                                 <template slot="status" slot-scope="text, record">
                                     <a-tag :color="getLogStatusColor(record.status)">
                                         {{ getLogStatusText(record.status) }}
@@ -845,15 +831,13 @@
         </div>
 
         <!-- Cron表达式帮助模态框 -->
-        <a-modal
-            v-model="cronHelperVisible"
-            title="Cron表达式帮助"
-            @ok="handleCronHelperOk"
-            @cancel="handleCronHelperCancel"
-            okText="确定"
-            cancelText="取消"
-            :width="800"
-        >
+        <a-modal v-model="cronHelperVisible"
+                 title="Cron表达式帮助"
+                 @ok="handleCronHelperOk"
+                 @cancel="handleCronHelperCancel"
+                 okText="确定"
+                 cancelText="取消"
+                 :width="800">
             <div class="cron-helper-content">
                 <a-row :gutter="16">
                     <a-col :span="12">
@@ -903,15 +887,13 @@
         </a-modal>
 
         <!-- 添加/编辑作业模态框 -->
-        <a-modal
-            v-model="modalVisible"
-            :title="modalTitle"
-            @ok="handleSave"
-            @cancel="handleModalCancel"
-            okText="确定"
-            cancelText="取消"
-            :width="600"
-        >
+        <a-modal v-model="modalVisible"
+                 :title="modalTitle"
+                 @ok="handleSave"
+                 @cancel="handleModalCancel"
+                 okText="确定"
+                 cancelText="取消"
+                 :width="600">
             <div class="modal-form">
                 <a-form-model :model="currentJob" :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
                     <a-form-model-item label="作业名称" required>
@@ -919,12 +901,6 @@
                     </a-form-model-item>
                     <a-form-model-item label="作业分组" required>
                         <a-input v-model="currentJob.jobGroup" placeholder="请输入作业分组" />
-                    </a-form-model-item>
-                    <a-form-model-item label="触发器名称" required>
-                        <a-input v-model="currentJob.triggerName" placeholder="请输入触发器名称" />
-                    </a-form-model-item>
-                    <a-form-model-item label="触发器分组" required>
-                        <a-input v-model="currentJob.triggerGroup" placeholder="请输入触发器分组" />
                     </a-form-model-item>
                     <a-form-model-item label="Cron表达式" required>
                         <a-input v-model="currentJob.cronExpression" placeholder="请输入Cron表达式，如: 0 0/1 * * * ?">
@@ -939,16 +915,14 @@
                     </a-form-model-item>
                     <!-- DLL作业字段 -->
                     <a-form-model-item v-if="currentJob.jobTypeEnum === 'DLL'" label="作业类名" required>
-                        <a-select 
-                            v-model="currentJob.jobType" 
-                            placeholder="请选择或输入完整的类名，如: MyNamespace.MyJobClass" 
-                            :loading="loadingJobClasses"
-                            :allow-clear="true"
-                            :show-search="true"
-                            mode="combobox"
-                            :filter-option="(input, option) => option && option.label && option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0"
-                            style="width: 100%"
-                        >
+                        <a-select v-model="currentJob.jobType"
+                                  placeholder="请选择或输入完整的类名，如: MyNamespace.MyJobClass"
+                                  :loading="loadingJobClasses"
+                                  :allow-clear="true"
+                                  :show-search="true"
+                                  mode="combobox"
+                                  :filter-option="(input, option) => option && option.label && option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0"
+                                  style="width: 100%">
                             <a-select-option v-for="jobClass in jobClasses" :key="jobClass" :value="jobClass">
                                 {{ jobClass }}
                             </a-select-option>
@@ -986,7 +960,7 @@
                     </a-form-model-item>
                     <a-form-model-item label="是否启用">
                         <a-switch v-model="currentJob.isEnabled" />
-                    </a-form-model-item>    
+                    </a-form-model-item>
                 </a-form-model>
             </div>
         </a-modal>

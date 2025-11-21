@@ -25,6 +25,8 @@ public class QuartzUIController : ControllerBase
         _emailService = emailService;
     }
 
+    #region 调度器
+
     /// <summary>
     /// 获取调度器状态
     /// </summary>
@@ -42,6 +44,62 @@ public class QuartzUIController : ControllerBase
             return Ok(ApiResponseDto<SchedulerStatusDto>.ErrorResponse("获取调度器状态失败: " + ex.Message));
         }
     }
+
+    /// <summary>
+    /// 启动调度器
+    /// </summary>
+    [HttpPost("StartScheduler")]
+    public async Task<ActionResult<ApiResponseDto<bool>>> StartScheduler()
+    {
+        try
+        {
+            var result = await _jobService.StartSchedulerAsync();
+            if (result.Success)
+            {
+                _logger.LogInformation("调度器启动成功");
+            }
+            else
+            {
+                _logger.LogWarning("调度器启动失败, 原因: {Message}", result.Message);
+            }
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "启动调度器失败");
+            return Ok(ApiResponseDto<bool>.ErrorResponse("启动调度器失败: " + ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// 停止调度器
+    /// </summary>
+    [HttpPost("StopScheduler")]
+    public async Task<ActionResult<ApiResponseDto<bool>>> StopScheduler()
+    {
+        try
+        {
+            var result = await _jobService.ShutdownSchedulerAsync();
+            if (result.Success)
+            {
+                _logger.LogInformation("调度器停止成功");
+            }
+            else
+            {
+                _logger.LogWarning("调度器停止失败, 原因: {Message}", result.Message);
+            }
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "停止调度器失败");
+            return Ok(ApiResponseDto<bool>.ErrorResponse("停止调度器失败: " + ex.Message));
+        }
+    }
+
+    #endregion
+
+    #region 作业管理
 
     /// <summary>
     /// 获取作业列表
@@ -235,6 +293,32 @@ public class QuartzUIController : ControllerBase
         }
     }
 
+    #endregion
+    
+    #region 作业日志管理
+
+    /// <summary>
+    /// 获取作业日志
+    /// </summary>
+    [HttpPost("GetJobLogs")]
+    public async Task<ActionResult<ApiResponseDto<PagedResponseDto<QuartzJobLogDto>>>> GetJobLogs([FromBody] QuartzJobLogQueryDto query)
+    {
+        try
+        {
+            var result = await _jobService.GetJobLogsAsync(query);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取作业日志失败");
+            return Ok(ApiResponseDto<PagedResponseDto<QuartzJobLogDto>>.ErrorResponse("获取作业日志失败: " + ex.Message));
+        }
+    }
+
+    #endregion
+
+    #region 扩展
+
     /// <summary>
     /// 验证Cron表达式
     /// </summary>
@@ -280,86 +364,6 @@ public class QuartzUIController : ControllerBase
     }
 
     /// <summary>
-    /// 获取作业日志
-    /// </summary>
-    [HttpGet("GetJobLogs")]
-    public async Task<ActionResult<ApiResponseDto<PagedResponseDto<QuartzJobLogDto>>>> GetJobLogs(
-        string? jobName = null,
-        string? jobGroup = null,
-        LogStatus? status = null,
-        DateTime? startTime = null,
-        DateTime? endTime = null,
-        int pageIndex = 1,
-        int pageSize = 20,
-        string? sortBy = null,
-        string? sortOrder = null)
-    {
-        try
-        {
-            var result = await _jobService.GetJobLogsAsync(
-                jobName, jobGroup, status, startTime, endTime, pageIndex, pageSize, sortBy, sortOrder);
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "获取作业日志失败");
-            return Ok(ApiResponseDto<PagedResponseDto<QuartzJobLogDto>>.ErrorResponse("获取作业日志失败: " + ex.Message));
-        }
-    }
-
-    /// <summary>
-    /// 启动调度器
-    /// </summary>
-    [HttpPost("StartScheduler")]
-    public async Task<ActionResult<ApiResponseDto<bool>>> StartScheduler()
-    {
-        try
-        {
-            var result = await _jobService.StartSchedulerAsync();
-            if (result.Success)
-            {
-                _logger.LogInformation("调度器启动成功");
-            }
-            else
-            {
-                _logger.LogWarning("调度器启动失败, 原因: {Message}", result.Message);
-            }
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "启动调度器失败");
-            return Ok(ApiResponseDto<bool>.ErrorResponse("启动调度器失败: " + ex.Message));
-        }
-    }
-
-    /// <summary>
-    /// 停止调度器
-    /// </summary>
-    [HttpPost("StopScheduler")]
-    public async Task<ActionResult<ApiResponseDto<bool>>> StopScheduler()
-    {
-        try
-        {
-            var result = await _jobService.ShutdownSchedulerAsync();
-            if (result.Success)
-            {
-                _logger.LogInformation("调度器停止成功");
-            }
-            else
-            {
-                _logger.LogWarning("调度器停止失败, 原因: {Message}", result.Message);
-            }
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "停止调度器失败");
-            return Ok(ApiResponseDto<bool>.ErrorResponse("停止调度器失败: " + ex.Message));
-        }
-    }
-
-    /// <summary>
     /// 测试邮件配置
     /// </summary>
     [HttpPost("TestEmailConfiguration")]
@@ -385,4 +389,6 @@ public class QuartzUIController : ControllerBase
             return Ok(ApiResponseDto<bool>.ErrorResponse("邮件配置测试失败: " + ex.Message));
         }
     }
+   
+    #endregion
 }

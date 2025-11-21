@@ -121,7 +121,7 @@ public class FileJobStorage : IJobStorage
         try
         {
             var jobs = await LoadJobsAsync();
-            return jobs.FirstOrDefault(j => j.JobName == jobName && j.JobGroup == jobGroup);
+            return jobs.FirstOrDefault(j => j.JobName.Equals(jobName, StringComparison.CurrentCultureIgnoreCase) && j.JobGroup == jobGroup);
         }
         catch (Exception ex)
         {
@@ -274,44 +274,44 @@ public class FileJobStorage : IJobStorage
         }
     }
 
-    public async Task<PagedResponseDto<QuartzJobLog>> GetJobLogsAsync(string? jobName, string? jobGroup, LogStatus? status, DateTime? startTime, DateTime? endTime, int pageIndex, int pageSize, string? sortBy = null, string? sortOrder = null, CancellationToken cancellationToken = default)
+    public async Task<PagedResponseDto<QuartzJobLog>> GetJobLogsAsync(QuartzJobLogQueryDto queryDto, CancellationToken cancellationToken = default)
     {
         try
         {
             var logs = await LoadLogsAsync();
 
             // 应用过滤条件
-            if (!string.IsNullOrEmpty(jobName))
+            if (!string.IsNullOrEmpty(queryDto.JobName))
             {
-                logs = logs.Where(l => l.JobName.Contains(jobName, StringComparison.OrdinalIgnoreCase)).ToList();
+                logs = logs.Where(l => l.JobName.Contains(queryDto.JobName, StringComparison.OrdinalIgnoreCase)).ToList();
             }
 
-            if (!string.IsNullOrEmpty(jobGroup))
+            if (!string.IsNullOrEmpty(queryDto.JobGroup))
             {
-                logs = logs.Where(l => l.JobGroup.Contains(jobGroup, StringComparison.OrdinalIgnoreCase)).ToList();
+                logs = logs.Where(l => l.JobGroup.Contains(queryDto.JobGroup, StringComparison.OrdinalIgnoreCase)).ToList();
             }
 
-            if (status.HasValue)
+            if (queryDto.Status.HasValue)
             {
-                logs = logs.Where(l => l.Status == status.Value).ToList();
+                logs = logs.Where(l => l.Status == queryDto.Status.Value).ToList();
             }
 
-            if (startTime.HasValue)
+            if (queryDto.StartTime.HasValue)
             {
-                logs = logs.Where(l => l.StartTime >= startTime.Value).ToList();
+                logs = logs.Where(l => l.StartTime >= queryDto.StartTime.Value).ToList();
             }
 
-            if (endTime.HasValue)
+            if (queryDto.EndTime.HasValue)
             {
-                logs = logs.Where(l => l.StartTime <= endTime.Value).ToList();
+                logs = logs.Where(l => l.StartTime <= queryDto.EndTime.Value).ToList();
             }
 
             // 应用排序
-            if (!string.IsNullOrEmpty(sortBy))
+            if (!string.IsNullOrEmpty(queryDto.SortBy))
             {
-                var isAscending = string.Equals(sortOrder, "asc", StringComparison.OrdinalIgnoreCase);
+                var isAscending = string.Equals(queryDto.SortOrder, "asc", StringComparison.OrdinalIgnoreCase);
 
-                switch (sortBy.ToLower())
+                switch (queryDto.SortBy.ToLower())
                 {
                     case "jobname":
                         logs = isAscending ? logs.OrderBy(l => l.JobName).ToList() : logs.OrderByDescending(l => l.JobName).ToList();
@@ -349,16 +349,16 @@ public class FileJobStorage : IJobStorage
             // 分页
             var totalCount = logs.Count;
             var pagedLogs = logs
-                .Skip((pageIndex - 1) * pageSize)
-                .Take(pageSize)
+                .Skip((queryDto.PageIndex - 1) * queryDto.PageSize)
+                .Take(queryDto.PageSize)
                 .ToList();
 
             return new PagedResponseDto<QuartzJobLog>
             {
                 Items = pagedLogs,
                 TotalCount = totalCount,
-                PageIndex = pageIndex,
-                PageSize = pageSize
+                PageIndex = queryDto.PageIndex,
+                PageSize = queryDto.PageSize
             };
         }
         catch (Exception ex)

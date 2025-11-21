@@ -78,18 +78,10 @@ public interface IJobStorage
     /// <summary>
     /// 获取作业日志列表
     /// </summary>
-    /// <param name="jobName">作业名称</param>
-    /// <param name="jobGroup">作业分组</param>
-    /// <param name="status">执行状态</param>
-    /// <param name="startTime">开始时间</param>
-    /// <param name="endTime">结束时间</param>
-    /// <param name="pageIndex">页码</param>
-    /// <param name="pageSize">每页条数</param>
-    /// <param name="sortBy">排序字段</param>
-    /// <param name="sortOrder">排序方向（asc或desc）</param>
+    /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业日志列表</returns>
-    Task<PagedResponseDto<QuartzJobLog>> GetJobLogsAsync(string? jobName, string? jobGroup, LogStatus? status, DateTime? startTime, DateTime? endTime, int pageIndex, int pageSize, string? sortBy = null, string? sortOrder = null, CancellationToken cancellationToken = default);
+    Task<PagedResponseDto<QuartzJobLog>> GetJobLogsAsync(QuartzJobLogQueryDto queryDto, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 清除过期日志

@@ -53,25 +53,23 @@ public class QuartzJobDto
     public string JobGroup { get; set; } = "DEFAULT";
 
     /// <summary>
-    /// 触发器名称
+    /// 触发器名称（可选，若为空则自动根据作业名称生成）
     /// </summary>
-    [Required(ErrorMessage = "触发器名称不能为空")]
     [StringLength(100, ErrorMessage = "触发器名称长度不能超过100个字符")]
-    public string TriggerName { get; set; } = string.Empty;
+    public string? TriggerName { get; set; }
 
     /// <summary>
-    /// 触发器分组
+    /// 触发器分组（可选，默认与作业分组相同）
     /// </summary>
-    [Required(ErrorMessage = "触发器分组不能为空")]
     [StringLength(100, ErrorMessage = "触发器分组长度不能超过100个字符")]
-    public string TriggerGroup { get; set; } = "DEFAULT";
+    public string? TriggerGroup { get; set; }
 
     /// <summary>
     /// Cron表达式
     /// </summary>
     [Required(ErrorMessage = "Cron表达式不能为空")]
     [StringLength(200, ErrorMessage = "Cron表达式长度不能超过200个字符")]
-    public string CronExpression { get; set; } = string.Empty;
+    public string CronExpression { get; set; } = "0 0/1 * * * ?";
 
     /// <summary>
     /// 作业描述
