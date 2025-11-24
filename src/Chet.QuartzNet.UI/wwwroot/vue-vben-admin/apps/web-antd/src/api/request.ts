@@ -90,10 +90,10 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
       client,
       doReAuthenticate,
       // Basic认证通常不需要刷新token
-      doRefreshToken: async () => {
-        await doReAuthenticate();
-        return null;
-      },
+      // doRefreshToken: async () => {
+      //   await doReAuthenticate();
+      //   return null;
+      // },
       enableRefreshToken: false, // 禁用token刷新
       formatToken,
     }),

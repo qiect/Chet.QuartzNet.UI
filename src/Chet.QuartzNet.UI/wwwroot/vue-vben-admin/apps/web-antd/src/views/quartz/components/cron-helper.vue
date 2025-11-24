@@ -44,9 +44,8 @@
 
 <script lang="ts">
 import { defineComponent, PropType } from 'vue';
-import { Modal, Card, Button } from 'ant-design-vue';
-import { Table } from '/@/components/Table';
-import { BasicColumn } from '/@/components/Table/src/types/table';
+import { Modal, Card, Button, Table } from 'ant-design-vue';
+import type { ColumnsType } from 'ant-design-vue';
 
 interface CronExample {
   id: string;
@@ -65,7 +64,7 @@ export default defineComponent({
   },
   props: {
     visible: {
-      type: Boolean,
+      type: Boolean as PropType<boolean>,
       default: false
     }
   },
@@ -135,7 +134,7 @@ export default defineComponent({
       },
       {
         id: '11',
-        name: '工作日上午9点执行',
+        name: '工作上午执行',
         expression: '0 0 9 ? * MON-FRI',
         description: '周一至周五上午9点执行'
       },
