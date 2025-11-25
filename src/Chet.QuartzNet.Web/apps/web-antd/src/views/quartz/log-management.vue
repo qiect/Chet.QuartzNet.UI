@@ -72,7 +72,6 @@ const columns: ColumnsType<LogResponseDto>[] = [
     title: '作业ID',
     dataIndex: 'logId',
     ellipsis: true,
-    width: 300,
   },
   {
     title: '作业名称',
@@ -373,7 +372,7 @@ initData();
         :rowKey="(record) => record.logId"
         size="middle"
         @change="handlePageChange"
-        style="width: 100%"
+        tableLayout="auto"
       >
         <template #action="{ record }">
           <Space size="middle">

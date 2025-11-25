@@ -148,8 +148,8 @@ const expandableConfig = {
   },
 };
 
-// 列配置
-const columns: ColumnsType<JobResponseDto>[] = [
+// 列配置 - 移除固定宽度设置，实现列宽自适应
+const columns: ColumnsType<QuartzJobResponseDto>[] = [
   {
     title: '作业名称',
     dataIndex: 'jobName',
@@ -163,6 +163,7 @@ const columns: ColumnsType<JobResponseDto>[] = [
   {
     title: '作业类型',
     dataIndex: 'jobType',
+    ellipsis: true,
     customRender: ({ record }) => {
       const type = jobTypeMap[record.jobType];
       return h(
@@ -180,14 +181,20 @@ const columns: ColumnsType<JobResponseDto>[] = [
   {
     title: '状态',
     dataIndex: 'status',
+    ellipsis: true,
     customRender: ({ record }) => {
       const status = jobStatusMap[record.status];
-      return h(Tag, { color: status.status }, status.text);
+      return h(
+        Tag,
+        { color: status?.status || 'default' },
+        status?.text || record.status || '未知',
+      );
     },
   },
   {
     title: '是否启用',
     dataIndex: 'isActive',
+    ellipsis: true,
     customRender: ({ record }) =>
       h(Switch, { checked: record.isActive, disabled: true }),
   },
@@ -203,62 +210,10 @@ const columns: ColumnsType<JobResponseDto>[] = [
   },
   {
     title: '操作',
-    valueType: 'option',
-    render: ({ record }) => {
-      const buttons = [
-        h(
-          Button,
-          {
-            type: 'link',
-            icon: h(EditOutlined),
-            onClick: () => handleEdit(record),
-            disabled: loading.value,
-          },
-          '编辑',
-        ),
-        h(
-          Button,
-          {
-            type: 'link',
-            danger: true,
-            icon: h(DeleteOutlined),
-            onClick: () => handleDelete(record),
-            disabled: loading.value,
-          },
-          '删除',
-        ),
-      ];
-
-      // 根据状态添加不同按钮，避免条件渲染导致的问题
-      if (record.status === JobStatusEnum.Normal) {
-        buttons.push(
-          h(
-            Button,
-            {
-              type: 'link',
-              icon: h(StopOutlined),
-              onClick: () => handleStop(record),
-              disabled: loading.value,
-            },
-            '停止',
-          ),
-        );
-      } else {
-        buttons.push(
-          h(
-            Button,
-            {
-              type: 'link',
-              icon: h(PlayCircleOutlined),
-              onClick: () => handleResume(record),
-              disabled: loading.value,
-            },
-            '恢复',
-          ),
-        );
-      }
-
-      return h(Space, { size: 'middle' }, buttons);
+    key: 'action',
+    width: 200,
+    slots: {
+      customRender: 'action',
     },
   },
 ];
@@ -672,8 +627,32 @@ onMounted(() => {
         @change="handlePageChange"
         :expandable="expandableConfig"
         size="middle"
-        style="width: 100%"
-      />
+        width="100%"
+        tableLayout="auto"
+      >
+        <template #action="{ record }">
+          <Space>
+            <Button
+              type="primary"
+              :disabled="loading"
+              @click="handleEdit(record)"
+              >编辑</Button
+            >
+            <Button danger :disabled="loading" @click="handleDelete(record)"
+              >删除</Button
+            >
+            <Button
+              v-if="record.status === JobStatusEnum.Normal"
+              :disabled="loading"
+              @click="handleStop(record)"
+              >停止</Button
+            >
+            <Button v-else :disabled="loading" @click="handleResume(record)"
+              >恢复</Button
+            >
+          </Space>
+        </template>
+      </Table>
     </Card>
 
     <!-- 编辑对话框 -->
