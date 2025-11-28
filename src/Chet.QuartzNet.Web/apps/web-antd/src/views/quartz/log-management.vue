@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, reactive, h } from 'vue';
+// 导入日期格式化工具
+import { formatDateTime } from '@vben/utils';
 import { Page } from '@vben/common-ui';
 import {
   Button,
@@ -95,11 +97,17 @@ const columns: ColumnsType<LogResponseDto>[] = [
     title: '开始时间',
     dataIndex: 'startTime',
     ellipsis: true,
+    customRender: ({ record }: { record: LogResponseDto }) => {
+      return record.startTime ? formatDateTime(record.startTime) : '-';
+    },
   },
   {
     title: '结束时间',
     dataIndex: 'endTime',
     ellipsis: true,
+    customRender: ({ record }: { record: LogResponseDto }) => {
+      return record.endTime ? formatDateTime(record.endTime) : '-';
+    },
   },
   {
     title: '执行时长(ms)',

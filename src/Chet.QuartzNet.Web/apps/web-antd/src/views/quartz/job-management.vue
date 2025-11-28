@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive, h } from 'vue';
+// 导入日期格式化工具
+import { formatDateTime } from '@vben/utils';
 import { Page } from '@vben/common-ui';
 import {
   Button,
@@ -220,11 +222,17 @@ const columns = [
     title: '上次执行',
     dataIndex: 'previousRunTime',
     ellipsis: true,
+    customRender: ({ record }: { record: QuartzJobResponseDto }) => {
+      return record.previousRunTime ? formatDateTime(record.previousRunTime) : '-';
+    },
   },
   {
     title: '下次执行',
     dataIndex: 'nextRunTime',
     ellipsis: true,
+    customRender: ({ record }: { record: QuartzJobResponseDto }) => {
+      return record.nextRunTime ? formatDateTime(record.nextRunTime) : '-';
+    },
   },
   {
     title: '操作',
@@ -570,14 +578,7 @@ const handleStopScheduler = async () => {
   }
 };
 
-// 调度器操作处理函数
-const handleSchedulerAction = async () => {
-  if (schedulerStatus.isStarted) {
-    await handleStopScheduler();
-  } else {
-    await handleStartScheduler();
-  }
-};
+
 
 // 生命周期
 onMounted(async () => {
