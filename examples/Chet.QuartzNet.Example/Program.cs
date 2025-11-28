@@ -31,8 +31,8 @@ builder.Services.AddQuartzUI(options =>
         emailSection.Bind(options.EmailOptions);
     }
 });
-// 添加Basic认证服务
-builder.Services.AddQuartzUIBasicAuthentication(builder.Configuration);
+// 添加JWT认证服务
+builder.Services.AddQuartzUIAuthentication(builder.Configuration);
 // 添加ClassJob自动注册
 builder.Services.AddQuartzClassJobs();
 
@@ -49,7 +49,8 @@ if (app.Environment.IsDevelopment())
 app.UseCors("AllowAll");
 
 // 先启用认证中间件
-app.UseQuartzUIBasicAuthorized();
+app.UseAuthentication();
+app.UseAuthorization();
 // 然后启用Quartz UI中间件
 app.UseQuartz();
 

@@ -11,9 +11,9 @@ public class QuartzUIOptions
     public string RoutePrefix { get; set; } = "/QuartzUI";
 
     /// <summary>
-    /// 是否启用Basic认证，默认为 false
+    /// 是否启用JWT认证，默认为 false
     /// </summary>
-    public bool EnableBasicAuth { get; set; } = false;
+    public bool EnableJwtAuth { get; set; } = false;
 
     /// <summary>
     /// 用户名，默认为 "Admin"
@@ -26,9 +26,24 @@ public class QuartzUIOptions
     public string Password { get; set; } = "123456";
 
     /// <summary>
-    /// Basic认证过期时间（天），默认7天
+    /// JWT密钥
     /// </summary>
-    public int BasicAuthExpirationDays { get; set; } = 7;
+    public string JwtSecret { get; set; } = "your-secret-key-change-this-in-production";
+
+    /// <summary>
+    /// JWT过期时间（分钟），默认30分钟
+    /// </summary>
+    public int JwtExpiresInMinutes { get; set; } = 30;
+
+    /// <summary>
+    /// JWT签发者
+    /// </summary>
+    public string JwtIssuer { get; set; } = "Chet";
+
+    /// <summary>
+    /// JWT受众
+    /// </summary>
+    public string JwtAudience { get; set; } = "Chet.QuartzNet.UI";
 
     /// <summary>
     /// 存储类型，默认为 File

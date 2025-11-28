@@ -51,17 +51,6 @@ public class QuartzUIMiddleware
         {
             _logger.LogDebug("处理Quartz UI请求: {Path}", path);
 
-            // 如果启用了Basic认证，检查用户是否已认证
-            if (_options.EnableBasicAuth && (context.User?.Identity?.IsAuthenticated != true))
-            {
-                _logger.LogDebug("Basic认证已启用，但用户未认证");
-                context.Response.StatusCode = 401;
-                context.Response.Headers["WWW-Authenticate"] = "Basic realm=\"QuartzUI\"";
-                context.Response.ContentType = "text/plain; charset=utf-8";
-                await context.Response.WriteAsync("Basic认证已启用，但用户未认证");
-                return;
-            }
-
             // 处理根路径，返回主页面
             if (path == "/quartz-ui" || path == "/quartz-ui/")
             {
@@ -87,17 +76,6 @@ public class QuartzUIMiddleware
         else if (path?.StartsWith("/vbenadmin") == true)
         {
             _logger.LogDebug("处理vbenadmin请求: {Path}", path);
-
-            // 如果启用了Basic认证，检查用户是否已认证
-            if (_options.EnableBasicAuth && (context.User?.Identity?.IsAuthenticated != true))
-            {
-                _logger.LogDebug("Basic认证已启用，但用户未认证");
-                context.Response.StatusCode = 401;
-                context.Response.Headers["WWW-Authenticate"] = "Basic realm=\"QuartzUI\"";
-                context.Response.ContentType = "text/plain; charset=utf-8";
-                await context.Response.WriteAsync("Basic认证已启用，但用户未认证");
-                return;
-            }
 
             // 处理根路径，返回主页面
             if (path == "/vbenadmin" || path == "/vbenadmin/")

@@ -1,8 +1,14 @@
+using Chet.QuartzNet.Core.Configuration;
 using Chet.QuartzNet.Core.Interfaces;
 using Chet.QuartzNet.Models.DTOs;
 using Chet.QuartzNet.Models.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 
 namespace Chet.QuartzNet.UI.Controllers;
 
@@ -17,12 +23,14 @@ public class QuartzUIController : ControllerBase
     private readonly IQuartzJobService _jobService;
     private readonly ILogger<QuartzUIController> _logger;
     private readonly IEmailNotificationService _emailService;
+    private readonly QuartzUIOptions _quartzUIOptions;
 
-    public QuartzUIController(IQuartzJobService jobService, ILogger<QuartzUIController> logger, IEmailNotificationService emailService)
+    public QuartzUIController(IQuartzJobService jobService, ILogger<QuartzUIController> logger, IEmailNotificationService emailService, IOptions<QuartzUIOptions> quartzUIOptions)
     {
         _jobService = jobService;
         _logger = logger;
         _emailService = emailService;
+        _quartzUIOptions = quartzUIOptions.Value;
     }
 
     #region 调度器
@@ -338,6 +346,108 @@ public class QuartzUIController : ControllerBase
         {
             _logger.LogError(ex, "清空作业日志失败");
             return Ok(ApiResponseDto<bool>.ErrorResponse("清空作业日志失败: " + ex.Message));
+        }
+    }
+
+    #endregion
+
+    #region 认证
+
+    /// <summary>
+    /// 登录请求DTO
+    /// </summary>
+    public class LoginRequestDto
+    {
+        /// <summary>
+        /// 用户名
+        /// </summary>
+        public string UserName { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// 密码
+        /// </summary>
+        public string Password { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// 登录响应DTO
+    /// </summary>
+    public class LoginResponseDto
+    {
+        /// <summary>
+        /// 访问令牌
+        /// </summary>
+        public string AccessToken { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// 令牌类型
+        /// </summary>
+        public string TokenType { get; set; } = "Bearer";
+        
+        /// <summary>
+        /// 过期时间（秒）
+        /// </summary>
+        public int ExpiresIn { get; set; }
+        
+        /// <summary>
+        /// 用户名
+        /// </summary>
+        public string UserName { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// 用户登录
+    /// </summary>
+    [HttpPost("Login")]
+    public ActionResult<ApiResponseDto<LoginResponseDto>> Login([FromBody] LoginRequestDto request)
+    {
+        try
+        {
+            // 验证用户名密码
+            if (request.UserName != _quartzUIOptions.UserName || request.Password != _quartzUIOptions.Password)
+            {
+                _logger.LogWarning("登录失败: 用户名或密码错误 - 尝试用户名 = {Username}", request.UserName);
+                return Ok(ApiResponseDto<LoginResponseDto>.ErrorResponse("用户名或密码错误"));
+            }
+
+            // 生成JWT token
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.UTF8.GetBytes(_quartzUIOptions.JwtSecret);
+            
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.Name, request.UserName),
+                new Claim(ClaimTypes.Role, "QuartzUIAdmin")
+            };
+
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(claims),
+                Expires = DateTime.UtcNow.AddMinutes(_quartzUIOptions.JwtExpiresInMinutes),
+                Issuer = _quartzUIOptions.JwtIssuer,
+                Audience = _quartzUIOptions.JwtAudience,
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+            };
+
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            var tokenString = tokenHandler.WriteToken(token);
+
+            // 构造响应
+            var response = new LoginResponseDto
+            {
+                AccessToken = tokenString,
+                TokenType = "Bearer",
+                ExpiresIn = _quartzUIOptions.JwtExpiresInMinutes * 60,
+                UserName = request.UserName
+            };
+
+            _logger.LogInformation("登录成功: 用户名 = {Username}", request.UserName);
+            return Ok(ApiResponseDto<LoginResponseDto>.SuccessResponse(response, "登录成功"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "登录失败: {Username}", request.UserName);
+            return Ok(ApiResponseDto<LoginResponseDto>.ErrorResponse("登录失败: " + ex.Message));
         }
     }
 
