@@ -10,10 +10,8 @@ import {
   Col,
   Select,
   Space,
-  Tag,
   DatePicker,
   Statistic,
-  Spin,
 } from 'ant-design-vue';
 import type { PaginationProps } from 'ant-design-vue';
 
@@ -206,7 +204,6 @@ const getExecutionStatsChartOption = (): EChartsOption => {
       left: '3%',
       right: '4%',
       bottom: '15%',
-      containLabel: true,
     },
     xAxis: {
       type: 'category',
@@ -439,7 +436,6 @@ const getExecutionTrendChartOption = (): EChartsOption => {
       left: '3%',
       right: '4%',
       bottom: '15%',
-      containLabel: true,
     },
     xAxis: {
       type: 'category',
@@ -561,7 +557,6 @@ const getExecutionTimeChartOption = (): EChartsOption => {
       left: '3%',
       right: '4%',
       bottom: '15%',
-      containLabel: true,
     },
     xAxis: {
       type: 'category',
@@ -587,7 +582,6 @@ const getExecutionTimeChartOption = (): EChartsOption => {
 // 渲染所有图表
 const renderAllCharts = () => {
   try {
-    // 直接渲染所有图表，不检查组件是否挂载
     renderExecutionStats(getExecutionStatsChartOption());
     renderStatusDistribution(getStatusDistributionChartOption());
     renderTypeDistribution(getTypeDistributionChartOption());
@@ -624,7 +618,7 @@ const getSchedulerStatusInfo = async () => {
 // 时间范围变化处理
 const handleTimeRangeChange = () => {
   // 根据时间范围获取数据
-  fetchStatsData();
+   fetchStatsData();
 };
 
 // 自定义日期范围变化处理
