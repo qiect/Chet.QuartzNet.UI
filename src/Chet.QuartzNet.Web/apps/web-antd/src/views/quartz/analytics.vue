@@ -188,43 +188,121 @@ const getExecutionStatsChartOption = (): EChartsOption => {
 
   return {
     title: {
-      text: '作业执行统计',
       left: 'center',
       textStyle: {
-        fontSize: 16,
-        fontWeight: 'bold',
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#262626',
       },
+      padding: [10, 0, 20, 0],
     },
     tooltip: {
       trigger: 'axis',
       axisPointer: {
         type: 'shadow',
+        shadowStyle: {
+          color: 'rgba(0, 0, 0, 0.05)',
+          blur: 10,
+        },
       },
+      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+      borderColor: '#e8e8e8',
+      borderWidth: 1,
+      borderRadius: 8,
+      textStyle: {
+        color: '#262626',
+        fontSize: 14,
+      },
+      formatter: '{b}: {c} 次',
+      padding: 12,
     },
     legend: {
       data: ['作业数量'],
       bottom: 0,
+      textStyle: {
+        color: '#595959',
+        fontSize: 14,
+      },
+      itemWidth: 12,
+      itemHeight: 12,
+      itemGap: 20,
     },
     grid: {
       left: '3%',
       right: '4%',
       bottom: '15%',
+      top: '15%',
+      containLabel: true,
     },
     xAxis: {
       type: 'category',
       data: ['成功', '失败', '暂停', '阻塞'],
+      axisLine: {
+        lineStyle: {
+          color: '#e8e8e8',
+        },
+      },
+      axisTick: {
+        show: false,
+      },
+      axisLabel: {
+        color: '#595959',
+        fontSize: 14,
+        fontWeight: '500',
+        margin: 15,
+      },
     },
     yAxis: {
       type: 'value',
       name: '执行次数',
+      nameTextStyle: {
+        color: '#595959',
+        fontSize: 14,
+        padding: [0, 0, 0, 20],
+      },
+      axisLine: {
+        show: false,
+      },
+      axisTick: {
+        show: false,
+      },
+      axisLabel: {
+        color: '#595959',
+        fontSize: 14,
+      },
+      splitLine: {
+        lineStyle: {
+          color: '#f0f0f0',
+          type: 'dashed',
+        },
+      },
     },
     series: [
       {
         name: '作业数量',
         type: 'bar',
         data: seriesData,
+        barWidth: '60%',
         itemStyle: {
-          color: ['#52c41a', '#f5222d', '#faad14', '#1890ff'],
+          color: function (params) {
+            // 使用更协调的配色方案
+            const colorList = ['#52c41a', '#ff4d4f', '#faad14', '#1890ff'];
+            return colorList[params.dataIndex];
+          },
+          borderRadius: [8, 8, 0, 0],
+        },
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 10,
+            shadowOffsetX: 0,
+            shadowColor: 'rgba(0, 0, 0, 0.15)',
+          },
+        },
+        animation: true,
+        animationDuration: 1000,
+        animationEasing: 'cubicOut',
+        animationDelay: function (idx) {
+          return idx * 100;
         },
       },
     ],
@@ -235,7 +313,6 @@ const getExecutionStatsChartOption = (): EChartsOption => {
 const getStatusDistributionChartOption = (): EChartsOption => {
   // 确保数据存在且为数组
   const chartData = jobStatusDistribution.value || [];
-  console.log('chartData:', JSON.stringify(chartData));
   // 状态映射：将API返回的字符串状态转换为数字
   const statusStringToNumberMap: Record<string, number> = {
     'Normal': 0,
@@ -254,40 +331,62 @@ const getStatusDistributionChartOption = (): EChartsOption => {
       name: statusInfo.text,
     };
   });
-  console.log('pieData:', JSON.stringify(pieData));
   return {
     title: {
-      text: '作业状态分布',
       left: 'center',
       textStyle: {
-        fontSize: 16,
-        fontWeight: 'bold',
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#262626',
       },
+      padding: [10, 0, 20, 0],
     },
     tooltip: {
       trigger: 'item',
       formatter: '{b}: {c} ({d}%)',
+      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+      borderColor: '#e8e8e8',
+      borderWidth: 1,
+      borderRadius: 8,
+      textStyle: {
+        color: '#262626',
+        fontSize: 14,
+      },
+      padding: 12,
     },
     legend: {
       orient: 'vertical',
       left: 'left',
       bottom: 0,
+      top: 'center',
       data: chartData.map(item => {
         const statusNumber = statusStringToNumberMap[item.status] || 0;
         const statusInfo = jobStatusMap[statusNumber] || { text: item.status };
         return statusInfo.text;
       }),
+      textStyle: {
+        color: '#595959',
+        fontSize: 14,
+      },
+      itemWidth: 12,
+      itemHeight: 12,
+      itemGap: 20,
     },
     series: [
       {
         name: '作业状态',
         type: 'pie',
-        radius: ['40%', '70%'],
+        radius: ['45%', '70%'],
+        center: ['65%', '50%'],
         avoidLabelOverlap: false,
         itemStyle: {
-          borderRadius: 10,
+          borderRadius: 12,
           borderColor: '#fff',
-          borderWidth: 2,
+          borderWidth: 3,
+          color: function (params) {
+            const colorList = ['#faad14', '#52c41a', '#1890ff', '#ff4d4f', '#722ed1'];
+            return colorList[params.dataIndex % colorList.length];
+          },
         },
         label: {
           show: false,
@@ -296,14 +395,26 @@ const getStatusDistributionChartOption = (): EChartsOption => {
         emphasis: {
           label: {
             show: true,
-            fontSize: 20,
-            fontWeight: 'bold',
+            fontSize: 22,
+            fontWeight: '600',
+            color: '#262626',
+          },
+          itemStyle: {
+            shadowBlur: 15,
+            shadowOffsetX: 0,
+            shadowColor: 'rgba(0, 0, 0, 0.2)',
           },
         },
         labelLine: {
           show: false,
         },
         data: pieData,
+        animation: true,
+        animationDuration: 1200,
+        animationEasing: 'cubicOut',
+        animationDelay: function (idx) {
+          return idx * 150;
+        },
       },
     ],
   };
@@ -318,28 +429,60 @@ const getTypeDistributionChartOption = (): EChartsOption => {
   if (chartData.length === 0) {
     return {
       title: {
-        text: '作业类型分布',
         left: 'center',
         textStyle: {
-          fontSize: 16,
-          fontWeight: 'bold',
+          fontSize: 18,
+          fontWeight: '600',
+          color: '#262626',
         },
+        padding: [10, 0, 20, 0],
       },
       tooltip: {
         trigger: 'item',
         formatter: '{b}: {c} ({d}%)',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        borderColor: '#e8e8e8',
+        borderWidth: 1,
+        borderRadius: 8,
+        textStyle: {
+          color: '#262626',
+          fontSize: 14,
+        },
+        padding: 12,
       },
       legend: {
         orient: 'vertical',
         left: 'left',
         bottom: 0,
+        top: 'center',
+        textStyle: {
+          color: '#595959',
+          fontSize: 14,
+        },
+        itemWidth: 12,
+        itemHeight: 12,
+        itemGap: 20,
       },
       series: [
         {
           name: '作业类型',
           type: 'pie',
-          radius: ['40%', '70%'],
+          radius: ['45%', '70%'],
+          center: ['65%', '50%'],
           data: [{ value: 1, name: '暂无数据' }],
+          itemStyle: {
+            color: '#f0f0f0',
+            borderRadius: 12,
+            borderColor: '#fff',
+            borderWidth: 3,
+          },
+          label: {
+            show: true,
+            position: 'center',
+            formatter: '暂无数据',
+            fontSize: 18,
+            color: '#bfbfbf',
+          },
         },
       ],
     };
@@ -353,33 +496,56 @@ const getTypeDistributionChartOption = (): EChartsOption => {
 
   return {
     title: {
-      text: '作业类型分布',
       left: 'center',
       textStyle: {
-        fontSize: 16,
-        fontWeight: 'bold',
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#262626',
       },
+      padding: [10, 0, 20, 0],
     },
     tooltip: {
       trigger: 'item',
       formatter: '{b}: {c} ({d}%)',
+      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+      borderColor: '#e8e8e8',
+      borderWidth: 1,
+      borderRadius: 8,
+      textStyle: {
+        color: '#262626',
+        fontSize: 14,
+      },
+      padding: 12,
     },
     legend: {
       orient: 'vertical',
       left: 'left',
       bottom: 0,
+      top: 'center',
       data: chartData.map(item => item.type),
+      textStyle: {
+        color: '#595959',
+        fontSize: 14,
+      },
+      itemWidth: 12,
+      itemHeight: 12,
+      itemGap: 20,
     },
     series: [
       {
         name: '作业类型',
         type: 'pie',
-        radius: ['40%', '70%'],
+        radius: ['45%', '70%'],
+        center: ['65%', '50%'],
         avoidLabelOverlap: false,
         itemStyle: {
-          borderRadius: 10,
+          borderRadius: 12,
           borderColor: '#fff',
-          borderWidth: 2,
+          borderWidth: 3,
+          color: function (params) {
+            const colorList = ['#1890ff', '#52c41a', '#ff4d4f', '#faad14', '#722ed1', '#eb2f96', '#fa8c16', '#a0d911'];
+            return colorList[params.dataIndex % colorList.length];
+          },
         },
         label: {
           show: false,
@@ -388,14 +554,26 @@ const getTypeDistributionChartOption = (): EChartsOption => {
         emphasis: {
           label: {
             show: true,
-            fontSize: 20,
-            fontWeight: 'bold',
+            fontSize: 22,
+            fontWeight: '600',
+            color: '#262626',
+          },
+          itemStyle: {
+            shadowBlur: 15,
+            shadowOffsetX: 0,
+            shadowColor: 'rgba(0, 0, 0, 0.2)',
           },
         },
         labelLine: {
           show: false,
         },
         data: pieData,
+        animation: true,
+        animationDuration: 1200,
+        animationEasing: 'cubicOut',
+        animationDelay: function (idx) {
+          return idx * 150;
+        },
       },
     ],
   };
@@ -409,33 +587,107 @@ const getExecutionTrendChartOption = (): EChartsOption => {
 
   return {
     title: {
-      text: '作业执行趋势',
       left: 'center',
       textStyle: {
-        fontSize: 16,
-        fontWeight: 'bold',
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#262626',
       },
+      padding: [10, 0, 20, 0],
     },
     tooltip: {
       trigger: 'axis',
+      axisPointer: {
+        type: 'cross',
+        label: {
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          borderColor: '#e8e8e8',
+          borderWidth: 1,
+          borderRadius: 6,
+          color: '#262626',
+          fontSize: 12,
+        },
+      },
+      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+      borderColor: '#e8e8e8',
+      borderWidth: 1,
+      borderRadius: 8,
+      textStyle: {
+        color: '#262626',
+        fontSize: 14,
+      },
+      padding: 12,
+      formatter: function (params: any) {
+        let result = `${params[0].name}<br/>`;
+        params.forEach((item: any) => {
+          result += `${item.marker} ${item.seriesName}: ${item.value} 次<br/>`;
+        });
+        return result;
+      },
     },
     legend: {
       data: ['成功', '失败', '总数'],
       bottom: 0,
+      textStyle: {
+        color: '#595959',
+        fontSize: 14,
+      },
+      itemWidth: 12,
+      itemHeight: 12,
+      itemGap: 20,
     },
     grid: {
       left: '3%',
       right: '4%',
       bottom: '15%',
+      top: '15%',
+      containLabel: true,
     },
     xAxis: {
       type: 'category',
       boundaryGap: false,
       data: xAxisData,
+      axisLine: {
+        lineStyle: {
+          color: '#e8e8e8',
+        },
+      },
+      axisTick: {
+        show: false,
+      },
+      axisLabel: {
+        color: '#595959',
+        fontSize: 13,
+        margin: 15,
+      },
+      splitLine: {
+        show: false,
+      },
     },
     yAxis: {
       type: 'value',
       name: '执行次数',
+      nameTextStyle: {
+        color: '#595959',
+        fontSize: 14,
+        padding: [0, 0, 0, 20],
+      },
+      axisLine: {
+        show: false,
+      },
+      axisTick: {
+        show: false,
+      },
+      axisLabel: {
+        color: '#595959',
+        fontSize: 13,
+      },
+      splitLine: {
+        lineStyle: {
+          color: '#f0f0f0',
+          type: 'dashed',
+        },
+      },
     },
     series: [
       {
@@ -446,6 +698,18 @@ const getExecutionTrendChartOption = (): EChartsOption => {
         itemStyle: {
           color: '#52c41a',
         },
+        lineStyle: {
+          width: 3,
+        },
+        symbol: 'circle',
+        symbolSize: 6,
+        emphasis: {
+          symbolSize: 10,
+          itemStyle: {
+            shadowBlur: 10,
+            shadowColor: 'rgba(82, 196, 26, 0.5)',
+          },
+        },
         // 添加平滑曲线和填充效果
         smooth: true,
         areaStyle: {
@@ -456,12 +720,15 @@ const getExecutionTrendChartOption = (): EChartsOption => {
             x2: 0,
             y2: 1,
             colorStops: [{
-              offset: 0, color: 'rgba(82, 196, 26, 0.3)'
+              offset: 0, color: 'rgba(82, 196, 26, 0.35)'
             }, {
-              offset: 1, color: 'rgba(82, 196, 26, 0.05)'
+              offset: 1, color: 'rgba(82, 196, 26, 0.08)'
             }]
           }
         },
+        animation: true,
+        animationDuration: 1500,
+        animationEasing: 'cubicOut',
       },
       {
         name: '失败',
@@ -471,6 +738,18 @@ const getExecutionTrendChartOption = (): EChartsOption => {
         itemStyle: {
           color: '#ff4d4f',
         },
+        lineStyle: {
+          width: 3,
+        },
+        symbol: 'circle',
+        symbolSize: 6,
+        emphasis: {
+          symbolSize: 10,
+          itemStyle: {
+            shadowBlur: 10,
+            shadowColor: 'rgba(255, 77, 79, 0.5)',
+          },
+        },
         // 添加平滑曲线和填充效果
         smooth: true,
         areaStyle: {
@@ -481,12 +760,16 @@ const getExecutionTrendChartOption = (): EChartsOption => {
             x2: 0,
             y2: 1,
             colorStops: [{
-              offset: 0, color: 'rgba(255, 77, 79, 0.3)'
+              offset: 0, color: 'rgba(255, 77, 79, 0.35)'
             }, {
-              offset: 1, color: 'rgba(255, 77, 79, 0.05)'
+              offset: 1, color: 'rgba(255, 77, 79, 0.08)'
             }]
           }
         },
+        animation: true,
+        animationDuration: 1500,
+        animationEasing: 'cubicOut',
+        animationDelay: 200,
       },
       {
         name: '总数',
@@ -495,6 +778,19 @@ const getExecutionTrendChartOption = (): EChartsOption => {
         itemStyle: {
           color: '#1890ff',
         },
+        lineStyle: {
+          width: 3,
+          type: 'dashed',
+        },
+        symbol: 'circle',
+        symbolSize: 6,
+        emphasis: {
+          symbolSize: 10,
+          itemStyle: {
+            shadowBlur: 10,
+            shadowColor: 'rgba(24, 144, 255, 0.5)',
+          },
+        },
         // 添加平滑曲线和填充效果
         smooth: true,
         areaStyle: {
@@ -505,12 +801,16 @@ const getExecutionTrendChartOption = (): EChartsOption => {
             x2: 0,
             y2: 1,
             colorStops: [{
-              offset: 0, color: 'rgba(24, 144, 255, 0.3)'
+              offset: 0, color: 'rgba(24, 144, 255, 0.35)'
             }, {
-              offset: 1, color: 'rgba(24, 144, 255, 0.05)'
+              offset: 1, color: 'rgba(24, 144, 255, 0.08)'
             }]
           }
         },
+        animation: true,
+        animationDuration: 1500,
+        animationEasing: 'cubicOut',
+        animationDelay: 400,
       },
     ],
   };
@@ -524,43 +824,104 @@ const getExecutionTimeChartOption = (): EChartsOption => {
   if (chartData.length === 0) {
     return {
       title: {
-        text: '作业执行耗时统计',
+
         left: 'center',
         textStyle: {
-          fontSize: 16,
-          fontWeight: 'bold',
+          fontSize: 18,
+          fontWeight: '600',
+          color: '#262626',
         },
+        padding: [10, 0, 20, 0],
       },
       tooltip: {
         trigger: 'axis',
         axisPointer: {
           type: 'shadow',
+          shadowStyle: {
+            color: 'rgba(0, 0, 0, 0.05)',
+            blur: 10,
+          },
         },
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        borderColor: '#e8e8e8',
+        borderWidth: 1,
+        borderRadius: 8,
+        textStyle: {
+          color: '#262626',
+          fontSize: 14,
+        },
+        padding: 12,
       },
       legend: {
         data: ['作业数量'],
         bottom: 0,
+        textStyle: {
+          color: '#595959',
+          fontSize: 14,
+        },
+        itemWidth: 12,
+        itemHeight: 12,
+        itemGap: 20,
       },
       grid: {
         left: '3%',
         right: '4%',
         bottom: '15%',
+        top: '15%',
+        containLabel: true,
       },
       xAxis: {
         type: 'category',
         data: ['暂无数据'],
+        axisLine: {
+          lineStyle: {
+            color: '#e8e8e8',
+          },
+        },
+        axisTick: {
+          show: false,
+        },
+        axisLabel: {
+          color: '#595959',
+          fontSize: 14,
+          fontWeight: '500',
+          margin: 15,
+        },
       },
       yAxis: {
         type: 'value',
         name: '作业数量',
+        nameTextStyle: {
+          color: '#595959',
+          fontSize: 14,
+          padding: [0, 0, 0, 20],
+        },
+        axisLine: {
+          show: false,
+        },
+        axisTick: {
+          show: false,
+        },
+        axisLabel: {
+          color: '#595959',
+          fontSize: 14,
+        },
+        splitLine: {
+          lineStyle: {
+            color: '#f0f0f0',
+            type: 'dashed',
+          },
+        },
       },
       series: [
         {
           name: '作业数量',
           type: 'bar',
           data: [0],
+          barWidth: '60%',
           itemStyle: {
             color: '#1890ff',
+            borderRadius: [8, 8, 0, 0],
           },
         },
       ],
@@ -573,43 +934,121 @@ const getExecutionTimeChartOption = (): EChartsOption => {
 
   return {
     title: {
-      text: '作业执行耗时统计',
       left: 'center',
       textStyle: {
-        fontSize: 16,
-        fontWeight: 'bold',
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#262626',
       },
+      padding: [10, 0, 20, 0],
     },
     tooltip: {
       trigger: 'axis',
       axisPointer: {
         type: 'shadow',
+        shadowStyle: {
+          color: 'rgba(0, 0, 0, 0.05)',
+          blur: 10,
+        },
       },
+      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+      borderColor: '#e8e8e8',
+      borderWidth: 1,
+      borderRadius: 8,
+      textStyle: {
+        color: '#262626',
+        fontSize: 14,
+      },
+      padding: 12,
+      formatter: '{b}: {c} 个作业',
     },
     legend: {
       data: ['作业数量'],
       bottom: 0,
+      textStyle: {
+        color: '#595959',
+        fontSize: 14,
+      },
+      itemWidth: 12,
+      itemHeight: 12,
+      itemGap: 20,
     },
     grid: {
       left: '3%',
       right: '4%',
       bottom: '15%',
+      top: '15%',
+      containLabel: true,
     },
     xAxis: {
       type: 'category',
       data: xAxisData,
+      axisLine: {
+        lineStyle: {
+          color: '#e8e8e8',
+        },
+      },
+      axisTick: {
+        show: false,
+      },
+      axisLabel: {
+        color: '#595959',
+        fontSize: 13,
+        fontWeight: '500',
+        margin: 15,
+        rotate: xAxisData.length > 5 ? 30 : 0,
+      },
     },
     yAxis: {
       type: 'value',
       name: '作业数量',
+      nameTextStyle: {
+        color: '#595959',
+        fontSize: 14,
+        padding: [0, 0, 0, 20],
+      },
+      axisLine: {
+        show: false,
+      },
+      axisTick: {
+        show: false,
+      },
+      axisLabel: {
+        color: '#595959',
+        fontSize: 14,
+      },
+      splitLine: {
+        lineStyle: {
+          color: '#f0f0f0',
+          type: 'dashed',
+        },
+      },
     },
     series: [
       {
         name: '作业数量',
         type: 'bar',
         data: seriesData,
+        barWidth: '60%',
         itemStyle: {
-          color: '#1890ff',
+          color: function (params) {
+            const colorList = ['#1890ff', '#52c41a', '#ff4d4f', '#faad14', '#722ed1', '#eb2f96', '#fa8c16', '#a0d911'];
+            return colorList[params.dataIndex % colorList.length];
+          },
+          borderRadius: [8, 8, 0, 0],
+        },
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 10,
+            shadowOffsetX: 0,
+            shadowColor: 'rgba(0, 0, 0, 0.15)',
+          },
+        },
+        animation: true,
+        animationDuration: 1000,
+        animationEasing: 'cubicOut',
+        animationDelay: function (idx) {
+          return idx * 100;
         },
       },
     ],
@@ -685,7 +1124,7 @@ onMounted(async () => {
 <template>
   <Page>
     <!-- 数据筛选区 -->
-    <Card class="mb-4 mt-4">
+    <!-- <Card class="mb-4 mt-4">
       <Row :gutter="[16, 16]" align="middle">
         <Col :xs="24" :sm="12" :md="8" :lg="8">
         <Space>
@@ -701,7 +1140,7 @@ onMounted(async () => {
         </Button>
         </Col>
       </Row>
-    </Card>
+    </Card> -->
     <!-- 图表展示区 -->
     <Row :gutter="[16, 16]">
       <!-- 统计概览卡片 -->
@@ -728,33 +1167,33 @@ onMounted(async () => {
 
       <!-- 作业执行统计 -->
       <Col :xs="24" :sm="24" :md="24" :lg="24">
-      <Card title="作业执行统计" :loading="loading">
+      <Card title="本月作业执行统计" :loading="loading">
         <EchartsUI ref="executionStatsChartRef" />
       </Card>
       </Col>
 
       <!-- 作业状态分布 + 作业类型分布 -->
       <Col :xs="24" :sm="12" :md="12" :lg="12">
-      <Card title="作业状态分布" :loading="loading">
+      <Card title="本月作业状态分布" :loading="loading">
         <EchartsUI ref="statusDistributionChartRef" />
       </Card>
       </Col>
       <Col :xs="24" :sm="12" :md="12" :lg="12">
-      <Card title="作业类型分布" :loading="loading">
+      <Card title="本月作业类型分布" :loading="loading">
         <EchartsUI ref="typeDistributionChartRef" />
       </Card>
       </Col>
 
       <!-- 作业执行趋势 -->
       <Col :xs="24" :sm="24" :md="24" :lg="24">
-      <Card title="作业执行趋势" :loading="loading">
+      <Card title="本月作业执行趋势" :loading="loading">
         <EchartsUI ref="executionTrendChartRef" />
       </Card>
       </Col>
 
       <!-- 作业执行耗时统计 -->
       <Col :xs="24" :sm="24" :md="24" :lg="24">
-      <Card title="作业执行耗时统计" :loading="loading">
+      <Card title="本月作业执行耗时统计" :loading="loading">
         <EchartsUI ref="executionTimeChartRef" />
       </Card>
       </Col>
