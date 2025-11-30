@@ -446,6 +446,22 @@ const getExecutionTrendChartOption = (): EChartsOption => {
         itemStyle: {
           color: '#52c41a',
         },
+        // 添加平滑曲线和填充效果
+        smooth: true,
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [{
+              offset: 0, color: 'rgba(82, 196, 26, 0.3)'
+            }, {
+              offset: 1, color: 'rgba(82, 196, 26, 0.05)'
+            }]
+          }
+        },
       },
       {
         name: '失败',
@@ -453,7 +469,23 @@ const getExecutionTrendChartOption = (): EChartsOption => {
         stack: 'Total',
         data: hasData ? jobExecutionTrend.value.map(item => item.failedCount) : [0],
         itemStyle: {
-          color: '#f5222d',
+          color: '#ff4d4f',
+        },
+        // 添加平滑曲线和填充效果
+        smooth: true,
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [{
+              offset: 0, color: 'rgba(255, 77, 79, 0.3)'
+            }, {
+              offset: 1, color: 'rgba(255, 77, 79, 0.05)'
+            }]
+          }
         },
       },
       {
@@ -463,11 +495,26 @@ const getExecutionTrendChartOption = (): EChartsOption => {
         itemStyle: {
           color: '#1890ff',
         },
+        // 添加平滑曲线和填充效果
+        smooth: true,
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [{
+              offset: 0, color: 'rgba(24, 144, 255, 0.3)'
+            }, {
+              offset: 1, color: 'rgba(24, 144, 255, 0.05)'
+            }]
+          }
+        },
       },
     ],
   };
 };
-
 // 作业执行耗时统计图表配置
 const getExecutionTimeChartOption = (): EChartsOption => {
   // 确保数据存在且为数组
