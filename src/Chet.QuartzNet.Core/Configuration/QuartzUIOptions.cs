@@ -8,12 +8,12 @@ public class QuartzUIOptions
     /// <summary>
     /// UI路由前缀，默认为 "/QuartzUI"
     /// </summary>
-    public string RoutePrefix { get; set; } = "/QuartzUI";
+    public string RoutePrefix { get; set; } = "/quartz-ui";
 
     /// <summary>
-    /// 是否启用JWT认证，默认为 false
+    /// 是否启用JWT认证
     /// </summary>
-    public bool EnableJwtAuth { get; set; } = false;
+    public bool EnableJwtAuth { get; set; } = true;
 
     /// <summary>
     /// 用户名，默认为 "Admin"
