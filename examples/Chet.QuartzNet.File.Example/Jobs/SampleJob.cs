@@ -1,7 +1,7 @@
 using Chet.QuartzNet.Core.Attributes;
 using Quartz;
 
-namespace Chet.QuartzNet.Example.Jobs
+namespace Chet.QuartzNet.File.Example.Jobs
 {
     /// <summary>
     /// 示例作业类

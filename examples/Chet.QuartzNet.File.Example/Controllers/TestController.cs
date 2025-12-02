@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 
-namespace Chet.QuartzNet.Example.Controllers
+namespace Chet.QuartzNet.File.Example.Controllers
 {
     /// <summary>
     /// 测试控制器

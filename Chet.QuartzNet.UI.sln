@@ -3,20 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.3.11206.111
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{626708D2-DC7B-4DDC-9A97-A8D10C88541B}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chet.QuartzNet.UI", "src\Chet.QuartzNet.UI\Chet.QuartzNet.UI.csproj", "{45D9CCA7-B3A8-4F63-A527-3D892AC62EE3}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chet.QuartzNet.Core", "src\Chet.QuartzNet.Core\Chet.QuartzNet.Core.csproj", "{A784AE70-A4B8-4561-9CEB-FF1F15C17E8F}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chet.QuartzNet.EFCore", "src\Chet.QuartzNet.EFCore\Chet.QuartzNet.EFCore.csproj", "{F1F1CE09-2F12-4095-9B8A-351401F39D40}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chet.QuartzNet.Models", "src\Chet.QuartzNet.Models\Chet.QuartzNet.Models.csproj", "{6D8CD448-59BA-47AF-B286-629AF5B16145}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chet.QuartzNet.Example", "examples\Chet.QuartzNet.Example\Chet.QuartzNet.Example.csproj", "{12345678-1234-5678-9012-345678901234}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{A34BE231-6D0F-4548-AFC6-F3C11BF28E9F}"
 	ProjectSection(SolutionItems) = preProject
 		docs\PUBLISHING.md = docs\PUBLISHING.md
@@ -30,7 +16,21 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "nuget", "nuget", "{894710E2
 		Chet.QuartzNet.UI.nuspec = Chet.QuartzNet.UI.nuspec
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chet.QuartzNet.Database.Example", "examples\Chet.QuartzNet.Database.Test\Chet.QuartzNet.Database.Example.csproj", "{2FCF5268-A277-4018-8697-89AC00F5D7B4}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{626708D2-DC7B-4DDC-9A97-A8D10C88541B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chet.QuartzNet.File.Example", "examples\Chet.QuartzNet.File.Example\Chet.QuartzNet.File.Example.csproj", "{12345678-1234-5678-9012-345678901234}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chet.QuartzNet.Database.Example", "examples\Chet.QuartzNet.Database.Example\Chet.QuartzNet.Database.Example.csproj", "{2FCF5268-A277-4018-8697-89AC00F5D7B4}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chet.QuartzNet.UI", "src\Chet.QuartzNet.UI\Chet.QuartzNet.UI.csproj", "{45D9CCA7-B3A8-4F63-A527-3D892AC62EE3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chet.QuartzNet.Core", "src\Chet.QuartzNet.Core\Chet.QuartzNet.Core.csproj", "{A784AE70-A4B8-4561-9CEB-FF1F15C17E8F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chet.QuartzNet.EFCore", "src\Chet.QuartzNet.EFCore\Chet.QuartzNet.EFCore.csproj", "{F1F1CE09-2F12-4095-9B8A-351401F39D40}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chet.QuartzNet.Models", "src\Chet.QuartzNet.Models\Chet.QuartzNet.Models.csproj", "{6D8CD448-59BA-47AF-B286-629AF5B16145}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chet.QuartzNet.EFCore.MySQL", "src\Chet.QuartzNet.EFCore.MySQL\Chet.QuartzNet.EFCore.MySQL.csproj", "{D8C2DDC5-D91B-46A7-983B-F0691F108A57}"
 EndProject
