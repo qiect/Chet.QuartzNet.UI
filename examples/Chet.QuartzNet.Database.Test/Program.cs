@@ -1,5 +1,5 @@
+using Chet.QuartzNet.EFCore.PostgreSQL.Extensions;
 using Chet.QuartzNet.UI.Extensions;
-using Chet.QuartzNet.EFCore.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,9 +17,8 @@ builder.Services.AddQuartzUI(options =>
         emailConfig.Bind(options.EmailOptions);
     }
 });
-
+builder.Services.AddQuartzUIPostgreSQL(builder.Configuration);
 // 从配置文件中添加数据库支持（SQL Server）
-builder.Services.AddQuartzUIDatabaseFromConfiguration(builder.Configuration);
 builder.Services.AddQuartzClassJobs();
 // 添加Basic认证服务
 builder.Services.AddQuartzUIAuthentication(builder.Configuration);

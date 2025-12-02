@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>Chet.QuartzNet.EFCore.SqlServer</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Chet</Authors>
+    <Description>Quartz.Net UI SQL Server 数据库支持</Description>
+    <PackageTags>Quartz;Scheduler;EFCore;SqlServer</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.0" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Chet.QuartzNet.EFCore\Chet.QuartzNet.EFCore.csproj" />
+  </ItemGroup>
+
+</Project>
