@@ -9,30 +9,63 @@ using System.Text.Json;
 namespace Chet.QuartzNet.Core.Services;
 
 /// <summary>
-/// 文件存储实现
+/// 文件存储实现类，实现了IJobStorage接口
+/// 负责将作业信息和执行日志存储到本地文件中
 /// </summary>
 public class FileJobStorage : IJobStorage
 {
+    /// <summary>
+    /// 配置选项
+    /// </summary>
     private readonly QuartzUIOptions _options;
+
+    /// <summary>
+    /// 日志记录器
+    /// </summary>
     private readonly ILogger<FileJobStorage> _logger;
+
+    /// <summary>
+    /// 作业数据文件路径
+    /// </summary>
     private readonly string _jobsFilePath;
+
+    /// <summary>
+    /// 日志数据文件路径
+    /// </summary>
     private readonly string _logsFilePath;
 
+    /// <summary>
+    /// 初始化FileJobStorage实例
+    /// </summary>
+    /// <param name="options">配置选项</param>
+    /// <param name="logger">日志记录器</param>
     public FileJobStorage(IOptions<QuartzUIOptions> options, ILogger<FileJobStorage> logger)
     {
         _options = options.Value;
         _logger = logger;
+
+        // 构建文件路径
         _jobsFilePath = Path.Combine(_options.FileStoragePath, "jobs.json");
         _logsFilePath = Path.Combine(_options.FileStoragePath, "logs.json");
 
-        // 确保目录存在
+        // 确保存储目录存在
         Directory.CreateDirectory(_options.FileStoragePath);
+
+        // 如果启用了文件备份，确保备份目录存在
         if (_options.EnableFileBackup)
         {
             Directory.CreateDirectory(_options.FileBackupPath);
         }
     }
 
+    #region 作业管理
+
+    /// <summary>
+    /// 添加新的作业信息
+    /// </summary>
+    /// <param name="jobInfo">作业信息对象</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>添加成功返回true，失败返回false</returns>
     public async Task<bool> AddJobAsync(QuartzJobInfo jobInfo, CancellationToken cancellationToken = default)
     {
         try
@@ -51,6 +84,12 @@ public class FileJobStorage : IJobStorage
         }
     }
 
+    /// <summary>
+    /// 更新现有作业信息
+    /// </summary>
+    /// <param name="jobInfo">作业信息对象</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>更新成功返回true，失败返回false</returns>
     public async Task<bool> UpdateJobAsync(QuartzJobInfo jobInfo, CancellationToken cancellationToken = default)
     {
         try
@@ -63,7 +102,7 @@ public class FileJobStorage : IJobStorage
                 return false;
             }
 
-            // 更新属性
+            // 更新作业属性
             existingJob.TriggerName = jobInfo.TriggerName;
             existingJob.TriggerGroup = jobInfo.TriggerGroup;
             existingJob.CronExpression = jobInfo.CronExpression;
@@ -92,6 +131,13 @@ public class FileJobStorage : IJobStorage
         }
     }
 
+    /// <summary>
+    /// 删除指定作业
+    /// </summary>
+    /// <param name="jobName">作业名称</param>
+    /// <param name="jobGroup">作业分组</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>删除成功返回true，失败返回false</returns>
     public async Task<bool> DeleteJobAsync(string jobName, string jobGroup, CancellationToken cancellationToken = default)
     {
         try
@@ -117,6 +163,13 @@ public class FileJobStorage : IJobStorage
         }
     }
 
+    /// <summary>
+    /// 获取指定作业信息
+    /// </summary>
+    /// <param name="jobName">作业名称</param>
+    /// <param name="jobGroup">作业分组</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>作业信息对象，不存在返回null</returns>
     public async Task<QuartzJobInfo?> GetJobAsync(string jobName, string jobGroup, CancellationToken cancellationToken = default)
     {
         try
@@ -131,6 +184,12 @@ public class FileJobStorage : IJobStorage
         }
     }
 
+    /// <summary>
+    /// 获取作业列表，支持分页、过滤和排序
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>分页作业列表</returns>
     public async Task<PagedResponseDto<QuartzJobInfo>> GetJobsAsync(QuartzJobQueryDto queryDto, CancellationToken cancellationToken = default)
     {
         try
@@ -195,13 +254,14 @@ public class FileJobStorage : IJobStorage
                 jobs = jobs.OrderByDescending(j => j.CreateTime).ToList();
             }
 
-            // 分页
+            // 分页处理
             var totalCount = jobs.Count;
             var pagedJobs = jobs
                 .Skip((queryDto.PageIndex - 1) * queryDto.PageSize)
                 .Take(queryDto.PageSize)
                 .ToList();
 
+            // 构建分页响应
             return new PagedResponseDto<QuartzJobInfo>
             {
                 Items = pagedJobs,
@@ -217,6 +277,11 @@ public class FileJobStorage : IJobStorage
         }
     }
 
+    /// <summary>
+    /// 获取所有作业信息
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>作业信息列表</returns>
     public async Task<List<QuartzJobInfo>> GetAllJobsAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -230,6 +295,14 @@ public class FileJobStorage : IJobStorage
         }
     }
 
+    /// <summary>
+    /// 更新作业状态
+    /// </summary>
+    /// <param name="jobName">作业名称</param>
+    /// <param name="jobGroup">作业分组</param>
+    /// <param name="status">新状态</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>更新成功返回true，失败返回false</returns>
     public async Task<bool> UpdateJobStatusAsync(string jobName, string jobGroup, JobStatus status, CancellationToken cancellationToken = default)
     {
         try
@@ -257,6 +330,16 @@ public class FileJobStorage : IJobStorage
         }
     }
 
+    #endregion
+
+    #region 作业日志
+
+    /// <summary>
+    /// 添加作业执行日志
+    /// </summary>
+    /// <param name="jobLog">作业日志对象</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>添加成功返回true，失败返回false</returns>
     public async Task<bool> AddJobLogAsync(QuartzJobLog jobLog, CancellationToken cancellationToken = default)
     {
         try
@@ -275,6 +358,12 @@ public class FileJobStorage : IJobStorage
         }
     }
 
+    /// <summary>
+    /// 获取作业执行日志列表，支持分页、过滤和排序
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>分页日志列表</returns>
     public async Task<PagedResponseDto<QuartzJobLog>> GetJobLogsAsync(QuartzJobLogQueryDto queryDto, CancellationToken cancellationToken = default)
     {
         try
@@ -347,13 +436,14 @@ public class FileJobStorage : IJobStorage
                 logs = logs.OrderByDescending(l => l.CreateTime).ToList();
             }
 
-            // 分页
+            // 分页处理
             var totalCount = logs.Count;
             var pagedLogs = logs
                 .Skip((queryDto.PageIndex - 1) * queryDto.PageSize)
                 .Take(queryDto.PageSize)
                 .ToList();
 
+            // 构建分页响应
             return new PagedResponseDto<QuartzJobLog>
             {
                 Items = pagedLogs,
@@ -369,6 +459,12 @@ public class FileJobStorage : IJobStorage
         }
     }
 
+    /// <summary>
+    /// 清除指定天数之前的过期日志
+    /// </summary>
+    /// <param name="daysToKeep">保留天数</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>清除的日志数量</returns>
     public async Task<int> ClearExpiredLogsAsync(int daysToKeep, CancellationToken cancellationToken = default)
     {
         try
@@ -376,16 +472,19 @@ public class FileJobStorage : IJobStorage
             var logs = await LoadLogsAsync();
             var cutoffDate = DateTime.Now.AddDays(-daysToKeep);
 
+            // 筛选过期日志
             var expiredLogs = logs.Where(l => l.CreateTime < cutoffDate).ToList();
             var expiredCount = expiredLogs.Count;
 
             if (expiredCount > 0)
             {
+                // 删除过期日志
                 foreach (var log in expiredLogs)
                 {
                     logs.Remove(log);
                 }
 
+                // 保存更新后的日志列表
                 await SaveLogsAsync(logs);
                 _logger.LogInformation("清除过期日志成功: {Count} 条", expiredCount);
             }
@@ -399,6 +498,12 @@ public class FileJobStorage : IJobStorage
         }
     }
 
+    /// <summary>
+    /// 根据查询条件清空作业日志
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>清空成功返回true，失败返回false</returns>
     public async Task<bool> ClearJobLogsAsync(QuartzJobLogQueryDto queryDto, CancellationToken cancellationToken = default)
     {
         try
@@ -407,44 +512,46 @@ public class FileJobStorage : IJobStorage
             var originalCount = logs.Count;
 
             // 找出需要保留的日志（即不匹配查询条件的日志）
-            var logsToKeep = logs.Where(log => {
+            var logsToKeep = logs.Where(log =>
+            {
                 // 应用与GetJobLogsAsync相反的过滤条件
                 bool match = true;
-                
+
                 if (!string.IsNullOrEmpty(queryDto.JobName))
                 {
                     match &= !log.JobName.Contains(queryDto.JobName, StringComparison.OrdinalIgnoreCase);
                 }
-                
+
                 if (!string.IsNullOrEmpty(queryDto.JobGroup))
                 {
                     match &= !log.JobGroup.Contains(queryDto.JobGroup, StringComparison.OrdinalIgnoreCase);
                 }
-                
+
                 if (queryDto.Status.HasValue)
                 {
                     match &= log.Status != queryDto.Status.Value;
                 }
-                
+
                 if (queryDto.StartTime.HasValue)
                 {
                     match &= log.StartTime < queryDto.StartTime.Value;
                 }
-                
+
                 if (queryDto.EndTime.HasValue)
                 {
                     match &= log.StartTime > queryDto.EndTime.Value;
                 }
-                
+
                 return match;
             }).ToList();
 
-            // 保存保留的日志
+            // 保存保留的日志（即删除了匹配条件的日志）
             await SaveLogsAsync(logsToKeep);
-            
+
+            // 计算清空的日志数量
             var clearedCount = originalCount - logsToKeep.Count;
             _logger.LogInformation("清空作业日志成功: 共清空 {Count} 条日志", clearedCount);
-            
+
             return true;
         }
         catch (Exception ex)
@@ -454,17 +561,24 @@ public class FileJobStorage : IJobStorage
         }
     }
 
+    #endregion
+
+    /// <summary>
+    /// 初始化文件存储
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>初始化成功返回true，失败返回false</returns>
     public async Task<bool> InitializeAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            // 检查作业文件是否存在
+            // 检查作业文件是否存在，不存在则创建
             if (!File.Exists(_jobsFilePath))
             {
                 await SaveJobsAsync(new List<QuartzJobInfo>());
             }
 
-            // 检查日志文件是否存在
+            // 检查日志文件是否存在，不存在则创建
             if (!File.Exists(_logsFilePath))
             {
                 await SaveLogsAsync(new List<QuartzJobLog>());
@@ -480,15 +594,28 @@ public class FileJobStorage : IJobStorage
         }
     }
 
+    /// <summary>
+    /// 检查文件存储是否已初始化
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>已初始化返回true，未初始化返回false</returns>
     public async Task<bool> IsInitializedAsync(CancellationToken cancellationToken = default)
     {
+        // 检查作业文件和日志文件是否都存在
         return File.Exists(_jobsFilePath) && File.Exists(_logsFilePath);
     }
 
+    #region 文件操作
+
+    /// <summary>
+    /// 从文件加载作业数据
+    /// </summary>
+    /// <returns>作业信息列表</returns>
     private async Task<List<QuartzJobInfo>> LoadJobsAsync()
     {
         try
         {
+            // 文件不存在则返回空列表
             if (!File.Exists(_jobsFilePath))
             {
                 return new List<QuartzJobInfo>();
@@ -514,6 +641,10 @@ public class FileJobStorage : IJobStorage
         }
     }
 
+    /// <summary>
+    /// 保存作业数据到文件
+    /// </summary>
+    /// <param name="jobs">作业信息列表</param>
     private async Task SaveJobsAsync(List<QuartzJobInfo> jobs)
     {
         try
@@ -524,6 +655,7 @@ public class FileJobStorage : IJobStorage
                 await CreateBackupAsync(_jobsFilePath);
             }
 
+            // 序列化作业列表为JSON
             var json = JsonSerializer.Serialize(jobs, new JsonSerializerOptions
             {
                 WriteIndented = true
@@ -639,6 +771,10 @@ public class FileJobStorage : IJobStorage
             _logger.LogWarning(ex, "清理旧备份文件失败");
         }
     }
+
+    #endregion
+
+    #region 统计分析
 
     public async Task<JobStatsDto> GetJobStatsAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default)
     {
@@ -845,4 +981,6 @@ public class FileJobStorage : IJobStorage
 
         return (startTime, endTime);
     }
+
+    #endregion
 }
