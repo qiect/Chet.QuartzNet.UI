@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Chet.QuartzNet.UI</PackageId>
-    <PackageVersion>1.0.1</PackageVersion>
+    <PackageVersion>1.0.2</PackageVersion>
     <Authors>Chet</Authors>
     <Company>Chet</Company>
     <Product>Chet.QuartzNet.UI 作业调度管理系统</Product>
@@ -45,7 +45,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Chet.QuartzNet.Core\Chet.QuartzNet.Core.csproj" />
-    <!--<ProjectReference Include="..\Chet.QuartzNet.EFCore\Chet.QuartzNet.EFCore.csproj" />-->
+    <ProjectReference Include="..\Chet.QuartzNet.EFCore\Chet.QuartzNet.EFCore.csproj" />
   </ItemGroup>
 
   <!-- 嵌入静态资源 -->
