@@ -195,6 +195,24 @@ const columns = [
     ellipsis: true,
   },
   {
+    title: '上次执行',
+    dataIndex: 'previousRunTime',
+    ellipsis: true,
+    customRender: ({ record }: { record: QuartzJobResponseDto }) => {
+      return record.previousRunTime
+        ? formatDateTime(record.previousRunTime)
+        : '-';
+    },
+  },
+  {
+    title: '下次执行',
+    dataIndex: 'nextRunTime',
+    ellipsis: true,
+    customRender: ({ record }: { record: QuartzJobResponseDto }) => {
+      return record.nextRunTime ? formatDateTime(record.nextRunTime) : '-';
+    },
+  },
+  {
     title: '状态',
     dataIndex: 'status',
     ellipsis: true,
@@ -215,21 +233,11 @@ const columns = [
       h(Switch, { checked: record.isEnabled, disabled: true }),
   },
   {
-    title: '上次执行',
-    dataIndex: 'previousRunTime',
+    title: '创建时间',
+    dataIndex: 'createTime',
     ellipsis: true,
     customRender: ({ record }: { record: QuartzJobResponseDto }) => {
-      return record.previousRunTime
-        ? formatDateTime(record.previousRunTime)
-        : '-';
-    },
-  },
-  {
-    title: '下次执行',
-    dataIndex: 'nextRunTime',
-    ellipsis: true,
-    customRender: ({ record }: { record: QuartzJobResponseDto }) => {
-      return record.nextRunTime ? formatDateTime(record.nextRunTime) : '-';
+      return record.createTime ? formatDateTime(record.createTime) : '-';
     },
   },
   {
@@ -850,19 +858,23 @@ onMounted(async () => {
               </Form.Item>
             </Col>
             <Col :xs="24" :sm="24" :md="24">
-              <Form.Item label="API请求头" name="apiHeaders" :rules="[
-                {
-                  validator: (rule, value, callback) => {
-                    if (!value) return callback();
-                    try {
-                      JSON.parse(value);
-                      callback();
-                    } catch (e) {
-                      callback(new Error('请输入有效的JSON格式'));
-                    }
+              <Form.Item
+                label="API请求头"
+                name="apiHeaders"
+                :rules="[
+                  {
+                    validator: (rule, value, callback) => {
+                      if (!value) return callback();
+                      try {
+                        JSON.parse(value);
+                        callback();
+                      } catch (e) {
+                        callback(new Error('请输入有效的JSON格式'));
+                      }
+                    },
                   },
-                },
-              ]">
+                ]"
+              >
                 <Input.TextArea
                   v-model:value="editForm.apiHeaders"
                   placeholder="JSON格式的请求头，例如: {'Content-Type': 'application/json'}"
@@ -871,19 +883,23 @@ onMounted(async () => {
               </Form.Item>
             </Col>
             <Col :xs="24" :sm="24" :md="24">
-              <Form.Item label="API请求体" name="apiBody" :rules="[
-                {
-                  validator: (rule, value, callback) => {
-                    if (!value) return callback();
-                    try {
-                      JSON.parse(value);
-                      callback();
-                    } catch (e) {
-                      callback(new Error('请输入有效的JSON格式'));
-                    }
+              <Form.Item
+                label="API请求体"
+                name="apiBody"
+                :rules="[
+                  {
+                    validator: (rule, value, callback) => {
+                      if (!value) return callback();
+                      try {
+                        JSON.parse(value);
+                        callback();
+                      } catch (e) {
+                        callback(new Error('请输入有效的JSON格式'));
+                      }
+                    },
                   },
-                },
-              ]">
+                ]"
+              >
                 <Input.TextArea
                   v-model:value="editForm.apiBody"
                   placeholder="JSON格式的请求体"
@@ -894,19 +910,23 @@ onMounted(async () => {
           </Col>
 
           <Col :xs="24" :sm="24" :md="24">
-            <Form.Item label="作业数据" name="jobData" :rules="[
-              {
-                validator: (rule, value, callback) => {
-                  if (!value) return callback();
-                  try {
-                    JSON.parse(value);
-                    callback();
-                  } catch (e) {
-                    callback(new Error('请输入有效的JSON格式'));
-                  }
+            <Form.Item
+              label="作业数据"
+              name="jobData"
+              :rules="[
+                {
+                  validator: (rule, value, callback) => {
+                    if (!value) return callback();
+                    try {
+                      JSON.parse(value);
+                      callback();
+                    } catch (e) {
+                      callback(new Error('请输入有效的JSON格式'));
+                    }
+                  },
                 },
-              },
-            ]">
+              ]"
+            >
               <Input.TextArea
                 v-model:value="editForm.jobData"
                 placeholder="JSON格式的作业数据"
