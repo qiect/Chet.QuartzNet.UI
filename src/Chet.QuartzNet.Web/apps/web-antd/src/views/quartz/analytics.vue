@@ -384,8 +384,15 @@ const getStatusDistributionChartOption = (): EChartsOption => {
           borderColor: '#fff',
           borderWidth: 3,
           color: function (params) {
-            const colorList = ['#faad14', '#52c41a', '#1890ff', '#ff4d4f', '#722ed1'];
-            return colorList[params.dataIndex % colorList.length];
+            // 根据状态名称分配颜色，而不是根据数据索引
+            const colorMap: Record<string, string> = {
+              '正常': '#52c41a',  // 正常使用绿色
+              '已暂停': '#faad14',  // 已暂停使用橙色
+              '已完成': '#1890ff',  // 已完成使用蓝色
+              '错误': '#ff4d4f',  // 错误使用红色
+              '阻塞': '#722ed1',  // 阻塞使用紫色
+            };
+            return colorMap[params.name] || '#faad14'; // 默认使用橙色
           },
         },
         label: {

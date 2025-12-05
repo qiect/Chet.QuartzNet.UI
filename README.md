@@ -161,9 +161,9 @@ builder.Services.AddQuartzClassJobs();
 启用 JWT 认证：
 
 ```csharp
-// 添加 Quartz UI 服务时自动启用 JWT 认证
+// 添加 Quartz UI 服务时启用 JWT 认证
 builder.Services.AddQuartzUI();
-
+builder.Services.AddQuartzUIAuthentication(builder.Configuration);
 // 在 appsettings.json 中配置 JWT 相关选项
 "QuartzUI": {
   "UserName": "admin",

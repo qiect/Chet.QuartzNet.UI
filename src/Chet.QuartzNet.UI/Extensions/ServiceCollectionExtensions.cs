@@ -192,7 +192,7 @@ public static class ServiceCollectionExtensions
         // 筛选出标记了QuartzJobAttribute特性的类
         var attributeType = typeof(Chet.QuartzNet.Core.Attributes.QuartzJobAttribute);
         var attributedJobTypes = jobTypes
-            .Where(t => t.GetCustomAttributes(attributeType, false).Any())
+            .Where(t => (t.GetCustomAttributes(attributeType, false) ?? Array.Empty<object>()).Any())
             .ToList();
 
         _logger.LogInformation("找到 {AttributedJobCount} 个标记了QuartzJobAttribute特性的类", attributedJobTypes.Count);
@@ -201,12 +201,15 @@ public static class ServiceCollectionExtensions
         {
             foreach (var jobType in attributedJobTypes)
             {
-                var attributes = jobType.GetCustomAttributes(attributeType, false);
-                var attribute = (Chet.QuartzNet.Core.Attributes.QuartzJobAttribute)attributes.First();
-                var jobKey = new JobKey(attribute.Name, attribute.Group);
-                q.AddJob(jobType, jobKey, j => j.WithDescription(attribute.Description).StoreDurably());
-                _logger.LogInformation("注册ClassJob: {JobName} 分组: {JobGroup}, 表达式: {CronExpression}",
-                    attribute.Name, attribute.Group, attribute.CronExpression);
+                var attributes = jobType.GetCustomAttributes(attributeType, false) ?? Array.Empty<object>();
+                if (attributes.Any())
+                {
+                    var attribute = (Chet.QuartzNet.Core.Attributes.QuartzJobAttribute)attributes.First();
+                    var jobKey = new JobKey(attribute.Name, attribute.Group);
+                    q.AddJob(jobType, jobKey, j => j.WithDescription(attribute.Description).StoreDurably());
+                    _logger.LogInformation("注册ClassJob: {JobName} 分组: {JobGroup}, 表达式: {CronExpression}",
+                        attribute.Name, attribute.Group, attribute.CronExpression);
+                }
             }
         });
 
@@ -252,7 +255,7 @@ public static class ServiceCollectionExtensions
                         }
                     })
                     .Where(t => typeof(IJob).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
-                    .Where(t => t.GetCustomAttributes(attributeType, false).Any())
+                    .Where(t => t.GetCustomAttributes(attributeType, false)?.Any() == true)
                     .ToList();
 
                 _logger.LogInformation("找到 {JobCount} 个标记了QuartzJobAttribute特性的作业类型", jobTypes.Count);
@@ -264,8 +267,13 @@ public static class ServiceCollectionExtensions
 
                     foreach (var jobType in jobTypes)
                     {
-                        var attributes = jobType.GetCustomAttributes(attributeType, false);
-                        var attribute = (Chet.QuartzNet.Core.Attributes.QuartzJobAttribute)attributes.First();
+                        var attributes = jobType.GetCustomAttributes(attributeType, false) ?? Array.Empty<object>();
+                        var attribute = attributes.FirstOrDefault() as Chet.QuartzNet.Core.Attributes.QuartzJobAttribute;
+                        if (attribute == null)
+                        {
+                            _logger.LogWarning("无法获取QuartzJobAttribute特性: {JobType}", jobType.FullName);
+                            continue;
+                        }
 
                         // 检查作业是否已经存在于存储中
                         var existingJob = await jobStorage.GetJobAsync(attribute.Name, attribute.Group, cancellationToken);
@@ -424,17 +432,27 @@ public static class ServiceCollectionExtensions
 
                             // 调用ScheduleJobAsync方法重新调度作业
                             // 由于ScheduleJobAsync是私有方法，我们需要使用反射来调用
-                            var scheduleMethod = typeof(QuartzJobService).GetMethod("ScheduleJobAsync",
-                                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                            var jobServiceImpl = jobService as QuartzJobService;
+                            if (jobServiceImpl != null)
+                            {
+                                // 调用ScheduleJobAsync方法重新调度作业
+                                // 由于ScheduleJobAsync是私有方法，我们需要使用反射来调用
+                                var scheduleMethod = typeof(QuartzJobService).GetMethod("ScheduleJobAsync",
+                                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-                            if (scheduleMethod != null)
-                            {
-                                await (Task)scheduleMethod.Invoke(jobService, new object[] { jobInfo, cancellationToken });
-                                _logger.LogInformation("作业 {JobKey} 调度成功", $"{jobInfo.JobGroup}.{jobInfo.JobName}");
-                            }
-                            else
-                            {
-                                _logger.LogError("无法找到ScheduleJobAsync方法");
+                                if (scheduleMethod != null)
+                                {
+                                    var result = scheduleMethod.Invoke(jobServiceImpl, new object[] { jobInfo, cancellationToken });
+                                    if (result is Task task)
+                                    {
+                                        await task;
+                                        _logger.LogInformation("作业 {JobKey} 调度成功", $"{jobInfo.JobGroup}.{jobInfo.JobName}");
+                                    }
+                                }
+                                else
+                                {
+                                    _logger.LogError("无法找到ScheduleJobAsync方法");
+                                }
                             }
                         }
                         catch (Exception ex)

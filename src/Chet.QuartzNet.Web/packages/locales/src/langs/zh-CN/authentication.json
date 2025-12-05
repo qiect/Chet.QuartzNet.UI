@@ -4,7 +4,7 @@
   "pageDesc": "基于Quartz.NET的可视化作业调度管理平台",
   "loginSuccess": "登录成功",
   "loginSuccessDesc": "欢迎回来",
-  "loginSubtitle": "请输入您的帐户信息以开始管理您的项目",
+  "loginSubtitle": "请输入您的帐户信息开始使用系统",
   "selectAccount": "快速选择账号",
   "username": "账号",
   "password": "密码",

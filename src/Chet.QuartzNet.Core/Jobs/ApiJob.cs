@@ -78,7 +78,7 @@ public class ApiJob : IJob
                 : _httpClient;
 
             // 计算超时时间
-            var timeoutSeconds = jobInfo.ApiTimeout > 0 ? jobInfo.ApiTimeout : 30;
+            var timeoutSeconds = jobInfo.ApiTimeout > 0 ? jobInfo.ApiTimeout : 60;
             var timeout = TimeSpan.FromSeconds(timeoutSeconds);
 
             // 创建请求消息

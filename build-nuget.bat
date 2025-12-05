@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 echo.
 echo ========================================
 echo Chet.QuartzNet.UI NuGet 包打包脚本
@@ -40,7 +41,7 @@ if not exist "nupkgs" mkdir nupkgs
 
 REM 打包 NuGet 包
 echo 正在打包 NuGet 包...
-%~dp0nuget.exe pack Chet.QuartzNet.UI.nuspec -OutputDirectory nupkgs -Properties Configuration=Release,Version=0.0.2
+dotnet pack src/Chet.QuartzNet.UI/Chet.QuartzNet.UI.csproj --configuration Release --no-build --output nupkgs
 
 if %errorlevel% neq 0 (
     echo 错误：NuGet 打包失败

@@ -54,6 +54,7 @@ public class JobClassScanner
                                        !(t.Namespace?.StartsWith("Chet.QuartzNet.Core") == true || t.Namespace?.StartsWith("Chet.QuartzNet.UI") == true))
                             .Select(t => t.FullName)
                             .Where(name => !string.IsNullOrEmpty(name))
+                            .Select(name => name!)
                             .ToList();
 
                         jobClasses.AddRange(types);

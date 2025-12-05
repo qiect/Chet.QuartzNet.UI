@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Chet.QuartzNet.EFCore.SqlServer\Chet.QuartzNet.EFCore.SqlServer.csproj" />
+    <ProjectReference Include="..\..\src\Chet.QuartzNet.UI\Chet.QuartzNet.UI.csproj" />
+    <ProjectReference Include="..\..\src\Chet.QuartzNet.EFCore\Chet.QuartzNet.EFCore.csproj" />
+    <ProjectReference Include="..\..\src\Chet.QuartzNet.Core\Chet.QuartzNet.Core.csproj" />
+    <ProjectReference Include="..\..\src\Chet.QuartzNet.Models\Chet.QuartzNet.Models.csproj" />
+  </ItemGroup>
+
+</Project>

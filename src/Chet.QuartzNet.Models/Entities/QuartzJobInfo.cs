@@ -83,9 +83,9 @@ public class QuartzJobInfo
     public string? ApiBody { get; set; }
 
     /// <summary>
-    /// API超时时间（毫秒）
+    /// API超时时间（秒）
     /// </summary>
-    public int ApiTimeout { get; set; } = 30000; // 默认30秒
+    public int ApiTimeout { get; set; } = 60; // 默认60秒
 
     /// <summary>
     /// 跳过SSL验证

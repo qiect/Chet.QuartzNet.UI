@@ -17,8 +17,6 @@ obj/
 *.log
 
 # Database files
-*.db
-*.sqlite
 App_Data/
 
 # Temporary files

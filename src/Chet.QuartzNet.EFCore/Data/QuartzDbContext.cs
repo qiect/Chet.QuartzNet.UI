@@ -10,8 +10,12 @@ namespace Chet.QuartzNet.EFCore.Data;
 /// </summary>
 public class QuartzDbContext : DbContext
 {
+    private readonly bool _isPostgreSql;
+
     public QuartzDbContext(DbContextOptions<QuartzDbContext> options) : base(options)
     {
+        // 检测当前是否使用PostgreSQL数据库
+        _isPostgreSql = options.Extensions.Any(ext => ext.GetType().FullName?.Contains("Npgsql") == true);
     }
 
     /// <summary>
@@ -31,6 +35,80 @@ public class QuartzDbContext : DbContext
         // 应用实体配置
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
     }
+
+    /// <summary>
+    /// 保存更改前将所有DateTime属性转换为UTC时间（仅PostgreSQL）
+    /// </summary>
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        // 仅在PostgreSQL数据库时转换DateTime属性
+        if (_isPostgreSql)
+        {
+            ConvertDateTimePropertiesToUtc();
+        }
+        return await base.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// 保存更改前将所有DateTime属性转换为UTC时间（仅PostgreSQL）
+    /// </summary>
+    public override int SaveChanges()
+    {
+        // 仅在PostgreSQL数据库时转换DateTime属性
+        if (_isPostgreSql)
+        {
+            ConvertDateTimePropertiesToUtc();
+        }
+        return base.SaveChanges();
+    }
+
+    /// <summary>
+    /// 将所有实体的DateTime属性转换为UTC时间
+    /// </summary>
+    private void ConvertDateTimePropertiesToUtc()
+    {
+        // 获取所有需要保存的实体
+        var entries = ChangeTracker.Entries()
+            .Where(e => e.State is EntityState.Added or EntityState.Modified);
+
+        foreach (var entry in entries)
+        {
+            // 获取实体类型
+            var entityType = entry.Entity.GetType();
+            
+            // 获取所有DateTime和DateTime?属性
+            var dateTimeProperties = entityType.GetProperties()
+                .Where(p => p.PropertyType == typeof(DateTime) || p.PropertyType == typeof(DateTime?));
+
+            foreach (var property in dateTimeProperties)
+            {
+                // 获取属性值
+                var value = property.GetValue(entry.Entity);
+
+                if (value != null)
+                {
+                    if (property.PropertyType == typeof(DateTime))
+                    {
+                        // 转换DateTime为UTC
+                        var dateTimeValue = (DateTime)value;
+                        if (dateTimeValue.Kind != DateTimeKind.Utc)
+                        {
+                            property.SetValue(entry.Entity, DateTime.SpecifyKind(dateTimeValue, DateTimeKind.Utc));
+                        }
+                    }
+                    else
+                    {
+                        // 转换DateTime?为UTC
+                        var nullableDateTimeValue = (DateTime?)value;
+                        if (nullableDateTimeValue.HasValue && nullableDateTimeValue.Value.Kind != DateTimeKind.Utc)
+                        {
+                            property.SetValue(entry.Entity, DateTime.SpecifyKind(nullableDateTimeValue.Value, DateTimeKind.Utc));
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// <summary>
@@ -45,29 +123,29 @@ public class QuartzJobInfoConfiguration : IEntityTypeConfiguration<QuartzJobInfo
         builder.HasKey(j => new { j.JobName, j.JobGroup });
 
         builder.Property(j => j.JobName)
-            .HasMaxLength(200)
+            .HasMaxLength(100)
             .IsRequired()
             .HasComment("作业名称");
 
         builder.Property(j => j.JobGroup)
-            .HasMaxLength(200)
+            .HasMaxLength(100)
             .IsRequired()
             .HasDefaultValue("DEFAULT")
             .HasComment("作业分组");
 
         builder.Property(j => j.TriggerName)
-            .HasMaxLength(200)
+            .HasMaxLength(100)
             .IsRequired()
             .HasComment("触发器名称");
 
         builder.Property(j => j.TriggerGroup)
-            .HasMaxLength(200)
+            .HasMaxLength(100)
             .IsRequired()
             .HasDefaultValue("DEFAULT")
             .HasComment("触发器分组");
 
         builder.Property(j => j.CronExpression)
-            .HasMaxLength(100)
+            .HasMaxLength(200)
             .IsRequired()
             .HasComment("Cron表达式");
 
@@ -87,6 +165,30 @@ public class QuartzJobInfoConfiguration : IEntityTypeConfiguration<QuartzJobInfo
         builder.Property(j => j.JobData)
             .HasColumnType("text")
             .HasComment("作业数据(JSON格式)");
+
+        // API相关字段配置
+        builder.Property(j => j.ApiMethod)
+            .HasMaxLength(10)
+            .HasDefaultValue("GET")
+            .HasComment("API请求方法");
+
+        builder.Property(j => j.ApiHeaders)
+            .HasColumnType("text")
+            .HasComment("API请求头(JSON格式)");
+
+        builder.Property(j => j.ApiBody)
+            .HasColumnType("text")
+            .HasComment("API请求体(JSON格式)");
+
+        builder.Property(j => j.ApiTimeout)
+            .IsRequired()
+            .HasDefaultValue(30000)
+            .HasComment("API超时时间(毫秒)");
+
+        builder.Property(j => j.SkipSslValidation)
+            .IsRequired()
+            .HasDefaultValue(false)
+            .HasComment("是否跳过SSL验证");
 
         builder.Property(j => j.StartTime)
             .HasComment("开始时间");
@@ -112,7 +214,6 @@ public class QuartzJobInfoConfiguration : IEntityTypeConfiguration<QuartzJobInfo
 
         builder.Property(j => j.CreateTime)
             .IsRequired()
-            .HasDefaultValueSql("CURRENT_TIMESTAMP")
             .HasComment("创建时间");
 
         builder.Property(j => j.CreateBy)
@@ -150,28 +251,27 @@ public class QuartzJobLogConfiguration : IEntityTypeConfiguration<QuartzJobLog>
         builder.HasKey(l => l.LogId);
 
         builder.Property(l => l.LogId)
-            .HasMaxLength(50)
             .IsRequired()
             .HasComment("日志ID");
 
         builder.Property(l => l.JobName)
-            .HasMaxLength(200)
+            .HasMaxLength(100)
             .IsRequired()
             .HasComment("作业名称");
 
         builder.Property(l => l.JobGroup)
-            .HasMaxLength(200)
+            .HasMaxLength(100)
             .IsRequired()
             .HasDefaultValue("DEFAULT")
             .HasComment("作业分组");
 
         builder.Property(l => l.TriggerName)
-            .HasMaxLength(200)
+            .HasMaxLength(100)
             .IsRequired()
             .HasComment("触发器名称");
 
         builder.Property(l => l.TriggerGroup)
-            .HasMaxLength(200)
+            .HasMaxLength(100)
             .IsRequired()
             .HasDefaultValue("DEFAULT")
             .HasComment("触发器分组");
@@ -183,7 +283,6 @@ public class QuartzJobLogConfiguration : IEntityTypeConfiguration<QuartzJobLog>
 
         builder.Property(l => l.StartTime)
             .IsRequired()
-            .HasDefaultValueSql("CURRENT_TIMESTAMP")
             .HasComment("开始时间");
 
         builder.Property(l => l.EndTime)
@@ -191,6 +290,14 @@ public class QuartzJobLogConfiguration : IEntityTypeConfiguration<QuartzJobLog>
 
         builder.Property(l => l.Duration)
             .HasComment("执行耗时(毫秒)");
+
+        builder.Property(l => l.Message)
+            .HasColumnType("text")
+            .HasComment("执行结果消息");
+
+        builder.Property(l => l.Exception)
+            .HasColumnType("text")
+            .HasComment("异常信息");
 
         builder.Property(l => l.Result)
             .HasColumnType("text")
@@ -204,9 +311,12 @@ public class QuartzJobLogConfiguration : IEntityTypeConfiguration<QuartzJobLog>
             .HasColumnType("text")
             .HasComment("错误堆栈");
 
+        builder.Property(l => l.JobData)
+            .HasColumnType("text")
+            .HasComment("执行参数");
+
         builder.Property(l => l.CreateTime)
             .IsRequired()
-            .HasDefaultValueSql("CURRENT_TIMESTAMP")
             .HasComment("创建时间");
 
         // 索引配置

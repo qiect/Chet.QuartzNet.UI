@@ -21,6 +21,8 @@ public static class ApplicationBuilderExtensions
         // 初始化存储 - 延迟到服务解析时执行
         try
         {
+            app.UseAuthentication();
+            app.UseAuthorization();
             // 创建作用域来解析IJobStorage（因为它是作用域服务）
             using var scope = app.ApplicationServices.CreateScope();
             var storage = scope.ServiceProvider.GetService<IJobStorage>();
@@ -38,19 +40,6 @@ public static class ApplicationBuilderExtensions
 
         // 启用QuartzUI
         app.UseMiddleware<QuartzUIMiddleware>();
-
-        return app;
-    }
-
-    /// <summary>
-    /// 使用QuartzUI Basic认证授权
-    /// </summary>
-    /// <param name="app">应用程序构建器</param>
-    /// <returns>应用程序构建器</returns>
-    public static IApplicationBuilder UseQuartzUIBasicAuthorized(this IApplicationBuilder app)
-    {
-        app.UseAuthentication();
-        app.UseAuthorization();
 
         return app;
     }

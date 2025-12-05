@@ -302,7 +302,7 @@ public class QuartzUIController : ControllerBase
     }
 
     #endregion
-    
+
     #region 作业日志管理
 
     /// <summary>
@@ -362,7 +362,7 @@ public class QuartzUIController : ControllerBase
         /// 用户名
         /// </summary>
         public string UserName { get; set; } = string.Empty;
-        
+
         /// <summary>
         /// 密码
         /// </summary>
@@ -378,17 +378,17 @@ public class QuartzUIController : ControllerBase
         /// 访问令牌
         /// </summary>
         public string AccessToken { get; set; } = string.Empty;
-        
+
         /// <summary>
         /// 令牌类型
         /// </summary>
         public string TokenType { get; set; } = "Bearer";
-        
+
         /// <summary>
         /// 过期时间（秒）
         /// </summary>
         public int ExpiresIn { get; set; }
-        
+
         /// <summary>
         /// 用户名
         /// </summary>
@@ -413,7 +413,7 @@ public class QuartzUIController : ControllerBase
             // 生成JWT token
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.UTF8.GetBytes(_quartzUIOptions.JwtSecret);
-            
+
             var claims = new[]
             {
                 new Claim(ClaimTypes.Name, request.UserName),
@@ -443,6 +443,11 @@ public class QuartzUIController : ControllerBase
 
             _logger.LogInformation("登录成功: 用户名 = {Username}", request.UserName);
             return Ok(ApiResponseDto<LoginResponseDto>.SuccessResponse(response, "登录成功"));
+        }
+        catch (ArgumentOutOfRangeException ex) when (ex.Message.Contains("IDX10653") || ex.Message.Contains("IDX10720"))
+        {
+            _logger.LogError(ex, "登录失败: {Username}，JWT 密钥配置错误，请联系管理员", request.UserName);
+            return BadRequest(new { message = "JWT 密钥配置错误，请联系管理员" });
         }
         catch (Exception ex)
         {
@@ -619,6 +624,6 @@ public class QuartzUIController : ControllerBase
             return Ok(ApiResponseDto<bool>.ErrorResponse("邮件配置测试失败: " + ex.Message));
         }
     }
-   
+
     #endregion
 }

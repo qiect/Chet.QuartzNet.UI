@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Chet.QuartzNet.UI</PackageId>
-    <PackageVersion>1.0.0</PackageVersion>
+    <PackageVersion>1.0.2</PackageVersion>
     <Authors>Chet</Authors>
     <Company>Chet</Company>
     <Product>Chet.QuartzNet.UI 作业调度管理系统</Product>

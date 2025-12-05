@@ -111,10 +111,10 @@ public class QuartzJobDto
     public string? ApiBody { get; set; }
 
     /// <summary>
-    /// API超时时间（毫秒）
+    /// API超时时间（秒）
     /// </summary>
     [ConditionalRange(1, 3600, nameof(JobType), JobTypeEnum.API, ErrorMessage = "API超时时间必须在1秒到1小时之间")]
-    public int ApiTimeout { get; set; } = 30; // 默认30秒
+    public int ApiTimeout { get; set; } = 60; // 默认60秒
 
     /// <summary>
     /// 跳过SSL验证
