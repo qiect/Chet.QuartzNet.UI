@@ -27,18 +27,12 @@
 "QuartzUI": {
   "StorageType": "Database",
   "DatabaseProvider": "SqlServer",
-  "EnableBasicAuth": true,
-  "UserName": "Admin",
-  "Password": "123456"
 }
 ```
 
 参数说明：
 - `StorageType`: 存储类型，设置为 "Database" 表示使用数据库存储
 - `DatabaseProvider`: 数据库提供程序，支持 SqlServer、MySQL、SQLite 等
-- `EnableBasicAuth`: 是否启用基本认证
-- `UserName`: 认证用户名
-- `Password`: 认证密码
 
 ## 程序配置
 
@@ -61,20 +55,12 @@ builder.Services.AddQuartzUI();
 // 从配置文件中添加数据库支持（SQL Server）
 builder.Services.AddQuartzUIDatabaseFromConfiguration(builder.Configuration);
 
-// 添加 Basic 认证服务
-builder.Services.AddQuartzUIBasicAuthentication(builder.Configuration);
 ```
 
 ### 2. 中间件配置
 
 ```csharp
 var app = builder.Build();
-
-// 启用授权中间件
-app.UseAuthorization();
-
-// 启用 Basic 认证中间件
-app.UseQuartzUIBasicAuthorized();
 
 // 启用 Quartz UI 中间件
 app.UseQuartz();
@@ -247,8 +233,7 @@ dotnet run --project examples\Chet.QuartzNet.Test\Chet.QuartzNet.UI.Test.csproj
 - Quartz.Net
 - Entity Framework Core
 - SQL Server
-- Vue.js (Quartz UI)
-- Ant Design Vue
+
 
 ## 许可证
 
