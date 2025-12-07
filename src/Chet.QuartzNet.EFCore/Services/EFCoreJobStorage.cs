@@ -816,33 +816,31 @@ public class EFCoreJobStorage : IJobStorage
     {
         DateTime startTime, endTime;
 
-        // 如果指定了自定义时间范围，使用自定义时间并确保是UTC
+        // 如果指定了自定义时间范围，使用自定义时间
         if (queryDto.TimeRangeType == "custom" && queryDto.StartTime.HasValue && queryDto.EndTime.HasValue)
         {
-            // 确保自定义时间是UTC
-            startTime = DateTime.SpecifyKind(queryDto.StartTime.Value, DateTimeKind.Utc);
-            endTime = DateTime.SpecifyKind(queryDto.EndTime.Value, DateTimeKind.Utc);
+            startTime = queryDto.StartTime.Value;
+            endTime = queryDto.EndTime.Value;
         }
         else
         {
-            // 否则根据时间范围类型计算，确保所有时间都是UTC
-            endTime = DateTime.UtcNow;
+            // 否则根据时间范围类型计算
+            endTime = DateTime.Now;
 
             switch (queryDto.TimeRangeType)
             {
                 case "today":
-                    startTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0, DateTimeKind.Utc);
+                    startTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0);
                     break;
                 case "yesterday":
-                    startTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0, DateTimeKind.Utc).AddDays(-1);
-                    endTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(-1);
+                    startTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0).AddDays(-1);
+                    endTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0).AddMilliseconds(-1);
                     break;
                 case "thisWeek":
                     startTime = endTime.AddDays(-(int)endTime.DayOfWeek).Date;
-                    startTime = DateTime.SpecifyKind(startTime, DateTimeKind.Utc);
                     break;
                 case "thisMonth":
-                    startTime = new DateTime(endTime.Year, endTime.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+                    startTime = new DateTime(endTime.Year, endTime.Month, 1, 0, 0, 0);
                     break;
                 default:
                     startTime = endTime.AddDays(-7); // 默认最近7天

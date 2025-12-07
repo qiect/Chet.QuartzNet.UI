@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Chet.QuartzNet.EFCore.SqlServer\Chet.QuartzNet.EFCore.SqlServer.csproj" />
+    <ProjectReference Include="..\..\src\Chet.QuartzNet.EFCore.PostgreSql\Chet.QuartzNet.EFCore.PostgreSQL.csproj" />
     <ProjectReference Include="..\..\src\Chet.QuartzNet.UI\Chet.QuartzNet.UI.csproj" />
     <ProjectReference Include="..\..\src\Chet.QuartzNet.EFCore\Chet.QuartzNet.EFCore.csproj" />
     <ProjectReference Include="..\..\src\Chet.QuartzNet.Core\Chet.QuartzNet.Core.csproj" />
