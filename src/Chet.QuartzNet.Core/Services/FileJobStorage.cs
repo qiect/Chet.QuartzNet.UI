@@ -4,6 +4,7 @@ using Chet.QuartzNet.Models.DTOs;
 using Chet.QuartzNet.Models.Entities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Collections.Concurrent;
 using System.Text.Json;
 
 namespace Chet.QuartzNet.Core.Services;
@@ -33,6 +34,12 @@ public class FileJobStorage : IJobStorage
     /// 日志数据文件路径
     /// </summary>
     private readonly string _logsFilePath;
+
+    /// <summary>
+    /// 文件锁字典
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, object> _fileLocks = new();
+
 
     /// <summary>
     /// 初始化FileJobStorage实例
@@ -557,10 +564,10 @@ public class FileJobStorage : IJobStorage
             }).ToList();
 
             // 如果没有指定查询条件，删除所有日志
-            if (string.IsNullOrEmpty(queryDto.JobName) && 
-                string.IsNullOrEmpty(queryDto.JobGroup) && 
-                !queryDto.Status.HasValue && 
-                !queryDto.StartTime.HasValue && 
+            if (string.IsNullOrEmpty(queryDto.JobName) &&
+                string.IsNullOrEmpty(queryDto.JobGroup) &&
+                !queryDto.Status.HasValue &&
+                !queryDto.StartTime.HasValue &&
                 !queryDto.EndTime.HasValue)
             {
                 logsToDelete = logs;
@@ -587,8 +594,17 @@ public class FileJobStorage : IJobStorage
 
     #endregion
 
-
     #region 文件操作
+
+    /// <summary>
+    /// 获取文件锁对象
+    /// </summary>
+    /// <param name="filePath">文件路径</param>
+    /// <returns>锁对象</returns>
+    private static object GetFileLock(string filePath)
+    {
+        return _fileLocks.GetOrAdd(filePath, _ => new object());
+    }
 
     /// <summary>
     /// 初始化文件存储
@@ -631,38 +647,42 @@ public class FileJobStorage : IJobStorage
         // 检查作业文件和日志文件是否都存在
         return File.Exists(_jobsFilePath) && File.Exists(_logsFilePath);
     }
-    
+
     /// <summary>
     /// 从文件加载作业数据
     /// </summary>
     /// <returns>作业信息列表</returns>
-    private async Task<List<QuartzJobInfo>> LoadJobsAsync()
+    private Task<List<QuartzJobInfo>> LoadJobsAsync()
     {
-        try
+        var lockObject = GetFileLock(_jobsFilePath);
+        lock (lockObject)
         {
-            // 文件不存在则返回空列表
-            if (!File.Exists(_jobsFilePath))
+            try
             {
-                return new List<QuartzJobInfo>();
-            }
-
-            // 使用FileStream并设置FileShare参数，允许并发读取
-            using (var stream = new FileStream(_jobsFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            using (var reader = new StreamReader(stream))
-            {
-                var json = await reader.ReadToEndAsync();
-                var jobs = JsonSerializer.Deserialize<List<QuartzJobInfo>>(json, new JsonSerializerOptions
+                // 文件不存在则返回空列表
+                if (!File.Exists(_jobsFilePath))
                 {
-                    PropertyNameCaseInsensitive = true
-                }) ?? new List<QuartzJobInfo>();
+                    return Task.FromResult(new List<QuartzJobInfo>());
+                }
 
-                return jobs;
+                // 使用FileStream并设置FileShare参数，允许并发读取
+                using (var stream = new FileStream(_jobsFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var reader = new StreamReader(stream))
+                {
+                    var json = reader.ReadToEnd();
+                    var jobs = JsonSerializer.Deserialize<List<QuartzJobInfo>>(json, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    }) ?? new List<QuartzJobInfo>();
+
+                    return Task.FromResult(jobs);
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "加载作业数据失败");
-            return new List<QuartzJobInfo>();
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "加载作业数据失败");
+                return Task.FromResult(new List<QuartzJobInfo>());
+            }
         }
     }
 
@@ -670,91 +690,107 @@ public class FileJobStorage : IJobStorage
     /// 保存作业数据到文件
     /// </summary>
     /// <param name="jobs">作业信息列表</param>
-    private async Task SaveJobsAsync(List<QuartzJobInfo> jobs)
+    private Task SaveJobsAsync(List<QuartzJobInfo> jobs)
     {
-        try
+        var lockObject = GetFileLock(_jobsFilePath);
+        lock (lockObject)
         {
-            // 创建备份
-            if (_options.EnableFileBackup && File.Exists(_jobsFilePath))
+            try
             {
-                await CreateBackupAsync(_jobsFilePath);
-            }
-
-            // 序列化作业列表为JSON
-            var json = JsonSerializer.Serialize(jobs, new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-            });
-
-            // 使用FileStream并设置FileShare参数，写入时允许其他进程读取
-            using (var stream = new FileStream(_jobsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
-            using (var writer = new StreamWriter(stream))
-            {
-                await writer.WriteAsync(json);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "保存作业数据失败");
-            throw;
-        }
-    }
-
-    private async Task<List<QuartzJobLog>> LoadLogsAsync()
-    {
-        try
-        {
-            if (!File.Exists(_logsFilePath))
-            {
-                return new List<QuartzJobLog>();
-            }
-
-            // 使用FileStream并设置FileShare参数，允许并发读取
-            using (var stream = new FileStream(_logsFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            using (var reader = new StreamReader(stream))
-            {
-                var json = await reader.ReadToEndAsync();
-                var logs = JsonSerializer.Deserialize<List<QuartzJobLog>>(json, new JsonSerializerOptions
+                // 创建备份
+                if (_options.EnableFileBackup && File.Exists(_jobsFilePath))
                 {
-                    PropertyNameCaseInsensitive = true
-                }) ?? new List<QuartzJobLog>();
+                    CreateBackup(_jobsFilePath);
+                }
 
-                return logs;
+                // 序列化作业列表为JSON
+                var json = JsonSerializer.Serialize(jobs, new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                });
+
+                // 使用FileStream并设置FileShare参数，写入时允许其他进程读取
+                using (var stream = new FileStream(_jobsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
+                using (var writer = new StreamWriter(stream))
+                {
+                    writer.Write(json);
+                }
+
+                return Task.CompletedTask;
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "加载日志数据失败");
-            return new List<QuartzJobLog>();
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "保存作业数据失败");
+                throw;
+            }
         }
     }
 
-    private async Task SaveLogsAsync(List<QuartzJobLog> logs)
+    private Task<List<QuartzJobLog>> LoadLogsAsync()
     {
-        try
+        var lockObject = GetFileLock(_logsFilePath);
+        lock (lockObject)
         {
-            var json = JsonSerializer.Serialize(logs, new JsonSerializerOptions
+            try
             {
-                WriteIndented = true,
-                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-            });
+                if (!File.Exists(_logsFilePath))
+                {
+                    return Task.FromResult(new List<QuartzJobLog>());
+                }
 
-            // 使用FileStream并设置FileShare参数，写入时允许其他进程读取
-            using (var stream = new FileStream(_logsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
-            using (var writer = new StreamWriter(stream))
-            {
-                await writer.WriteAsync(json);
+                // 使用FileStream并设置FileShare参数，允许并发读取
+                using (var stream = new FileStream(_logsFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var reader = new StreamReader(stream))
+                {
+                    var json = reader.ReadToEnd();
+                    var logs = JsonSerializer.Deserialize<List<QuartzJobLog>>(json, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    }) ?? new List<QuartzJobLog>();
+
+                    return Task.FromResult(logs);
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "保存日志数据失败");
-            throw;
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "加载日志数据失败");
+                return Task.FromResult(new List<QuartzJobLog>());
+            }
         }
     }
 
-    private async Task CreateBackupAsync(string filePath)
+    private Task SaveLogsAsync(List<QuartzJobLog> logs)
+    {
+        var lockObject = GetFileLock(_logsFilePath);
+        lock (lockObject)
+        {
+            try
+            {
+                var json = JsonSerializer.Serialize(logs, new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                });
+
+                // 使用FileStream并设置FileShare参数，写入时允许其他进程读取
+                using (var stream = new FileStream(_logsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
+                using (var writer = new StreamWriter(stream))
+                {
+                    writer.Write(json);
+                }
+
+                return Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "保存日志数据失败");
+                throw;
+            }
+        }
+    }
+
+    private void CreateBackup(string filePath)
     {
         try
         {
@@ -766,7 +802,7 @@ public class FileJobStorage : IJobStorage
             File.Copy(filePath, backupFilePath, true);
 
             // 清理旧备份
-            await CleanupOldBackupsAsync();
+            CleanupOldBackups();
         }
         catch (Exception ex)
         {
@@ -774,7 +810,7 @@ public class FileJobStorage : IJobStorage
         }
     }
 
-    private async Task CleanupOldBackupsAsync()
+    private void CleanupOldBackups()
     {
         try
         {
