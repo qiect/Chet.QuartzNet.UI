@@ -5,6 +5,7 @@
     @cancel="handleCancel"
     width="800px"
     :footer="null"
+    :z-index="10000"
   >
     <div class="cron-helper">
       <Card class="mb-4" title="常用Cron表达式">
