@@ -10,6 +10,7 @@
   "quartz": {
     "analytics": "分析页",
     "jobManagement": "作业管理",
-    "logManagement": "日志管理"
+    "logManagement": "日志管理",
+    "notificationManagement": "通知管理"
   }
 }

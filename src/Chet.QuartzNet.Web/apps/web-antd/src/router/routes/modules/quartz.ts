@@ -31,6 +31,15 @@ const routes: RouteRecordRaw[] = [
       title: $t('page.quartz.logManagement'),
     },
   },
+  {
+    name: 'NotificationManagement',
+    path: '/notification-management',
+    component: () => import('#/views/quartz/notification-management.vue'),
+    meta: {
+      icon: 'lucide:bell',
+      title: $t('page.quartz.notificationManagement'),
+    },
+  },
 ];
 
 export default routes;

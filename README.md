@@ -4,6 +4,18 @@ Chet.QuartzNet.UI 是一个基于 .NET 8.0 和VbenAdmin 框架开发的可视化
 
 通过 Chet.QuartzNet.UI，您可以快速集成任务调度功能到现有项目中，实现作业的可视化配置、实时监控和历史记录查询，大大提高开发效率和运维便利性。
 
+![alt text](image.png)
+
+![alt text](image-1.png)
+
+![alt text](image-2.png)
+
+![alt text](image-3.png)
+
+![alt text](image-4.png)
+
+![alt text](image-5.png)
+
 ## ✨ 功能特性
 
 - 🔧 **可视化管理 Quartz 作业**：通过 Web 界面管理 Quartz 作业、触发器和调度器
@@ -11,6 +23,10 @@ Chet.QuartzNet.UI 是一个基于 .NET 8.0 和VbenAdmin 框架开发的可视化
 - 🎯 **ClassJob 模式支持**：支持基于类的作业定义，简化作业创建
 - ✅ **ClassJob 自动注册**：自动扫描和注册带有特定特性的作业类
 - 💾 **多种存储方式**：支持文件存储和数据库存储（MySQL、PostgreSQL、SQL Server、SQLite）
+- 🔔 **PushPlus 通知集成**：支持多种渠道的通知推送（微信、企业微信、钉钉、邮件等）
+- 📋 **通知模板支持**：支持 HTML、Markdown、纯文本三种通知模板
+- 🎛️ **灵活的通知策略**：可配置作业成功/失败、调度器异常时的通知规则
+- 📜 **通知历史管理**：完整的通知发送历史记录
 - 🔐 **认证保护**：提供 JWT 认证保护管理界面
 - 📦 **RCL 打包**：使用 Razor Class Library 打包，无侵入集成
 - 🚀 **快速集成**：简单配置即可集成到现有项目
@@ -30,14 +46,12 @@ Chet.QuartzNet.UI 是一个基于 .NET 8.0 和VbenAdmin 框架开发的可视化
 # 主包（包含核心功能和文件存储）
 dotnet add package Chet.QuartzNet.UI
 
-# 如果需要数据库存储支持
-dotnet add package Chet.QuartzNet.EFCore
-
-# 数据库提供程序（根据需要选择）
-dotnet add package Pomelo.EntityFrameworkCore.MySql        # MySQL
-dotnet add package Npgsql.EntityFrameworkCore.PostgreSQL    # PostgreSQL
-dotnet add package Microsoft.EntityFrameworkCore.SqlServer   # SQL Server
-dotnet add package Microsoft.EntityFrameworkCore.Sqlite      # SQLite
+# 如果需要数据库存储支持（核心包）
+# 数据库扩展包（根据需要选择其中一个）
+dotnet add package Chet.QuartzNet.EFCore.MySql        # MySQL 支持
+dotnet add package Chet.QuartzNet.EFCore.PostgreSql    # PostgreSQL 支持
+dotnet add package Chet.QuartzNet.EFCore.SqlServer   # SQL Server 支持
+dotnet add package Chet.QuartzNet.EFCore.SQLite      # SQLite 支持
 ```
 
 ### 依赖要求
@@ -49,62 +63,107 @@ dotnet add package Microsoft.EntityFrameworkCore.Sqlite      # SQLite
 
 ## 🚀 快速开始
 
-### 1. 基本配置
+### 1. 存储模式选择
 
-在 `Program.cs` 中添加服务：
+系统支持两种存储模式：**文件存储**和**数据库存储**，均可通过同一套 API 进行配置和使用。
+
+#### 1.1 文件存储模式（轻量级应用）
+
+文件存储模式适合轻量级应用，无需数据库，配置简单：
 
 ```csharp
-// 添加 Quartz UI 服务（文件存储模式）
-builder.Services.AddQuartzUI();
+// Program.cs
 
-// 添加 ClassJob 支持（可选）
+// 添加 Quartz UI 服务（文件存储模式）
+builder.Services.AddQuartzUI(builder.Configuration);
+
+// 可选：ClassJob 自动扫描注册
 builder.Services.AddQuartzClassJobs();
 
 // 启用中间件
 app.UseQuartz();
 ```
 
-### 2. 数据库存储配置
+**配置说明**：
+- 文件存储模式无需额外配置，系统会自动使用文件存储
+- 自动读取 `QuartzUI` 节中的 JWT 认证配置
+- 作业数据存储在应用目录下的 JSON 文件中
 
-#### MySQL
+#### 1.2 数据库存储模式（中大型应用）
 
-```csharp
-// 安装 Pomelo.EntityFrameworkCore.MySql
-dotnet add package Pomelo.EntityFrameworkCore.MySql
-
-// 配置服务
-builder.Services.AddQuartzUIMySql(connectionString);
-```
-
-#### PostgreSQL
+数据库存储模式适合中大型应用，支持 MySQL、PostgreSQL、SQL Server 和 SQLite：
 
 ```csharp
-// 安装 Npgsql.EntityFrameworkCore.PostgreSQL
-dotnet add package Npgsql.EntityFrameworkCore.PostgreSQL
+// Program.cs
 
-// 配置服务
-builder.Services.AddQuartzUIPostgreSQL(connectionString);
+// 添加 Quartz UI 服务（数据库存储模式）
+builder.Services.AddQuartzUI(builder.Configuration);
+
+// 可选：ClassJob 自动扫描注册
+builder.Services.AddQuartzClassJobs();
+
+// 启用中间件
+app.UseQuartz();
 ```
 
-#### SQL Server
+**配置说明**：
+需要在 `appsettings.json` 中添加以下配置：
+
+```json
+{
+  "ConnectionStrings": {
+    "QuartzUI": "server=localhost;database=quartz_db;User Id=root;PWD=password;" // 数据库连接字符串
+  },
+  "QuartzUI": {
+    "StorageType": "Database", // 指定使用数据库存储
+    "DatabaseProvider": "mysql" // 可选，数据库提供者：mysql、postgresql、sqlserver、sqlite（默认自动判断）
+    // 其他配置...
+  }
+}
+```
+
+**数据库支持**：
+- ✅ MySQL
+- ✅ PostgreSQL
+- ✅ SQL Server
+- ✅ SQLite
+
+### 2. 统一 API 设计
+
+无论选择哪种存储模式，API 调用方式完全一致，实现了**配置驱动**的存储选择：
 
 ```csharp
-// 安装 Microsoft.EntityFrameworkCore.SqlServer
-dotnet add package Microsoft.EntityFrameworkCore.SqlServer
-
-// 配置服务
-builder.Services.AddQuartzUISqlServer(connectionString);
+// 同一套 API，自动根据配置选择存储方式
+builder.Services.AddQuartzUI(builder.Configuration);
+app.UseQuartz();
 ```
 
-#### SQLite
+**核心优势**：
+- 无需修改代码，仅需调整配置即可切换存储模式
+- 统一的 API 设计，降低学习成本
+- 便于应用从文件存储升级到数据库存储
+- 自动根据连接字符串判断数据库类型
 
-```csharp
-// 安装 Microsoft.EntityFrameworkCore.Sqlite
-dotnet add package Microsoft.EntityFrameworkCore.Sqlite
+### 3. JWT 认证配置
 
-// 配置服务
-builder.Services.AddQuartzUISQLite(connectionString);
+两种存储模式均支持 JWT 认证，配置方式一致：
+
+```json
+{
+  "QuartzUI": {
+    "JwtSecret": "your-secret-key",
+    "JwtExpiresInMinutes": 30,
+    "JwtIssuer": "Chet.QuartzNet.UI",
+    "JwtAudience": "Chet.QuartzNet.UI",
+    "UserName": "Admin",
+    "Password": "123456"
+  }
+}
 ```
+
+认证配置会自动被 `AddQuartzUI` 方法读取，无需额外代码。
+
+
 
 ### 3. 访问管理界面
 
@@ -161,9 +220,8 @@ builder.Services.AddQuartzClassJobs();
 启用 JWT 认证：
 
 ```csharp
-// 添加 Quartz UI 服务时启用 JWT 认证
-builder.Services.AddQuartzUI();
-builder.Services.AddQuartzUIAuthentication(builder.Configuration);
+// 添加 Quartz UI 服务（自动读取 JWT 配置）
+builder.Services.AddQuartzUI(builder.Configuration);
 // 在 appsettings.json 中配置 JWT 相关选项
 "QuartzUI": {
   "UserName": "admin",
@@ -181,9 +239,12 @@ app.UseQuartz();
 ## 🎯 界面功能
 
 ### 分析页
-- 📊 显示当前活跃作业数量
-- 📈 自动刷新状态信息
-- 📝 查看作业执行历史记录
+- 📊 **作业统计概览**：总作业数、启用/禁用作业数、正在执行作业数、成功/失败执行次数
+- 📈 **作业状态分布**：各状态作业数量和百分比的饼图展示
+- 📋 **作业类型分布**：各类型作业数量和百分比的饼图展示
+- 📉 **作业执行趋势**：作业执行趋势的折线图展示
+- ⏱️ **作业执行耗时**：作业执行耗时的柱状图展示
+
 
 
 
@@ -204,12 +265,14 @@ app.UseQuartz();
 - ❌ 查看错误信息
 - 📋 分页显示日志记录
 
-### 分析页
-- 📊 **作业统计概览**：总作业数、启用/禁用作业数、正在执行作业数、成功/失败执行次数
-- 📈 **作业状态分布**：各状态作业数量和百分比的饼图展示
-- 📉 **作业执行趋势**：作业执行趋势的折线图展示
-- ⏱️ **作业执行耗时**：作业执行耗时的柱状图展示
-- 📋 **作业类型分布**：各类型作业数量和百分比的饼图展示
+### 通知管理
+- 🔔 **通知配置**：配置 PushPlus Token、推送渠道、消息模板等
+- 🎛️ **通知策略**：设置作业成功/失败、调度器异常时的通知规则
+- 📋 **通知历史**：查看所有通知发送记录
+- 🔍 **通知筛选**：按状态、触发来源筛选通知
+- 🗑️ **通知清理**：删除单条或批量清空通知记录
+- 📤 **测试通知**：发送测试通知验证配置是否正确
+
 
 ### 调度器状态
 - 🟢 实时显示调度器运行状态
@@ -224,17 +287,21 @@ app.UseQuartz();
 
 ### 数据库配置
 
-支持多种数据库，通过不同的扩展方法配置：
+系统支持通过不同的扩展包来支持多种数据库。您需要根据实际使用的数据库安装对应的扩展包：
+
+| 数据库类型 | 扩展包名称 | 安装命令 |
+|-----------|-----------|----------|
+| MySQL | Chet.QuartzNet.EFCore.MySql | `Install-Package Chet.QuartzNet.EFCore.MySql` 或 `dotnet add package Chet.QuartzNet.EFCore.MySql` |
+| PostgreSQL | Chet.QuartzNet.EFCore.PostgreSQL | `Install-Package Chet.QuartzNet.EFCore.PostgreSQL` 或 `dotnet add package Chet.QuartzNet.EFCore.PostgreSQL` |
+| SQL Server | Chet.QuartzNet.EFCore.SqlServer | `Install-Package Chet.QuartzNet.EFCore.SqlServer` 或 `dotnet add package Chet.QuartzNet.EFCore.SqlServer` |
+| SQLite | Chet.QuartzNet.EFCore.SQLite | `Install-Package Chet.QuartzNet.EFCore.SQLite` 或 `dotnet add package Chet.QuartzNet.EFCore.SQLite` |
+
+**配置示例**：
 
 ```csharp
-// MySQL
-services.AddQuartzUIMySql(options);
-
-// PostgreSQL  
-services.AddQuartzUIPostgreSQL(options);
-
-// SQL Server
-services.AddQuartzUISqlServer(options);
+// 以 MySQL 为例，其他数据库类似
+// 安装包后，在 appsettings.json 中配置连接字符串和存储类型
+builder.Services.AddQuartzUI(builder.Configuration);
 ```
 
 ### 授权配置
@@ -257,47 +324,46 @@ services.AddQuartzUISqlServer(options);
 ```
 Chet.QuartzNet.UI/
 ├── src/
-│   ├── Chet.QuartzNet.Core/          # 核心服务和功能
-│   │   ├── Attributes/               # 作业特性定义
-│   │   ├── Configuration/            # 配置类
-│   │   ├── Interfaces/               # 接口定义
-│   │   ├── Jobs/                     # 作业相关功能
-│   │   └── Services/                 # 核心服务实现
-│   ├── Chet.QuartzNet.EFCore/        # EF Core 数据访问层
-│   │   ├── Data/                     # 数据库上下文
-│   │   ├── Extensions/               # 扩展方法
-│   │   ├── Migrations/               # 数据库迁移
-│   │   └── Services/                 # 数据库存储服务
-│   ├── Chet.QuartzNet.Models/        # 数据模型和 DTO
-│   │   ├── DTOs/                     # 数据传输对象
-│   │   └── Entities/                 # 实体类
-│   └── Chet.QuartzNet.UI/            # UI 组件和控制器
-│       ├── Controllers/              # API 控制器
-│       ├── Extensions/               # 扩展方法
-│       ├── Middleware/               # 中间件
-│       └── wwwroot/                  # 静态资源
+│   ├── Chet.QuartzNet.EFCore/                # EF Core 数据访问层核心
+│   │   ├── Data/                           # 数据库上下文
+│   │   ├── Extensions/                      # 扩展方法
+│   │   └── Services/                        # 数据库存储服务
+│   ├── Chet.QuartzNet.EFCore.MySql/          # MySQL 数据库支持
+│   ├── Chet.QuartzNet.EFCore.PostgreSql/     # PostgreSQL 数据库支持
+│   ├── Chet.QuartzNet.EFCore.SQLite/         # SQLite 数据库支持
+│   ├── Chet.QuartzNet.EFCore.SqlServer/     # SQL Server 数据库支持
+│   ├── Chet.QuartzNet.Models/               # 数据模型和 DTO
+│   │   ├── DTOs/                            # 数据传输对象
+│   │   └── Entities/                         # 实体类
+│   ├── Chet.QuartzNet.UI/                   # UI 组件和控制器
+│   │   ├── Controllers/                     # API 控制器
+│   │   ├── Extensions/                      # 扩展方法
+│   │   ├── Middleware/                      # 中间件
+│   │   └── wwwroot/                         # 静态资源
+│   └── Chet.QuartzNet.Web/                  # Web 应用示例
 ├── examples/
-│   ├── Chet.QuartzNet.Example/       # 文件存储示例项目
-│   └── Chet.QuartzNet.Test/          # 数据库存储示例项目
-├── docs/                             # 项目文档
-│   ├── README.md                     # 项目简介和使用文档
-│   └── PUBLISHING.md                 # 发布指南
-├── README.md                         # 项目根目录文档
-├── LICENSE                           # 许可证文件
-├── build-nuget.bat                   # Windows 构建脚本
-└── Chet.QuartzNet.UI.sln             # 解决方案文件
+│   ├── Chet.QuartzNet.Database.Example/      # 数据库存储示例项目
+│   └── Chet.QuartzNet.File.Example/          # 文件存储示例项目
+├── docs/                                    # 项目文档
+│   ├── README.md                            # 项目简介和使用文档
+│   └── QuartzNet.UI 通知功能使用指南.md      # 通知功能使用指南
+├── .github/                                 # GitHub 配置文件
+├── nupkgs/                                  # NuGet 包输出目录
+├── README.md                                # 项目根目录文档
+├── LICENSE                                  # 许可证文件
+├── build-nuget.bat                          # Windows 构建脚本
+└── Chet.QuartzNet.UI.sln                    # 解决方案文件
 ```
 
 ## 🚀 开发计划
 
 - [x] 核心功能实现
 - [x] EFCore数据访问层
-- [x] Ant Design Vue前端界面
-- [x] Basic授权支持
+- [x] VbenAdmin 前端界面
 - [x] JWT授权支持
 - [x] Razor Class Library打包
 - [x] 示例项目
-- [x] 邮件通知功能
+- [x] PushPlus通知功能（替代邮件通知）
 - [ ] 更多数据库支持
 - [ ] 作业分组管理
 - [ ] 批量操作功能
@@ -327,7 +393,7 @@ Chet.QuartzNet.UI/
 ## 🙏 致谢
 
 - [Quartz.Net](https://www.quartz-scheduler.net/) - 优秀的任务调度框架
-- [Ant Design Vue](https://www.vben.pro/) - 美观的UI组件库
+- [VbenAdmin](https://www.vben.pro/) - 美观的UI组件库
 - [.NET](https://dotnet.microsoft.com/) - 强大的开发平台
 
 ---

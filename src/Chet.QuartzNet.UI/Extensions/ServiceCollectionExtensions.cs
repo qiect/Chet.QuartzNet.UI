@@ -12,8 +12,12 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Quartz;
 using Quartz.Impl.Matchers;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Security.Claims;
+using System.Text;
 using System.Text.Encodings.Web;
 
 namespace Chet.QuartzNet.UI.Extensions;
@@ -26,119 +30,142 @@ public static class ServiceCollectionExtensions
     private static ILogger? _logger = null;
 
     /// <summary>
-    /// 添加QuartzUI服务（文件存储版本）
+    /// 添加 Quartz UI（配置驱动，支持文件/数据库存储，内置 JWT 注册）
     /// </summary>
     /// <param name="services">服务集合</param>
-    /// <param name="configureOptions">配置选项</param>
-    /// <returns>服务集合</returns>
-    public static IServiceCollection AddQuartzUI(this IServiceCollection services, Action<QuartzUIOptions>? configureOptions = null)
+    /// <param name="configuration">配置（读取 QuartzUI 节与 ConnectionStrings:QuartzUI）</param>
+    /// <param name="configureOptions">可选：追加/覆写配置</param>
+    public static IServiceCollection AddQuartzUI(this IServiceCollection services, IConfiguration configuration, Action<QuartzUIOptions>? configureOptions = null)
     {
-        // 配置选项
-        services.Configure<QuartzUIOptions>(options =>
+        // 绑定配置到选项，并让 DI 管道也感知
+        var options = BindQuartzOptions(configuration, configureOptions);
+        services.Configure<QuartzUIOptions>(configuration.GetSection("QuartzUI"));
+        if (configureOptions != null)
         {
-            options.StorageType = StorageType.File;
-            configureOptions?.Invoke(options);
-        });
+            services.PostConfigure(configureOptions);
+        }
 
-        // 注册EmailOptions为独立服务，供EmailNotificationService使用
-        services.AddSingleton(provider =>
-        {
-            var quartzUIOptions = provider.GetRequiredService<IOptions<QuartzUIOptions>>().Value;
-            return quartzUIOptions.EmailOptions;
-        });
 
-        // 注册文件存储
-        services.TryAddScoped<IJobStorage, FileJobStorage>();
-        // 注册Quartz服务
-        services.TryAddScoped<IQuartzJobService, QuartzJobService>();
-        // 注册邮件通知服务
-        services.TryAddScoped<IEmailNotificationService, EmailNotificationService>();
-        // 注册作业监听器
-        services.TryAddScoped<QuartzJobListener>();
-        // 注册作业类扫描器
-        services.TryAddSingleton<JobClassScanner>();
-        // 注册邮件通知服务
-        services.TryAddScoped<IEmailNotificationService, EmailNotificationService>();
-        // 注册作业监听器
-        services.TryAddScoped<QuartzJobListener>();
-        // 注册作业类扫描器
-        services.TryAddSingleton<JobClassScanner>();
-        // 注册Quartz
-        services.AddQuartz(q =>
+        // 存储注册
+        if (options.StorageType == StorageType.Database)
         {
-            q.UseSimpleTypeLoader();
-            q.UseInMemoryStore();
-            q.UseDefaultThreadPool(tp =>
-            {
-                tp.MaxConcurrency = 10;
-            });
+            RegisterDatabaseStorage(services, configuration, options);
+        }
+        else
+        {
+            RegisterFileStorage(services, options);
+        }
 
-            // 注册作业监听器
-            q.AddJobListener<QuartzJobListener>(GroupMatcher<JobKey>.AnyGroup());
-        });
+        // 通用服务（作业服务、监听器、Quartz 调度器等）
+        RegisterQuartzCore(services, options);
 
-        // 注册IScheduler服务
-        services.AddSingleton<IScheduler>(provider =>
-        {
-            var schedulerFactory = provider.GetRequiredService<ISchedulerFactory>();
-            return schedulerFactory.GetScheduler().Result;
-        });
-        // 注册QuartzHostedService
-        services.AddQuartzHostedService(options =>
-        {
-            options.WaitForJobsToComplete = true;
-        });
-        // 注册作业调度初始化服务，用于在应用启动时将存储中的作业重新调度到Quartz调度器
-        services.AddHostedService<JobSchedulerInitializer>();
+        // 认证
+        AddQuartzUIAuthentication(services, options);
+
+        // 注册RCL中的控制器
+        services.AddControllers()
+            .AddApplicationPart(typeof(ServiceCollectionExtensions).Assembly);
 
         return services;
     }
 
     /// <summary>
-    /// 添加QuartzUI服务（数据库版本）
+    /// 绑定Quartz配置项
     /// </summary>
-    /// <param name="services">服务集合</param>
-    /// <param name="configureOptions">配置选项</param>
-    /// <returns>服务集合</returns>
-    public static IServiceCollection AddQuartzUI(this IServiceCollection services, Action<QuartzUIOptions, IServiceProvider> configureOptions)
+    /// <param name="configuration"></param>
+    /// <param name="configureOptions"></param>
+    /// <returns></returns>
+    private static QuartzUIOptions BindQuartzOptions(IConfiguration configuration, Action<QuartzUIOptions>? configureOptions)
     {
-        services.Configure<QuartzUIOptions>(options =>
-        {
-            options.StorageType = StorageType.Database;
-        });
+        var options = new QuartzUIOptions();
+        configuration.GetSection("QuartzUI").Bind(options);
+        configureOptions?.Invoke(options);
+        return options;
+    }
 
-        // 应用额外的配置
-        services.PostConfigure<QuartzUIOptions>(options =>
-        {
-            configureOptions?.Invoke(options, services.BuildServiceProvider());
-        });
+    /// <summary>
+    /// 注册文件存储服务
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="options"></param>
+    private static void RegisterFileStorage(IServiceCollection services, QuartzUIOptions options)
+    {
+        services.TryAddScoped<IJobStorage, FileJobStorage>();
+    }
 
-        // 注册EmailOptions为独立服务，供EmailNotificationService使用
-        services.AddSingleton(provider =>
+    /// <summary>
+    /// 注册数据库存储服务
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="configuration"></param>
+    /// <param name="options"></param>
+    /// <exception cref="ArgumentException"></exception>
+    /// <exception cref="InvalidOperationException"></exception>
+    private static void RegisterDatabaseStorage(IServiceCollection services, IConfiguration configuration, QuartzUIOptions options)
+    {
+        var connectionString = configuration.GetConnectionString("QuartzUI");
+        if (string.IsNullOrWhiteSpace(connectionString))
         {
-            var quartzUIOptions = provider.GetRequiredService<IOptions<QuartzUIOptions>>().Value;
-            return quartzUIOptions.EmailOptions;
-        });
+            throw new ArgumentException("未找到 QuartzUI 数据库连接字符串 (ConnectionStrings:QuartzUI)");
+        }
 
-        // 注册Quartz服务
+        var providerMap = new Dictionary<DatabaseProvider, (string TypeName, string MethodName)>
+        {
+            { DatabaseProvider.MySql, ("Chet.QuartzNet.EFCore.MySQL.Extensions.ServiceCollectionExtensions, Chet.QuartzNet.EFCore.MySQL", "AddQuartzUIMySql") },
+            { DatabaseProvider.PostgreSql, ("Chet.QuartzNet.EFCore.PostgreSQL.Extensions.ServiceCollectionExtensions, Chet.QuartzNet.EFCore.PostgreSQL", "AddQuartzUIPostgreSQL") },
+            { DatabaseProvider.SqlServer, ("Chet.QuartzNet.EFCore.SqlServer.Extensions.ServiceCollectionExtensions, Chet.QuartzNet.EFCore.SqlServer", "AddQuartzUISqlServer") },
+            { DatabaseProvider.SQLite, ("Chet.QuartzNet.EFCore.SQLite.Extensions.ServiceCollectionExtensions, Chet.QuartzNet.EFCore.SQLite", "AddQuartzUISQLite") },
+        };
+
+        if (!providerMap.TryGetValue(options.DatabaseProvider, out var providerMeta))
+        {
+            throw new ArgumentException($"不支持的数据库提供程序: {options.DatabaseProvider}");
+        }
+
+        var providerType = Type.GetType(providerMeta.TypeName, throwOnError: false);
+        if (providerType == null)
+        {
+            throw new InvalidOperationException($"未找到数据库提供程序程序集，请确保已引用对应 NuGet 包：{providerMeta.TypeName}");
+        }
+
+        var method = providerType.GetMethod(providerMeta.MethodName, new[] { typeof(IServiceCollection), typeof(string) });
+        if (method == null)
+        {
+            throw new InvalidOperationException($"在 {providerType.FullName} 中未找到 {providerMeta.MethodName}(IServiceCollection, string) 方法，请更新对应数据库包版本。");
+        }
+
+        method.Invoke(null, new object[] { services, connectionString });
+    }
+
+    /// <summary>
+    /// 注册QuartzUI核心服务
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="options"></param>
+    private static void RegisterQuartzCore(IServiceCollection services, QuartzUIOptions options)
+    {
         services.TryAddScoped<IQuartzJobService, QuartzJobService>();
+        services.TryAddScoped<QuartzJobListener>();
+        services.TryAddSingleton<JobClassScanner>();
+        
+        // 添加HTTP客户端支持
+        services.AddHttpClient();
+        
+        // 注册推送通知服务
+        services.TryAddScoped<INotificationService, PushPlusNotificationService>();
 
-        // 注册Quartz
         services.AddQuartz(q =>
         {
-            // q.UseMicrosoftDependencyInjectionJobFactory(); // 已过时，默认就是MicrosoftDependencyInjectionJobFactory
             q.UseSimpleTypeLoader();
             q.UseInMemoryStore();
             q.UseDefaultThreadPool(tp =>
             {
-                tp.MaxConcurrency = 10;
+                tp.MaxConcurrency = options.ThreadPoolSize > 0 ? options.ThreadPoolSize : 10;
             });
 
-            // 注册作业监听器
             q.AddJobListener<QuartzJobListener>(GroupMatcher<JobKey>.AnyGroup());
         });
 
-        // 注册IScheduler服务
         services.AddSingleton<IScheduler>(provider =>
         {
             var schedulerFactory = provider.GetRequiredService<ISchedulerFactory>();
@@ -150,7 +177,50 @@ public static class ServiceCollectionExtensions
             options.WaitForJobsToComplete = true;
         });
 
-        return services;
+        services.AddHostedService<JobSchedulerInitializer>();
+    }
+
+    /// <summary>
+    /// 注册JWT认证服务
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="options"></param>
+    private static void AddQuartzUIAuthentication(IServiceCollection services, QuartzUIOptions options)
+    {
+        if (!options.EnableJwtAuth)
+        {
+            return;
+        }
+
+        services.AddAuthentication(authOptions =>
+        {
+            authOptions.DefaultAuthenticateScheme = "QuartzUIJwt";
+            authOptions.DefaultChallengeScheme = "QuartzUIJwt";
+        })
+        .AddJwtBearer("QuartzUIJwt", bearerOptions =>
+        {
+            bearerOptions.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = options.JwtIssuer,
+                ValidAudience = options.JwtAudience,
+                IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
+                    System.Text.Encoding.UTF8.GetBytes(options.JwtSecret)
+                )
+            };
+        });
+
+        services.AddAuthorization(authOptions =>
+        {
+            authOptions.AddPolicy("QuartzUIPolicy", policy =>
+            {
+                policy.AuthenticationSchemes.Add("QuartzUIJwt");
+                policy.RequireAuthenticatedUser();
+            });
+        });
     }
 
     /// <summary>
@@ -315,55 +385,6 @@ public static class ServiceCollectionExtensions
         {
             return Task.CompletedTask;
         }
-    }
-
-    /// <summary>
-    /// 添加JWT认证
-    /// </summary>
-    /// <param name="services">服务集合</param>
-    /// <param name="configuration">配置</param>
-    /// <returns>服务集合</returns>
-    public static IServiceCollection AddQuartzUIAuthentication(this IServiceCollection services, IConfiguration configuration)
-    {
-        // 注册QuartzUI配置
-        services.Configure<QuartzUIOptions>(configuration.GetSection("QuartzUI"));
-
-        // 获取配置
-        var quartzUIOptions = configuration.GetSection("QuartzUI").Get<QuartzUIOptions>() ?? new QuartzUIOptions();
-
-        // 启用JWT认证
-        services.AddAuthentication(options =>
-        {
-            options.DefaultAuthenticateScheme = "QuartzUIJwt";
-            options.DefaultChallengeScheme = "QuartzUIJwt";
-        })
-        .AddJwtBearer("QuartzUIJwt", options =>
-        {
-            options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
-            {
-                ValidateIssuer = true,
-                ValidateAudience = true,
-                ValidateLifetime = true,
-                ValidateIssuerSigningKey = true,
-                ValidIssuer = quartzUIOptions.JwtIssuer,
-                ValidAudience = quartzUIOptions.JwtAudience,
-                IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
-                    System.Text.Encoding.UTF8.GetBytes(quartzUIOptions.JwtSecret)
-                )
-            };
-        });
-
-        // 添加授权策略
-        services.AddAuthorization(options =>
-        {
-            options.AddPolicy("QuartzUIPolicy", policy =>
-            {
-                policy.AuthenticationSchemes.Add("QuartzUIJwt");
-                policy.RequireAuthenticatedUser();
-            });
-        });
-
-        return services;
     }
 
     /// <summary>

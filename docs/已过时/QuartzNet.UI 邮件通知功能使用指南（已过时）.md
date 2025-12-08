@@ -1,4 +1,4 @@
-# QuartzNet.UI 邮件通知功能使用指南
+# QuartzNet.UI 邮件通知功能使用指南（已过时）
 
 ## 功能概述
 

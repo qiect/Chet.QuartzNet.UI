@@ -46,6 +46,11 @@ public class QuartzJobService : IQuartzJobService
     private readonly JobClassScanner _jobClassScanner;
 
     /// <summary>
+    /// 通知服务
+    /// </summary>
+    private readonly INotificationService _notificationService;
+
+    /// <summary>
     /// 初始化QuartzJobService实例
     /// </summary>
     /// <param name="schedulerFactory">调度器工厂</param>
@@ -53,12 +58,14 @@ public class QuartzJobService : IQuartzJobService
     /// <param name="logger">日志记录器</param>
     /// <param name="options">Quartz UI配置选项</param>
     /// <param name="jobClassScanner">作业类扫描器</param>
+    /// <param name="notificationService">通知服务</param>
     public QuartzJobService(
         ISchedulerFactory schedulerFactory,
         IJobStorage jobStorage,
         ILogger<QuartzJobService> logger,
         IOptions<QuartzUIOptions> options,
-        JobClassScanner jobClassScanner)
+        JobClassScanner jobClassScanner,
+        INotificationService notificationService)
     {
         _schedulerFactory = schedulerFactory;
         _scheduler = _schedulerFactory.GetScheduler().Result;
@@ -66,6 +73,7 @@ public class QuartzJobService : IQuartzJobService
         _logger = logger;
         _options = options.Value;
         _jobClassScanner = jobClassScanner;
+        _notificationService = notificationService;
     }
 
     #region 调度器
@@ -1175,6 +1183,27 @@ public class QuartzJobService : IQuartzJobService
         };
     }
 
+    /// <summary>
+    /// 将通知实体映射为DTO
+    /// </summary>
+    /// <param name="notification">通知实体</param>
+    /// <returns>通知DTO</returns>
+    private QuartzNotificationDto MapToNotificationDto(QuartzNotification notification)
+    {
+        return new QuartzNotificationDto
+        {
+            NotificationId = notification.NotificationId,
+            Title = notification.Title,
+            Content = notification.Content,
+            Status = notification.Status,
+            ErrorMessage = notification.ErrorMessage,
+            TriggeredBy = notification.TriggeredBy,
+            CreateTime = notification.CreateTime,
+            SendTime = notification.SendTime,
+            Duration = notification.Duration
+        };
+    }
+
     #endregion
 
     #region 作业日志
@@ -1386,6 +1415,199 @@ public class QuartzJobService : IQuartzJobService
         {
             _logger.LogError(ex, "获取作业执行耗时数据失败");
             return ApiResponseDto<List<JobExecutionTimeDto>>.ErrorResponse($"获取作业执行耗时数据失败: {ex.Message}");
+        }
+    }
+    #endregion
+
+    #region 通知管理
+
+    /// <summary>
+    /// 获取PushPlus配置
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>PushPlus配置</returns>
+    public async Task<ApiResponseDto<PushPlusConfigDto>> GetPushPlusConfigAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var config = await _notificationService.GetPushPlusConfigAsync(cancellationToken);
+            return ApiResponseDto<PushPlusConfigDto>.SuccessResponse(config, "获取PushPlus配置成功");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取PushPlus配置失败");
+            return ApiResponseDto<PushPlusConfigDto>.ErrorResponse($"获取PushPlus配置失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 保存PushPlus配置
+    /// </summary>
+    /// <param name="config">PushPlus配置</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>保存结果</returns>
+    public async Task<ApiResponseDto<bool>> SavePushPlusConfigAsync(PushPlusConfigDto config, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var result = await _notificationService.SavePushPlusConfigAsync(config, cancellationToken);
+            if (result)
+            {
+                _logger.LogInformation("保存PushPlus配置成功");
+                return ApiResponseDto<bool>.SuccessResponse(true, "保存PushPlus配置成功");
+            }
+            else
+            {
+                _logger.LogWarning("保存PushPlus配置失败");
+                return ApiResponseDto<bool>.ErrorResponse("保存PushPlus配置失败");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "保存PushPlus配置失败");
+            return ApiResponseDto<bool>.ErrorResponse($"保存PushPlus配置失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 发送测试通知
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>发送结果</returns>
+    public async Task<ApiResponseDto<bool>> SendTestNotificationAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var result = await _notificationService.SendTestNotificationAsync(cancellationToken);
+            if (result)
+            {
+                _logger.LogInformation("发送测试通知成功");
+                return ApiResponseDto<bool>.SuccessResponse(true, "发送测试通知成功");
+            }
+            else
+            {
+                _logger.LogWarning("发送测试通知失败");
+                return ApiResponseDto<bool>.ErrorResponse("发送测试通知失败");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "发送测试通知失败");
+            return ApiResponseDto<bool>.ErrorResponse($"发送测试通知失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 获取通知消息列表
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>通知消息列表</returns>
+    public async Task<ApiResponseDto<PagedResponseDto<QuartzNotificationDto>>> GetNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var result = await _jobStorage.GetNotificationsAsync(queryDto, cancellationToken);
+            
+            // 将实体转换为DTO
+            var notificationDtos = result.Items.Select(MapToNotificationDto).ToList();
+            var pagedDto = new PagedResponseDto<QuartzNotificationDto>
+            {
+                Items = notificationDtos,
+                TotalCount = result.TotalCount,
+                PageIndex = result.PageIndex,
+                PageSize = result.PageSize
+            };
+            
+            return ApiResponseDto<PagedResponseDto<QuartzNotificationDto>>.SuccessResponse(pagedDto, "获取通知消息列表成功");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取通知消息列表失败");
+            return ApiResponseDto<PagedResponseDto<QuartzNotificationDto>>.ErrorResponse($"获取通知消息列表失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 获取通知消息详情
+    /// </summary>
+    /// <param name="notificationId">通知ID</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>通知消息详情</returns>
+    public async Task<ApiResponseDto<QuartzNotificationDto>> GetNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var notification = await _jobStorage.GetNotificationAsync(notificationId, cancellationToken);
+            if (notification == null)
+            {
+                return ApiResponseDto<QuartzNotificationDto>.ErrorResponse("通知不存在");
+            }
+            var notificationDto = MapToNotificationDto(notification);
+            return ApiResponseDto<QuartzNotificationDto>.SuccessResponse(notificationDto, "获取通知消息详情成功");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取通知消息详情失败: {NotificationId}", notificationId);
+            return ApiResponseDto<QuartzNotificationDto>.ErrorResponse($"获取通知消息详情失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 删除通知消息
+    /// </summary>
+    /// <param name="notificationId">通知ID</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>删除结果</returns>
+    public async Task<ApiResponseDto<bool>> DeleteNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var result = await _jobStorage.DeleteNotificationAsync(notificationId, cancellationToken);
+            if (result)
+            {
+                _logger.LogInformation("删除通知消息成功: {NotificationId}", notificationId);
+                return ApiResponseDto<bool>.SuccessResponse(true, "删除通知消息成功");
+            }
+            else
+            {
+                _logger.LogWarning("删除通知消息失败: {NotificationId}", notificationId);
+                return ApiResponseDto<bool>.ErrorResponse("删除通知消息失败");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "删除通知消息失败: {NotificationId}", notificationId);
+            return ApiResponseDto<bool>.ErrorResponse($"删除通知消息失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 清空通知消息
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>清空结果</returns>
+    public async Task<ApiResponseDto<bool>> ClearNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var result = await _jobStorage.ClearNotificationsAsync(queryDto, cancellationToken);
+            if (result)
+            {
+                _logger.LogInformation("清空通知消息成功");
+                return ApiResponseDto<bool>.SuccessResponse(true, "清空通知消息成功");
+            }
+            else
+            {
+                _logger.LogWarning("清空通知消息失败");
+                return ApiResponseDto<bool>.ErrorResponse("清空通知消息失败");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "清空通知消息失败");
+            return ApiResponseDto<bool>.ErrorResponse($"清空通知消息失败: {ex.Message}");
         }
     }
     #endregion

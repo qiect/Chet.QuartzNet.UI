@@ -22,14 +22,14 @@ public class QuartzUIController : ControllerBase
 {
     private readonly IQuartzJobService _jobService;
     private readonly ILogger<QuartzUIController> _logger;
-    private readonly IEmailNotificationService _emailService;
     private readonly QuartzUIOptions _quartzUIOptions;
 
-    public QuartzUIController(IQuartzJobService jobService, ILogger<QuartzUIController> logger, IEmailNotificationService emailService, IOptions<QuartzUIOptions> quartzUIOptions)
+    public QuartzUIController(IQuartzJobService jobService,
+                              ILogger<QuartzUIController> logger,
+                              IOptions<QuartzUIOptions> quartzUIOptions)
     {
         _jobService = jobService;
         _logger = logger;
-        _emailService = emailService;
         _quartzUIOptions = quartzUIOptions.Value;
     }
 
@@ -351,49 +351,97 @@ public class QuartzUIController : ControllerBase
 
     #endregion
 
+    #region 通知配置
+
+    /// <summary>
+    /// 获取PushPlus配置
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>PushPlus配置</returns>
+    [HttpGet("GetPushPlusConfig")]
+    public async Task<ActionResult<ApiResponseDto<PushPlusConfigDto>>> GetPushPlusConfig(CancellationToken cancellationToken = default)
+    {
+        return Ok(await _jobService.GetPushPlusConfigAsync(cancellationToken));
+    }
+
+    /// <summary>
+    /// 保存PushPlus配置
+    /// </summary>
+    /// <param name="config">PushPlus配置</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>保存结果</returns>
+    [HttpPost("SavePushPlusConfig")]
+    public async Task<ActionResult<ApiResponseDto<bool>>> SavePushPlusConfig([FromBody] PushPlusConfigDto config, CancellationToken cancellationToken = default)
+    {
+        return Ok(await _jobService.SavePushPlusConfigAsync(config, cancellationToken));
+    }
+
+    /// <summary>
+    /// 发送测试通知
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>发送结果</returns>
+    [HttpPost("SendTestNotification")]
+    public async Task<ActionResult<ApiResponseDto<bool>>> SendTestNotification(CancellationToken cancellationToken = default)
+    {
+        return Ok(await _jobService.SendTestNotificationAsync(cancellationToken));
+    }
+
+    #endregion
+
+    #region 通知消息
+
+    /// <summary>
+    /// 获取通知消息列表
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>通知消息列表</returns>
+    [HttpPost("GetNotifications")]
+    public async Task<ActionResult<ApiResponseDto<PagedResponseDto<QuartzNotificationDto>>>> GetNotifications([FromBody] NotificationQueryDto queryDto, CancellationToken cancellationToken = default)
+    {
+        return Ok(await _jobService.GetNotificationsAsync(queryDto, cancellationToken));
+    }
+
+    /// <summary>
+    /// 获取通知消息详情
+    /// </summary>
+    /// <param name="notificationId">通知ID</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>通知消息详情</returns>
+    [HttpGet("GetNotification")]
+    public async Task<ActionResult<ApiResponseDto<QuartzNotificationDto>>> GetNotification(Guid notificationId, CancellationToken cancellationToken = default)
+    {
+        return Ok(await _jobService.GetNotificationAsync(notificationId, cancellationToken));
+    }
+
+    /// <summary>
+    /// 删除通知消息
+    /// </summary>
+    /// <param name="notificationId">通知ID</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>删除结果</returns>
+    [HttpDelete("DeleteNotification")]
+    public async Task<ActionResult<ApiResponseDto<bool>>> DeleteNotification(Guid notificationId, CancellationToken cancellationToken = default)
+    {
+        return Ok(await _jobService.DeleteNotificationAsync(notificationId, cancellationToken));
+    }
+
+    /// <summary>
+    /// 清空通知消息
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>清空结果</returns>
+    [HttpPost("ClearNotifications")]
+    public async Task<ActionResult<ApiResponseDto<bool>>> ClearNotifications([FromBody] NotificationQueryDto queryDto, CancellationToken cancellationToken = default)
+    {
+        return Ok(await _jobService.ClearNotificationsAsync(queryDto, cancellationToken));
+    }
+
+    #endregion
+
     #region 认证
-
-    /// <summary>
-    /// 登录请求DTO
-    /// </summary>
-    public class LoginRequestDto
-    {
-        /// <summary>
-        /// 用户名
-        /// </summary>
-        public string UserName { get; set; } = string.Empty;
-
-        /// <summary>
-        /// 密码
-        /// </summary>
-        public string Password { get; set; } = string.Empty;
-    }
-
-    /// <summary>
-    /// 登录响应DTO
-    /// </summary>
-    public class LoginResponseDto
-    {
-        /// <summary>
-        /// 访问令牌
-        /// </summary>
-        public string AccessToken { get; set; } = string.Empty;
-
-        /// <summary>
-        /// 令牌类型
-        /// </summary>
-        public string TokenType { get; set; } = "Bearer";
-
-        /// <summary>
-        /// 过期时间（秒）
-        /// </summary>
-        public int ExpiresIn { get; set; }
-
-        /// <summary>
-        /// 用户名
-        /// </summary>
-        public string UserName { get; set; } = string.Empty;
-    }
 
     /// <summary>
     /// 用户登录
@@ -595,33 +643,6 @@ public class QuartzUIController : ControllerBase
         {
             _logger.LogError(ex, "获取作业类列表失败");
             return Ok(ApiResponseDto<List<string>>.ErrorResponse("获取作业类列表失败: " + ex.Message));
-        }
-    }
-
-    /// <summary>
-    /// 测试邮件配置
-    /// </summary>
-    [HttpPost("TestEmailConfiguration")]
-    public async Task<ActionResult<ApiResponseDto<bool>>> TestEmailConfiguration()
-    {
-        try
-        {
-            var result = await _emailService.TestEmailConfigurationAsync();
-            if (result)
-            {
-                _logger.LogInformation("邮件配置测试成功");
-                return Ok(ApiResponseDto<bool>.SuccessResponse(true, "邮件配置测试成功，请检查收件箱"));
-            }
-            else
-            {
-                _logger.LogWarning("邮件配置测试失败");
-                return Ok(ApiResponseDto<bool>.ErrorResponse("邮件配置测试失败，请检查邮件配置"));
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "邮件配置测试失败");
-            return Ok(ApiResponseDto<bool>.ErrorResponse("邮件配置测试失败: " + ex.Message));
         }
     }
 

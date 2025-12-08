@@ -36,6 +36,16 @@ public class FileJobStorage : IJobStorage
     private readonly string _logsFilePath;
 
     /// <summary>
+    /// 设置数据文件路径
+    /// </summary>
+    private readonly string _settingsFilePath;
+
+    /// <summary>
+    /// 通知数据文件路径
+    /// </summary>
+    private readonly string _notificationsFilePath;
+
+    /// <summary>
     /// 文件锁字典
     /// </summary>
     private static readonly ConcurrentDictionary<string, object> _fileLocks = new();
@@ -54,6 +64,8 @@ public class FileJobStorage : IJobStorage
         // 构建文件路径
         _jobsFilePath = Path.Combine(_options.FileStoragePath, "jobs.json");
         _logsFilePath = Path.Combine(_options.FileStoragePath, "logs.json");
+        _settingsFilePath = Path.Combine(_options.FileStoragePath, "setting.json");
+        _notificationsFilePath = Path.Combine(_options.FileStoragePath, "notification.json");
 
         // 确保存储目录存在
         Directory.CreateDirectory(_options.FileStoragePath);
@@ -627,6 +639,18 @@ public class FileJobStorage : IJobStorage
                 await SaveLogsAsync(new List<QuartzJobLog>());
             }
 
+            // 检查设置文件是否存在，不存在则创建
+            if (!File.Exists(_settingsFilePath))
+            {
+                await SaveSettingsAsync(new List<QuartzSetting>());
+            }
+
+            // 检查通知文件是否存在，不存在则创建
+            if (!File.Exists(_notificationsFilePath))
+            {
+                await SaveNotificationsAsync(new List<QuartzNotification>());
+            }
+
             _logger.LogInformation("文件存储初始化成功");
             return true;
         }
@@ -1044,6 +1068,523 @@ public class FileJobStorage : IJobStorage
 
         return (startTime, endTime);
     }
+
+    #endregion
+
+    #region 通知管理
+
+    #region 设置操作
+
+    /// <summary>
+    /// 从文件加载设置数据
+    /// </summary>
+    /// <returns>设置信息列表</returns>
+    private Task<List<QuartzSetting>> LoadSettingsAsync()
+    {
+        var lockObject = GetFileLock(_settingsFilePath);
+        lock (lockObject)
+        {
+            try
+            {
+                // 文件不存在则返回空列表
+                if (!File.Exists(_settingsFilePath))
+                {
+                    return Task.FromResult(new List<QuartzSetting>());
+                }
+
+                using (var stream = new FileStream(_settingsFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var reader = new StreamReader(stream))
+                {
+                    var json = reader.ReadToEnd();
+                    var settings = JsonSerializer.Deserialize<List<QuartzSetting>>(json, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    }) ?? new List<QuartzSetting>();
+
+                    return Task.FromResult(settings);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "加载设置数据失败");
+                return Task.FromResult(new List<QuartzSetting>());
+            }
+        }
+    }
+
+    /// <summary>
+    /// 保存设置数据到文件
+    /// </summary>
+    /// <param name="settings">设置信息列表</param>
+    private Task SaveSettingsAsync(List<QuartzSetting> settings)
+    {
+        var lockObject = GetFileLock(_settingsFilePath);
+        lock (lockObject)
+        {
+            try
+            {
+                // 创建备份
+                if (_options.EnableFileBackup && File.Exists(_settingsFilePath))
+                {
+                    CreateBackup(_settingsFilePath);
+                }
+
+                var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                });
+
+                using (var stream = new FileStream(_settingsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
+                using (var writer = new StreamWriter(stream))
+                {
+                    writer.Write(json);
+                }
+
+                return Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "保存设置数据失败");
+                throw;
+            }
+        }
+    }
+
+    #endregion
+
+    #region 通知操作
+
+    /// <summary>
+    /// 从文件加载通知数据
+    /// </summary>
+    /// <returns>通知信息列表</returns>
+    private Task<List<QuartzNotification>> LoadNotificationsAsync()
+    {
+        var lockObject = GetFileLock(_notificationsFilePath);
+        lock (lockObject)
+        {
+            try
+            {
+                // 文件不存在则返回空列表
+                if (!File.Exists(_notificationsFilePath))
+                {
+                    return Task.FromResult(new List<QuartzNotification>());
+                }
+
+                using (var stream = new FileStream(_notificationsFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var reader = new StreamReader(stream))
+                {
+                    var json = reader.ReadToEnd();
+                    var notifications = JsonSerializer.Deserialize<List<QuartzNotification>>(json, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    }) ?? new List<QuartzNotification>();
+
+                    return Task.FromResult(notifications);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "加载通知数据失败");
+                return Task.FromResult(new List<QuartzNotification>());
+            }
+        }
+    }
+
+    /// <summary>
+    /// 保存通知数据到文件
+    /// </summary>
+    /// <param name="notifications">通知信息列表</param>
+    private Task SaveNotificationsAsync(List<QuartzNotification> notifications)
+    {
+        var lockObject = GetFileLock(_notificationsFilePath);
+        lock (lockObject)
+        {
+            try
+            {
+                // 创建备份
+                if (_options.EnableFileBackup && File.Exists(_notificationsFilePath))
+                {
+                    CreateBackup(_notificationsFilePath);
+                }
+
+                var json = JsonSerializer.Serialize(notifications, new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                });
+
+                using (var stream = new FileStream(_notificationsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
+                using (var writer = new StreamWriter(stream))
+                {
+                    writer.Write(json);
+                }
+
+                return Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "保存通知数据失败");
+                throw;
+            }
+        }
+    }
+
+    #endregion
+
+    #region 接口实现
+
+    /// <summary>
+    /// 保存设置
+    /// </summary>
+    /// <param name="setting">设置信息</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>保存成功返回true，失败返回false</returns>
+    public async Task<bool> SaveSettingAsync(QuartzSetting setting, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var settings = await LoadSettingsAsync();
+            var existingSetting = settings.FirstOrDefault(s => s.Key == setting.Key);
+
+            if (existingSetting != null)
+            {
+                // 更新现有设置
+                existingSetting.Value = setting.Value;
+                existingSetting.Description = setting.Description;
+                existingSetting.Enabled = setting.Enabled;
+                existingSetting.UpdateTime = DateTime.Now;
+            }
+            else
+            {
+                // 添加新设置
+                setting.CreateTime = DateTime.Now;
+                settings.Add(setting);
+            }
+
+            await SaveSettingsAsync(settings);
+            _logger.LogInformation("保存设置成功: {Key}", setting.Key);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "保存设置失败: {Key}", setting.Key);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 获取设置
+    /// </summary>
+    /// <param name="key">设置键</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>设置信息，不存在返回null</returns>
+    public async Task<QuartzSetting?> GetSettingAsync(string key, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var settings = await LoadSettingsAsync();
+            return settings.FirstOrDefault(s => s.Key == key);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取设置失败: {Key}", key);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 获取所有设置
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>设置列表</returns>
+    public async Task<List<QuartzSetting>> GetAllSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await LoadSettingsAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取所有设置失败");
+            return new List<QuartzSetting>();
+        }
+    }
+
+    /// <summary>
+    /// 添加通知消息
+    /// </summary>
+    /// <param name="notification">通知消息</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>添加成功返回true，失败返回false</returns>
+    public async Task<bool> AddNotificationAsync(QuartzNotification notification, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var notifications = await LoadNotificationsAsync();
+            notification.NotificationId = Guid.NewGuid();
+            notification.CreateTime = DateTime.Now;
+            notifications.Add(notification);
+            await SaveNotificationsAsync(notifications);
+            _logger.LogInformation("添加通知消息成功: {NotificationId}", notification.NotificationId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "添加通知消息失败");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 更新通知消息
+    /// </summary>
+    /// <param name="notification">通知消息</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>更新成功返回true，失败返回false</returns>
+    public async Task<bool> UpdateNotificationAsync(QuartzNotification notification, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var notifications = await LoadNotificationsAsync();
+            var existingNotification = notifications.FirstOrDefault(n => n.NotificationId == notification.NotificationId);
+
+            if (existingNotification == null)
+            {
+                _logger.LogWarning("更新通知消息失败: 通知不存在 {NotificationId}", notification.NotificationId);
+                return false;
+            }
+
+            // 更新通知信息
+            existingNotification.Title = notification.Title;
+            existingNotification.Content = notification.Content;
+            existingNotification.Status = notification.Status;
+            existingNotification.ErrorMessage = notification.ErrorMessage;
+            existingNotification.TriggeredBy = notification.TriggeredBy;
+            existingNotification.SendTime = notification.SendTime;
+            existingNotification.Duration = notification.Duration;
+
+            await SaveNotificationsAsync(notifications);
+            _logger.LogInformation("更新通知消息成功: {NotificationId}", notification.NotificationId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "更新通知消息失败: {NotificationId}", notification.NotificationId);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 获取通知消息
+    /// </summary>
+    /// <param name="notificationId">通知ID</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>通知消息，不存在返回null</returns>
+    public async Task<QuartzNotification?> GetNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var notifications = await LoadNotificationsAsync();
+            return notifications.FirstOrDefault(n => n.NotificationId == notificationId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取通知消息失败: {NotificationId}", notificationId);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 获取通知消息列表，支持分页、过滤和排序
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>分页通知消息列表</returns>
+    public async Task<PagedResponseDto<QuartzNotification>> GetNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var notifications = await LoadNotificationsAsync();
+
+            // 应用过滤条件
+            if (queryDto.Status.HasValue)
+            {
+                notifications = notifications.Where(n => n.Status == queryDto.Status.Value).ToList();
+            }
+
+            if (!string.IsNullOrEmpty(queryDto.TriggeredBy))
+            {
+                notifications = notifications.Where(n => n.TriggeredBy?.Contains(queryDto.TriggeredBy, StringComparison.OrdinalIgnoreCase) ?? false).ToList();
+            }
+
+            if (queryDto.StartTime.HasValue)
+            {
+                notifications = notifications.Where(n => n.CreateTime >= queryDto.StartTime.Value).ToList();
+            }
+
+            if (queryDto.EndTime.HasValue)
+            {
+                notifications = notifications.Where(n => n.CreateTime <= queryDto.EndTime.Value).ToList();
+            }
+
+            // 应用排序
+            if (!string.IsNullOrEmpty(queryDto.SortBy))
+            {
+                var isAscending = string.Equals(queryDto.SortOrder, "asc", StringComparison.OrdinalIgnoreCase);
+
+                switch (queryDto.SortBy.ToLower())
+                {
+                    case "title":
+                        notifications = isAscending ? notifications.OrderBy(n => n.Title).ToList() : notifications.OrderByDescending(n => n.Title).ToList();
+                        break;
+                    case "status":
+                        notifications = isAscending ? notifications.OrderBy(n => n.Status).ToList() : notifications.OrderByDescending(n => n.Status).ToList();
+                        break;
+                    case "createtime":
+                        notifications = isAscending ? notifications.OrderBy(n => n.CreateTime).ToList() : notifications.OrderByDescending(n => n.CreateTime).ToList();
+                        break;
+                    case "sendtime":
+                        notifications = isAscending ? notifications.OrderBy(n => n.SendTime).ToList() : notifications.OrderByDescending(n => n.SendTime).ToList();
+                        break;
+                    default:
+                        // 默认按创建时间降序排序
+                        notifications = notifications.OrderByDescending(n => n.CreateTime).ToList();
+                        break;
+                }
+            }
+            else
+            {
+                // 默认按创建时间降序排序
+                notifications = notifications.OrderByDescending(n => n.CreateTime).ToList();
+            }
+
+            // 分页处理
+            var totalCount = notifications.Count;
+            var pagedNotifications = notifications
+                .Skip((queryDto.PageIndex - 1) * queryDto.PageSize)
+                .Take(queryDto.PageSize)
+                .ToList();
+
+            // 构建分页响应
+            return new PagedResponseDto<QuartzNotification>
+            {
+                Items = pagedNotifications,
+                TotalCount = totalCount,
+                PageIndex = queryDto.PageIndex,
+                PageSize = queryDto.PageSize
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取通知消息列表失败");
+            return new PagedResponseDto<QuartzNotification>();
+        }
+    }
+
+    /// <summary>
+    /// 删除通知消息
+    /// </summary>
+    /// <param name="notificationId">通知ID</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>删除成功返回true，失败返回false</returns>
+    public async Task<bool> DeleteNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var notifications = await LoadNotificationsAsync();
+            var notificationToDelete = notifications.FirstOrDefault(n => n.NotificationId == notificationId);
+
+            if (notificationToDelete == null)
+            {
+                _logger.LogWarning("删除通知消息失败: 通知不存在 {NotificationId}", notificationId);
+                return false;
+            }
+
+            notifications.Remove(notificationToDelete);
+            await SaveNotificationsAsync(notifications);
+            _logger.LogInformation("删除通知消息成功: {NotificationId}", notificationId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "删除通知消息失败: {NotificationId}", notificationId);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 根据查询条件清空通知消息
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>清空成功返回true，失败返回false</returns>
+    public async Task<bool> ClearNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var notifications = await LoadNotificationsAsync();
+            var originalCount = notifications.Count;
+
+            // 找出需要删除的通知（即匹配查询条件的通知）
+            var notificationsToDelete = notifications.Where(notification =>
+            {
+                // 应用过滤条件
+                bool match = true;
+
+                if (queryDto.Status.HasValue)
+                {
+                    match &= notification.Status == queryDto.Status.Value;
+                }
+
+                if (!string.IsNullOrEmpty(queryDto.TriggeredBy))
+                {
+                    match &= notification.TriggeredBy?.Contains(queryDto.TriggeredBy, StringComparison.OrdinalIgnoreCase) ?? false;
+                }
+
+                if (queryDto.StartTime.HasValue)
+                {
+                    match &= notification.CreateTime >= queryDto.StartTime.Value;
+                }
+
+                if (queryDto.EndTime.HasValue)
+                {
+                    match &= notification.CreateTime <= queryDto.EndTime.Value;
+                }
+
+                return match;
+            }).ToList();
+
+            // 如果没有指定查询条件，删除所有通知
+            if (!queryDto.Status.HasValue &&
+                string.IsNullOrEmpty(queryDto.TriggeredBy) &&
+                !queryDto.StartTime.HasValue &&
+                !queryDto.EndTime.HasValue)
+            {
+                notificationsToDelete = notifications;
+            }
+
+            // 创建新的通知列表，不包含需要删除的通知
+            var notificationsToKeep = notifications.Except(notificationsToDelete).ToList();
+
+            // 保存保留的通知（即删除了匹配条件的通知）
+            await SaveNotificationsAsync(notificationsToKeep);
+
+            // 计算清空的通知数量
+            var clearedCount = notificationsToDelete.Count;
+            _logger.LogInformation("清空通知消息成功: 共清空 {Count} 条通知", clearedCount);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "清空通知消息失败");
+            return false;
+        }
+    }
+
+    #endregion
 
     #endregion
 }

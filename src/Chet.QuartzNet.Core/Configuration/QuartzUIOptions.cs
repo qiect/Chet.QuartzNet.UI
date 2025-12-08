@@ -101,9 +101,9 @@ public class QuartzUIOptions
     public int JobScanInterval { get; set; } = 60;
 
     /// <summary>
-    /// 数据库提供程序，默认为 MySql
+    /// 数据库提供程序，默认为 SqlServer
     /// </summary>
-    public DatabaseProvider DatabaseProvider { get; set; } = DatabaseProvider.MySql;
+    public DatabaseProvider DatabaseProvider { get; set; } = DatabaseProvider.SqlServer;
 
     /// <summary>
     /// 邮件通知配置

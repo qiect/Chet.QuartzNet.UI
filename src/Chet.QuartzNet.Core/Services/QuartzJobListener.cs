@@ -4,7 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Quartz;
 using System.Text.Json;
-using Chet.QuartzNet.Core.Configuration;
 
 namespace Chet.QuartzNet.Core.Services
 {
@@ -79,7 +78,6 @@ namespace Chet.QuartzNet.Core.Services
                 using var scope = _scopeFactory.CreateScope();
                 var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
                 var jobService = scope.ServiceProvider.GetRequiredService<IQuartzJobService>();
-                var emailService = scope.ServiceProvider.GetService<IEmailNotificationService>();
 
                 // 记录作业日志
                 await jobStorage.AddJobLogAsync(jobLog, cancellationToken);
@@ -87,10 +85,11 @@ namespace Chet.QuartzNet.Core.Services
                 // 更新作业的下次执行时间和上次执行时间
                 await jobService.UpdateJobExecutionTimesAsync(context.JobDetail.Key.Name, context.JobDetail.Key.Group, context.Trigger, cancellationToken);
 
-                // 发送邮件通知
-                if (emailService != null)
+                // 发送推送通知
+                var notificationService = scope.ServiceProvider.GetService<INotificationService>();
+                if (notificationService != null)
                 {
-                    await emailService.SendJobExecutionNotificationAsync(
+                    await notificationService.SendJobExecutionNotificationAsync(
                         context.JobDetail.Key.Name,
                         context.JobDetail.Key.Group,
                         result == null,

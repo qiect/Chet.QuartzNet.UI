@@ -19,8 +19,8 @@ namespace Chet.QuartzNet.EFCore.PostgreSQL.Migrations
                     JobName = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false, comment: "作业名称"),
                     JobGroup = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false, defaultValue: "DEFAULT", comment: "作业分组"),
                     Status = table.Column<int>(type: "integer", nullable: false, defaultValue: 0, comment: "日志状态"),
-                    StartTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, comment: "开始时间"),
-                    EndTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: true, comment: "结束时间"),
+                    StartTime = table.Column<DateTime>(type: "timestamp without time zone", nullable: false, comment: "开始时间"),
+                    EndTime = table.Column<DateTime>(type: "timestamp without time zone", nullable: true, comment: "结束时间"),
                     Duration = table.Column<long>(type: "bigint", nullable: true, comment: "执行耗时(毫秒)"),
                     Message = table.Column<string>(type: "text", nullable: true, comment: "执行结果消息"),
                     Exception = table.Column<string>(type: "text", nullable: true, comment: "异常信息"),
@@ -30,7 +30,7 @@ namespace Chet.QuartzNet.EFCore.PostgreSQL.Migrations
                     TriggerName = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false, comment: "触发器名称"),
                     TriggerGroup = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false, defaultValue: "DEFAULT", comment: "触发器分组"),
                     JobData = table.Column<string>(type: "text", nullable: true, comment: "执行参数"),
-                    CreateTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, comment: "创建时间")
+                    CreateTime = table.Column<DateTime>(type: "timestamp without time zone", nullable: false, comment: "创建时间")
                 },
                 constraints: table =>
                 {
@@ -55,15 +55,15 @@ namespace Chet.QuartzNet.EFCore.PostgreSQL.Migrations
                     ApiBody = table.Column<string>(type: "text", nullable: true, comment: "API请求体(JSON格式)"),
                     ApiTimeout = table.Column<int>(type: "integer", nullable: false, defaultValue: 30000, comment: "API超时时间(毫秒)"),
                     SkipSslValidation = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false, comment: "是否跳过SSL验证"),
-                    StartTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: true, comment: "开始时间"),
-                    EndTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: true, comment: "结束时间"),
+                    StartTime = table.Column<DateTime>(type: "timestamp without time zone", nullable: true, comment: "开始时间"),
+                    EndTime = table.Column<DateTime>(type: "timestamp without time zone", nullable: true, comment: "结束时间"),
                     Status = table.Column<int>(type: "integer", nullable: false, defaultValue: 0, comment: "作业状态"),
                     IsEnabled = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true, comment: "是否启用"),
-                    NextRunTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: true, comment: "下次执行时间"),
-                    PreviousRunTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: true, comment: "上次执行时间"),
+                    NextRunTime = table.Column<DateTime>(type: "timestamp without time zone", nullable: true, comment: "下次执行时间"),
+                    PreviousRunTime = table.Column<DateTime>(type: "timestamp without time zone", nullable: true, comment: "上次执行时间"),
                     Remark = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true, comment: "备注"),
-                    CreateTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, comment: "创建时间"),
-                    UpdateTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: true, comment: "更新时间"),
+                    CreateTime = table.Column<DateTime>(type: "timestamp without time zone", nullable: false, comment: "创建时间"),
+                    UpdateTime = table.Column<DateTime>(type: "timestamp without time zone", nullable: true, comment: "更新时间"),
                     CreateBy = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true, comment: "创建人"),
                     UpdateBy = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true, comment: "更新人")
                 },

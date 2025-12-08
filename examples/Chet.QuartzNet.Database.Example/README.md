@@ -42,18 +42,14 @@
 
 ```csharp
 using Chet.QuartzNet.UI.Extensions;
-using Chet.QuartzNet.EFCore.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // 添加控制器服务
 builder.Services.AddControllers();
 
-// 添加 Quartz UI 服务
-builder.Services.AddQuartzUI();
-
-// 从配置文件中添加数据库支持（SQL Server）
-builder.Services.AddQuartzUIDatabaseFromConfiguration(builder.Configuration);
+// 添加 Quartz UI 服务（读取 QuartzUI 节 & ConnectionStrings:QuartzUI，自动选择 DatabaseProvider）
+builder.Services.AddQuartzUI(builder.Configuration);
 
 ```
 

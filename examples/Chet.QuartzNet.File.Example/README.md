@@ -17,8 +17,8 @@
 
 ```csharp
 // Program.cs
-// 配置 Quartz UI（默认使用文件存储）
-builder.Services.AddQuartzUI();
+// 配置 Quartz UI（默认使用文件存储，读取 QuartzUI 节）
+builder.Services.AddQuartzUI(builder.Configuration);
 // 添加 ClassJob 自动注册，扫描当前程序集中的作业类
 builder.Services.AddQuartzClassJobs();
 ```
@@ -27,26 +27,26 @@ builder.Services.AddQuartzClassJobs();
 
 #### MySQL 数据库
 ```csharp
-// 安装 Pomelo.EntityFrameworkCore.MySql 包
-builder.Services.AddQuartzUIMySql(builder.Configuration.GetConnectionString("QuartzDB"));
+// 安装 Pomelo.EntityFrameworkCore.MySql 包，并在 appsettings.json 设置 StorageType=Database、DatabaseProvider=MySql、ConnectionStrings:QuartzUI
+builder.Services.AddQuartzUI(builder.Configuration);
 ```
 
 #### PostgreSQL 数据库
 ```csharp
-// 安装 Npgsql.EntityFrameworkCore.PostgreSQL 包
-builder.Services.AddQuartzUIPostgreSQL(builder.Configuration.GetConnectionString("QuartzDB"));
+// 安装 Npgsql.EntityFrameworkCore.PostgreSQL 包，配置 DatabaseProvider=PostgreSql
+builder.Services.AddQuartzUI(builder.Configuration);
 ```
 
 #### SQL Server 数据库
 ```csharp
-// 安装 Microsoft.EntityFrameworkCore.SqlServer 包
-builder.Services.AddQuartzUISqlServer(builder.Configuration.GetConnectionString("QuartzDB"));
+// 安装 Microsoft.EntityFrameworkCore.SqlServer 包，配置 DatabaseProvider=SqlServer
+builder.Services.AddQuartzUI(builder.Configuration);
 ```
 
 #### SQLite 数据库
 ```csharp
-// 安装 Microsoft.EntityFrameworkCore.Sqlite 包
-builder.Services.AddQuartzUISQLite(builder.Configuration.GetConnectionString("QuartzDB"));
+// 安装 Microsoft.EntityFrameworkCore.Sqlite 包，配置 DatabaseProvider=SQLite
+builder.Services.AddQuartzUI(builder.Configuration);
 ```
 
 ### 3. 配置连接字符串
@@ -56,7 +56,7 @@ builder.Services.AddQuartzUISQLite(builder.Configuration.GetConnectionString("Qu
 ```json
 {
   "ConnectionStrings": {
-    "QuartzDB": "server=localhost;database=quartz_db;User Id=root;PWD=password;"
+    "QuartzUI": "server=localhost;database=quartz_db;User Id=root;PWD=password;"
   }
 }
 ```
@@ -65,8 +65,8 @@ builder.Services.AddQuartzUISQLite(builder.Configuration.GetConnectionString("Qu
 
 ```csharp
 // Program.cs
-// 配置 Quartz UI 服务时自动启用 JWT 认证
-builder.Services.AddQuartzUI();
+// 配置 Quartz UI 服务时自动启用 JWT 认证（读取 QuartzUI 节）
+builder.Services.AddQuartzUI(builder.Configuration);
 
 // 在 appsettings.json 中配置 JWT 相关选项
 "QuartzUI": {
@@ -244,7 +244,7 @@ Chet.QuartzNet.UI 支持多种数据库：
   },
   "AllowedHosts": "*",
   "ConnectionStrings": {
-    "QuartzDB": "server=localhost;database=quartz_db;User Id=root;PWD=password;"
+    "QuartzUI": "server=localhost;database=quartz_db;User Id=root;PWD=password;"
   },
   "QuartzUI": {
     "EnableJwtAuth": true,

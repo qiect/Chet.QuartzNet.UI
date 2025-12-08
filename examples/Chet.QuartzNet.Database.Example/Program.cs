@@ -1,4 +1,3 @@
-using Chet.QuartzNet.EFCore.SqlServer.Extensions;
 using Chet.QuartzNet.UI.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,21 +6,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 
-// 添加QuartzUI服务（包含邮件配置）
-builder.Services.AddQuartzUI(options =>
-{
-    // 从配置文件读取邮件设置
-    var emailConfig = builder.Configuration.GetSection("QuartzUI:EmailOptions");
-    if (emailConfig.Exists())
-    {
-        emailConfig.Bind(options.EmailOptions);
-    }
-});
-builder.Services.AddQuartzUISqlServer(builder.Configuration);
-// 从配置文件中添加数据库支持（SQL Server）
+// 添加QuartzUI服务（配置驱动，自动根据 StorageType/DatabaseProvider 选择存储）
+builder.Services.AddQuartzUI(builder.Configuration);
 builder.Services.AddQuartzClassJobs();
-// 添加Basic认证服务
-builder.Services.AddQuartzUIAuthentication(builder.Configuration);
 
 var app = builder.Build();
 

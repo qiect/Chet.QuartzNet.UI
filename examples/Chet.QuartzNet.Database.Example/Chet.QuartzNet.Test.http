@@ -1,6 +1,0 @@
-@Chet.QuartzNet.Test_HostAddress = http://localhost:5208
-
-GET {{Chet.QuartzNet.Test_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

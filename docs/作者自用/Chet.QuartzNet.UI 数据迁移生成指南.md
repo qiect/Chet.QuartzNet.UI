@@ -1,4 +1,4 @@
-# 数据库迁移生成指南与使用说明
+# Chet.QuartzNet.UI 数据迁移生成指南
 
 ## 1. 项目架构
 
@@ -7,21 +7,22 @@
 | 数据库类型 | 项目名称 | 包名称 |
 |---------|-------|------|
 | PostgreSQL | Chet.QuartzNet.EFCore.PostgreSql | Chet.QuartzNet.EFCore.PostgreSql |
-| MySQL | Chet.QuartzNet.EFCore.MySql | Chet.QuartzNet.EFCore.MySQL |
+| MySQL | Chet.QuartzNet.EFCore.MySql | Chet.QuartzNet.EFCore.MySql |
 | SQLite | Chet.QuartzNet.EFCore.SQLite | Chet.QuartzNet.EFCore.SQLite |
 | SQL Server | Chet.QuartzNet.EFCore.SqlServer | Chet.QuartzNet.EFCore.SqlServer |
 
 ## 2. 扩展方法使用
 
-### 2.1 核心扩展方法
+### 2.1 统一扩展方法
 
-所有数据库支持包都提供了基于 `IConfiguration` 的扩展方法，用于添加数据库存储支持。
+项目采用了**统一的 API 设计**，所有数据库类型均可通过同一个 `AddQuartzUI` 方法进行配置，系统会根据配置自动选择对应的数据库存储方式。
 
 #### 配置文件示例
 ```json
 {
   "QuartzUI": {
-    "StorageType": "Database"
+    "StorageType": "Database",
+    "DatabaseProvider": "postgres" // 可选，自动根据连接字符串判断
   },
   "ConnectionStrings": {
     "QuartzUI": "数据库连接字符串"
@@ -29,47 +30,47 @@
 }
 ```
 
-### 2.2 PostgreSQL 使用示例
+### 2.2 基本使用示例
 
 ```csharp
-// 添加PostgreSQL支持
-services.AddQuartzUIPostgreSQL(configuration);
+// 添加 Quartz UI 服务（自动根据配置选择存储方式）
+builder.Services.AddQuartzUI(builder.Configuration);
 
-// 或使用连接字符串直接配置
-services.AddQuartzUIPostgreSQL(connectionString);
+// 可选：ClassJob 自动扫描注册
+builder.Services.AddQuartzClassJobs();
+
+// 启用中间件
+app.UseQuartz();
 ```
 
-### 2.3 MySQL 使用示例
+### 2.3 数据库连接字符串示例
 
-```csharp
-// 添加MySQL支持
-services.AddQuartzUIMySql(configuration);
-
-// 或指定服务器版本
-services.AddQuartzUIMySql(configuration, "8.0.30");
-
-// 或直接使用连接字符串
-services.AddQuartzUIMySql(connectionString, "8.0.30");
+#### PostgreSQL
+```json
+"ConnectionStrings": {
+  "QuartzUI": "Host=localhost;Port=5432;Database=quartzui;Username=postgres;Password=password;"
+}
 ```
 
-### 2.4 SQLite 使用示例
-
-```csharp
-// 添加SQLite支持
-services.AddQuartzUISQLite(configuration);
-
-// 或直接使用连接字符串
-services.AddQuartzUISQLite(connectionString);
+#### MySQL
+```json
+"ConnectionStrings": {
+  "QuartzUI": "Server=localhost;Database=quartzui;User=root;Password=password;"
+}
 ```
 
-### 2.5 SQL Server 使用示例
+#### SQLite
+```json
+"ConnectionStrings": {
+  "QuartzUI": "Data Source=quartzui.db;"
+}
+```
 
-```csharp
-// 添加SQL Server支持
-services.AddQuartzUISqlServer(configuration);
-
-// 或直接使用连接字符串
-services.AddQuartzUISqlServer(connectionString);
+#### SQL Server
+```json
+"ConnectionStrings": {
+  "QuartzUI": "Server=(localdb)\\mssqllocaldb;Database=quartzui;Trusted_Connection=True;"
+}
 ```
 
 ## 3. 迁移文件生成指南
@@ -91,13 +92,13 @@ dotnet ef migrations add <MigrationName> --project <DatabaseProjectPath> --start
 #### 3.3.1 PostgreSQL
 
 ```bash
-dotnet ef migrations add InitialCreate --project src/Chet.QuartzNet.EFCore.PostgreSql/Chet.QuartzNet.EFCore.PostgreSQL.csproj --startup-project src/Chet.QuartzNet.EFCore.PostgreSql/Chet.QuartzNet.EFCore.PostgreSQL.csproj
+dotnet ef migrations add InitialCreate --project src/Chet.QuartzNet.EFCore.PostgreSql/Chet.QuartzNet.EFCore.PostgreSql.csproj --startup-project src/Chet.QuartzNet.EFCore.PostgreSql/Chet.QuartzNet.EFCore.PostgreSql.csproj
 ```
 
 #### 3.3.2 MySQL
 
 ```bash
-dotnet ef migrations add InitialCreate --project src/Chet.QuartzNet.EFCore.MySql/Chet.QuartzNet.EFCore.MySQL.csproj --startup-project src/Chet.QuartzNet.EFCore.MySql/Chet.QuartzNet.EFCore.MySQL.csproj
+dotnet ef migrations add InitialCreate --project src/Chet.QuartzNet.EFCore.MySql/Chet.QuartzNet.EFCore.MySql.csproj --startup-project src/Chet.QuartzNet.EFCore.MySql/Chet.QuartzNet.EFCore.MySql.csproj
 ```
 
 **注意**：MySQL 迁移生成需要实际的 MySQL 服务器运行。
@@ -154,7 +155,7 @@ var connectionString = "Host=localhost;Port=5432;Database=quartzui;Username=post
 
 1. **安装包**：根据需要使用的数据库，安装对应的 NuGet 包
 2. **配置**：在 `appsettings.json` 中配置数据库连接字符串和存储类型
-3. **添加服务**：在 `Program.cs` 中调用对应的扩展方法添加数据库支持
+3. **添加服务**：在 `Program.cs` 中调用统一的 `AddQuartzUI` 方法
 4. **运行应用**：应用启动时会自动创建数据库和表结构
 
 ### 6.1 完整示例（ASP.NET Core）
@@ -162,27 +163,35 @@ var connectionString = "Host=localhost;Port=5432;Database=quartzui;Username=post
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
-// 添加数据库支持（示例：PostgreSQL）
-builder.Services.AddQuartzUIPostgreSQL(builder.Configuration);
+// 添加控制器支持
+builder.Services.AddControllers();
 
-// 添加 Quartz UI
-builder.Services.AddQuartzUI();
+// 添加 Quartz UI 服务（自动根据配置选择数据库存储）
+builder.Services.AddQuartzUI(builder.Configuration);
+
+// 可选：ClassJob 自动扫描注册
+builder.Services.AddQuartzClassJobs();
 
 var app = builder.Build();
 
-app.UseQuartzUI();
+// 启用 Quartz UI 中间件
+app.UseQuartz();
+
+app.MapControllers();
 
 app.Run();
 ```
 
 ## 7. 迁移生成状态
 
-| 数据库类型 | 迁移生成状态 | 备注 |
-|---------|----------|-----|
-| PostgreSQL | ✅ 成功 | 已生成 InitialCreate 迁移 |
-| MySQL | ⚠️ 失败 | 无法连接到MySQL服务器 |
-| SQLite | ✅ 成功 | 已生成 InitialCreate 迁移 |
-| SQL Server | ✅ 成功 | 已生成 InitialCreate 迁移 |
+| 数据库类型 | 迁移生成状态 |
+|---------|----------|
+| PostgreSQL | ✅ 已完成 |
+| MySQL | ✅ 已完成 |
+| SQLite | ✅ 已完成 |
+| SQL Server | ✅ 已完成 |
+
+**说明**：所有数据库类型的初始迁移已生成，包含作业、触发器、通知等核心表结构。
 
 ## 8. 常见问题
 
@@ -225,7 +234,7 @@ app.Run();
 4. 在生产环境应用迁移
 
 ```bash
-dotnet ef migrations add <NewMigrationName> --project <DatabaseProjectPath> --startup-project <DatabaseProjectPath>
+dotnet ef migrations add <NewMigrationName> --project src/Chet.QuartzNet.EFCore.<DatabaseType>/Chet.QuartzNet.EFCore.<DatabaseType>.csproj --startup-project src/Chet.QuartzNet.EFCore.<DatabaseType>/Chet.QuartzNet.EFCore.<DatabaseType>.csproj
 ```
 
 ## 11. 回滚迁移
@@ -241,3 +250,18 @@ dotnet ef database update <PreviousMigrationName> --project <DatabaseProjectPath
 ```bash
 dotnet ef migrations remove --project <DatabaseProjectPath> --startup-project <DatabaseProjectPath>
 ```
+
+## 12. 统一API设计常见问题
+
+### 12.1 如何确认系统使用了正确的数据库提供者？
+
+**解决方案**：
+- 检查应用启动日志，系统会输出使用的存储类型和数据库提供者
+- 确保连接字符串格式正确，系统会自动根据连接字符串判断数据库类型
+- 可在配置文件中显式指定 `DatabaseProvider` 选项
+
+### 12.2 可以在运行时切换数据库类型吗？
+
+**解决方案**：
+- 不支持运行时切换数据库类型，需要重新启动应用
+- 如需切换数据库，修改配置文件后重新启动应用即可

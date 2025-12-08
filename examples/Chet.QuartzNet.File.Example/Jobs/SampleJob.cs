@@ -22,6 +22,7 @@ namespace Chet.QuartzNet.File.Example.Jobs
 
             try
             {
+                throw new Exception("模拟异常");
                 // 模拟业务逻辑处理
                 await Task.Delay(1000);
 

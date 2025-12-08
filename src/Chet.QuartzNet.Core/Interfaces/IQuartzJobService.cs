@@ -192,6 +192,64 @@ public interface IQuartzJobService
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业执行耗时数据</returns>
     Task<ApiResponseDto<List<JobExecutionTimeDto>>> GetJobExecutionTimeAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default);
+
+    #region 通知管理
+
+    /// <summary>
+    /// 获取PushPlus配置
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>PushPlus配置</returns>
+    Task<ApiResponseDto<PushPlusConfigDto>> GetPushPlusConfigAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 保存PushPlus配置
+    /// </summary>
+    /// <param name="config">PushPlus配置</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>保存结果</returns>
+    Task<ApiResponseDto<bool>> SavePushPlusConfigAsync(PushPlusConfigDto config, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 发送测试通知
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>发送结果</returns>
+    Task<ApiResponseDto<bool>> SendTestNotificationAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取通知消息列表
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>通知消息列表</returns>
+    Task<ApiResponseDto<PagedResponseDto<QuartzNotificationDto>>> GetNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取通知消息详情
+    /// </summary>
+    /// <param name="notificationId">通知ID</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>通知消息详情</returns>
+    Task<ApiResponseDto<QuartzNotificationDto>> GetNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 删除通知消息
+    /// </summary>
+    /// <param name="notificationId">通知ID</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>删除结果</returns>
+    Task<ApiResponseDto<bool>> DeleteNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 清空通知消息
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>清空结果</returns>
+    Task<ApiResponseDto<bool>> ClearNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default);
+
+    #endregion
 }
 
 /// <summary>

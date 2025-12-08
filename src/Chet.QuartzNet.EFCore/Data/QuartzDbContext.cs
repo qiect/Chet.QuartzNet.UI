@@ -28,86 +28,22 @@ public class QuartzDbContext : DbContext
     /// </summary>
     public DbSet<QuartzJobLog> QuartzJobLogs { get; set; }
 
+    /// <summary>
+    /// 系统设置表
+    /// </summary>
+    public DbSet<QuartzSetting> QuartzSettings { get; set; }
+
+    /// <summary>
+    /// 通知消息表
+    /// </summary>
+    public DbSet<QuartzNotification> QuartzNotifications { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
         // 应用实体配置
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
-    }
-
-    /// <summary>
-    /// 保存更改前将所有DateTime属性转换为UTC时间（仅PostgreSQL）
-    /// </summary>
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-    {
-        // 仅在PostgreSQL数据库时转换DateTime属性
-        if (_isPostgreSql)
-        {
-            ConvertDateTimePropertiesToUtc();
-        }
-        return await base.SaveChangesAsync(cancellationToken);
-    }
-
-    /// <summary>
-    /// 保存更改前将所有DateTime属性转换为UTC时间（仅PostgreSQL）
-    /// </summary>
-    public override int SaveChanges()
-    {
-        // 仅在PostgreSQL数据库时转换DateTime属性
-        if (_isPostgreSql)
-        {
-            ConvertDateTimePropertiesToUtc();
-        }
-        return base.SaveChanges();
-    }
-
-    /// <summary>
-    /// 将所有实体的DateTime属性转换为UTC时间
-    /// </summary>
-    private void ConvertDateTimePropertiesToUtc()
-    {
-        // 获取所有需要保存的实体
-        var entries = ChangeTracker.Entries()
-            .Where(e => e.State is EntityState.Added or EntityState.Modified);
-
-        foreach (var entry in entries)
-        {
-            // 获取实体类型
-            var entityType = entry.Entity.GetType();
-            
-            // 获取所有DateTime和DateTime?属性
-            var dateTimeProperties = entityType.GetProperties()
-                .Where(p => p.PropertyType == typeof(DateTime) || p.PropertyType == typeof(DateTime?));
-
-            foreach (var property in dateTimeProperties)
-            {
-                // 获取属性值
-                var value = property.GetValue(entry.Entity);
-
-                if (value != null)
-                {
-                    if (property.PropertyType == typeof(DateTime))
-                    {
-                        // 转换DateTime为UTC
-                        var dateTimeValue = (DateTime)value;
-                        if (dateTimeValue.Kind != DateTimeKind.Utc)
-                        {
-                            property.SetValue(entry.Entity, DateTime.SpecifyKind(dateTimeValue, DateTimeKind.Utc));
-                        }
-                    }
-                    else
-                    {
-                        // 转换DateTime?为UTC
-                        var nullableDateTimeValue = (DateTime?)value;
-                        if (nullableDateTimeValue.HasValue && nullableDateTimeValue.Value.Kind != DateTimeKind.Utc)
-                        {
-                            property.SetValue(entry.Entity, DateTime.SpecifyKind(nullableDateTimeValue.Value, DateTimeKind.Utc));
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -191,15 +127,19 @@ public class QuartzJobInfoConfiguration : IEntityTypeConfiguration<QuartzJobInfo
             .HasComment("是否跳过SSL验证");
 
         builder.Property(j => j.StartTime)
+            .HasColumnType("timestamp without time zone")
             .HasComment("开始时间");
 
         builder.Property(j => j.EndTime)
+            .HasColumnType("timestamp without time zone")
             .HasComment("结束时间");
 
         builder.Property(j => j.NextRunTime)
+            .HasColumnType("timestamp without time zone")
             .HasComment("下次执行时间");
 
         builder.Property(j => j.PreviousRunTime)
+            .HasColumnType("timestamp without time zone")
             .HasComment("上次执行时间");
 
         builder.Property(j => j.IsEnabled)
@@ -214,6 +154,7 @@ public class QuartzJobInfoConfiguration : IEntityTypeConfiguration<QuartzJobInfo
 
         builder.Property(j => j.CreateTime)
             .IsRequired()
+            .HasColumnType("timestamp without time zone")
             .HasComment("创建时间");
 
         builder.Property(j => j.CreateBy)
@@ -221,6 +162,7 @@ public class QuartzJobInfoConfiguration : IEntityTypeConfiguration<QuartzJobInfo
             .HasComment("创建人");
 
         builder.Property(j => j.UpdateTime)
+            .HasColumnType("timestamp without time zone")
             .HasComment("更新时间");
 
         builder.Property(j => j.UpdateBy)
@@ -283,9 +225,11 @@ public class QuartzJobLogConfiguration : IEntityTypeConfiguration<QuartzJobLog>
 
         builder.Property(l => l.StartTime)
             .IsRequired()
+            .HasColumnType("timestamp without time zone")
             .HasComment("开始时间");
 
         builder.Property(l => l.EndTime)
+            .HasColumnType("timestamp without time zone")
             .HasComment("结束时间");
 
         builder.Property(l => l.Duration)
@@ -317,6 +261,7 @@ public class QuartzJobLogConfiguration : IEntityTypeConfiguration<QuartzJobLog>
 
         builder.Property(l => l.CreateTime)
             .IsRequired()
+            .HasColumnType("timestamp without time zone")
             .HasComment("创建时间");
 
         // 索引配置
@@ -324,5 +269,110 @@ public class QuartzJobLogConfiguration : IEntityTypeConfiguration<QuartzJobLog>
         builder.HasIndex(l => l.Status).HasDatabaseName("idx_log_status");
         builder.HasIndex(l => l.CreateTime).HasDatabaseName("idx_log_create_time");
         builder.HasIndex(l => l.StartTime).HasDatabaseName("idx_log_start_time");
+    }
+}
+
+/// <summary>
+/// 系统设置实体配置
+/// </summary>
+public class QuartzSettingConfiguration : IEntityTypeConfiguration<QuartzSetting>
+{
+    public void Configure(EntityTypeBuilder<QuartzSetting> builder)
+    {
+        builder.ToTable("quartz_settings");
+
+        builder.HasKey(s => s.SettingId);
+
+        builder.Property(s => s.SettingId)
+            .IsRequired()
+            .HasComment("设置ID");
+
+        builder.Property(s => s.Key)
+            .HasMaxLength(100)
+            .IsRequired()
+            .HasComment("设置键");
+
+        builder.Property(s => s.Value)
+            .HasColumnType("text")
+            .IsRequired()
+            .HasComment("设置值");
+
+        builder.Property(s => s.Description)
+            .HasMaxLength(500)
+            .HasComment("设置描述");
+
+        builder.Property(s => s.Enabled)
+            .IsRequired()
+            .HasDefaultValue(true)
+            .HasComment("是否启用");
+
+        builder.Property(s => s.CreateTime)
+            .IsRequired()
+            .HasColumnType("timestamp without time zone")
+            .HasComment("创建时间");
+
+        builder.Property(s => s.UpdateTime)
+            .HasColumnType("timestamp without time zone")
+            .HasComment("更新时间");
+
+        // 索引配置
+        builder.HasIndex(s => s.Key).IsUnique().HasDatabaseName("idx_setting_key");
+    }
+}
+
+/// <summary>
+/// 通知消息实体配置
+/// </summary>
+public class QuartzNotificationConfiguration : IEntityTypeConfiguration<QuartzNotification>
+{
+    public void Configure(EntityTypeBuilder<QuartzNotification> builder)
+    {
+        builder.ToTable("quartz_notifications");
+
+        builder.HasKey(n => n.NotificationId);
+
+        builder.Property(n => n.NotificationId)
+            .IsRequired()
+            .HasComment("通知ID");
+
+        builder.Property(n => n.Title)
+            .HasMaxLength(200)
+            .IsRequired()
+            .HasComment("通知标题");
+
+        builder.Property(n => n.Content)
+            .HasColumnType("text")
+            .IsRequired()
+            .HasComment("通知内容");
+
+        builder.Property(n => n.Status)
+            .IsRequired()
+            .HasDefaultValue(NotificationStatus.Pending)
+            .HasComment("发送状态");
+
+        builder.Property(n => n.ErrorMessage)
+            .HasColumnType("text")
+            .HasComment("错误信息");
+
+        builder.Property(n => n.TriggeredBy)
+            .HasMaxLength(100)
+            .HasComment("触发来源");
+
+        builder.Property(n => n.CreateTime)
+            .IsRequired()
+            .HasColumnType("timestamp without time zone")
+            .HasComment("创建时间");
+
+        builder.Property(n => n.SendTime)
+            .HasColumnType("timestamp without time zone")
+            .HasComment("发送时间");
+
+        builder.Property(n => n.Duration)
+            .HasComment("发送耗时(毫秒)");
+
+        // 索引配置
+        builder.HasIndex(n => n.Status).HasDatabaseName("idx_notification_status");
+        builder.HasIndex(n => n.CreateTime).HasDatabaseName("idx_notification_create_time");
+        builder.HasIndex(n => n.TriggeredBy).HasDatabaseName("idx_notification_triggered_by");
     }
 }

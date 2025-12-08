@@ -816,33 +816,31 @@ public class EFCoreJobStorage : IJobStorage
     {
         DateTime startTime, endTime;
 
-        // 如果指定了自定义时间范围，使用自定义时间并确保是UTC
+        // 如果指定了自定义时间范围，使用自定义时间
         if (queryDto.TimeRangeType == "custom" && queryDto.StartTime.HasValue && queryDto.EndTime.HasValue)
         {
-            // 确保自定义时间是UTC
-            startTime = DateTime.SpecifyKind(queryDto.StartTime.Value, DateTimeKind.Utc);
-            endTime = DateTime.SpecifyKind(queryDto.EndTime.Value, DateTimeKind.Utc);
+            startTime = queryDto.StartTime.Value;
+            endTime = queryDto.EndTime.Value;
         }
         else
         {
-            // 否则根据时间范围类型计算，确保所有时间都是UTC
-            endTime = DateTime.UtcNow;
+            // 否则根据时间范围类型计算
+            endTime = DateTime.Now;
 
             switch (queryDto.TimeRangeType)
             {
                 case "today":
-                    startTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0, DateTimeKind.Utc);
+                    startTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0);
                     break;
                 case "yesterday":
-                    startTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0, DateTimeKind.Utc).AddDays(-1);
-                    endTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(-1);
+                    startTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0).AddDays(-1);
+                    endTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0).AddMilliseconds(-1);
                     break;
                 case "thisWeek":
                     startTime = endTime.AddDays(-(int)endTime.DayOfWeek).Date;
-                    startTime = DateTime.SpecifyKind(startTime, DateTimeKind.Utc);
                     break;
                 case "thisMonth":
-                    startTime = new DateTime(endTime.Year, endTime.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+                    startTime = new DateTime(endTime.Year, endTime.Month, 1, 0, 0, 0);
                     break;
                 default:
                     startTime = endTime.AddDays(-7); // 默认最近7天
@@ -851,7 +849,327 @@ public class EFCoreJobStorage : IJobStorage
         }
 
         return (startTime, endTime);
-    } 
+    }
+
+    #endregion
+
+    #region 通知管理
+
+    /// <summary>
+    /// 保存设置
+    /// </summary>
+    /// <param name="setting">设置信息</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>保存成功返回true，失败返回false</returns>
+    public async Task<bool> SaveSettingAsync(QuartzSetting setting, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // 检查是否已存在
+            var existingSetting = await _dbContext.QuartzSettings
+                .FirstOrDefaultAsync(s => s.Key == setting.Key, cancellationToken);
+
+            if (existingSetting != null)
+            {
+                // 更新现有设置
+                existingSetting.Value = setting.Value;
+                existingSetting.Description = setting.Description;
+                existingSetting.Enabled = setting.Enabled;
+                existingSetting.UpdateTime = DateTime.Now;
+                _dbContext.QuartzSettings.Update(existingSetting);
+            }
+            else
+            {
+                // 添加新设置
+                setting.CreateTime = DateTime.Now;
+                await _dbContext.QuartzSettings.AddAsync(setting, cancellationToken);
+            }
+
+            var result = await _dbContext.SaveChangesAsync(cancellationToken);
+            return result > 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "保存设置失败");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 获取设置
+    /// </summary>
+    /// <param name="key">设置键</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>设置信息，不存在返回null</returns>
+    public async Task<QuartzSetting?> GetSettingAsync(string key, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _dbContext.QuartzSettings
+                .FirstOrDefaultAsync(s => s.Key == key, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取设置失败: {Key}", key);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 获取所有设置
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>设置列表</returns>
+    public async Task<List<QuartzSetting>> GetAllSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _dbContext.QuartzSettings.ToListAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取所有设置失败");
+            return new List<QuartzSetting>();
+        }
+    }
+
+    /// <summary>
+    /// 添加通知消息
+    /// </summary>
+    /// <param name="notification">通知消息</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>添加成功返回true，失败返回false</returns>
+    public async Task<bool> AddNotificationAsync(QuartzNotification notification, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await _dbContext.QuartzNotifications.AddAsync(notification, cancellationToken);
+            var result = await _dbContext.SaveChangesAsync(cancellationToken);
+            return result > 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "添加通知消息失败");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 更新通知消息
+    /// </summary>
+    /// <param name="notification">通知消息</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>更新成功返回true，失败返回false</returns>
+    public async Task<bool> UpdateNotificationAsync(QuartzNotification notification, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var existingNotification = await _dbContext.QuartzNotifications
+                .FirstOrDefaultAsync(n => n.NotificationId == notification.NotificationId, cancellationToken);
+
+            if (existingNotification == null)
+            {
+                _logger.LogWarning("更新通知消息失败: 通知不存在 {NotificationId}", notification.NotificationId);
+                return false;
+            }
+
+            _dbContext.QuartzNotifications.Update(notification);
+            var result = await _dbContext.SaveChangesAsync(cancellationToken);
+            return result > 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "更新通知消息失败: {NotificationId}", notification.NotificationId);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 获取通知消息
+    /// </summary>
+    /// <param name="notificationId">通知ID</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>通知消息，不存在返回null</returns>
+    public async Task<QuartzNotification?> GetNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _dbContext.QuartzNotifications
+                .FirstOrDefaultAsync(n => n.NotificationId == notificationId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取通知消息失败: {NotificationId}", notificationId);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 获取通知消息列表，支持分页、过滤和排序
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>分页通知消息列表</returns>
+    public async Task<PagedResponseDto<QuartzNotification>> GetNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var query = _dbContext.QuartzNotifications.AsQueryable();
+
+            // 应用过滤条件
+            if (queryDto.Status.HasValue)
+            {
+                query = query.Where(n => n.Status == queryDto.Status.Value);
+            }
+
+            if (!string.IsNullOrEmpty(queryDto.TriggeredBy))
+            {
+                query = query.Where(n => EF.Functions.Like(n.TriggeredBy, $"%{queryDto.TriggeredBy}%"));
+            }
+
+            if (queryDto.StartTime.HasValue)
+            {
+                query = query.Where(n => n.CreateTime >= queryDto.StartTime.Value);
+            }
+
+            if (queryDto.EndTime.HasValue)
+            {
+                query = query.Where(n => n.CreateTime <= queryDto.EndTime.Value);
+            }
+
+            // 应用排序
+            if (!string.IsNullOrEmpty(queryDto.SortBy))
+            {
+                var isAscending = string.Equals(queryDto.SortOrder, "asc", StringComparison.OrdinalIgnoreCase);
+
+                switch (queryDto.SortBy.ToLower())
+                {
+                    case "title":
+                        query = isAscending ? query.OrderBy(n => n.Title) : query.OrderByDescending(n => n.Title);
+                        break;
+                    case "status":
+                        query = isAscending ? query.OrderBy(n => n.Status) : query.OrderByDescending(n => n.Status);
+                        break;
+                    case "createtime":
+                        query = isAscending ? query.OrderBy(n => n.CreateTime) : query.OrderByDescending(n => n.CreateTime);
+                        break;
+                    case "sendtime":
+                        query = isAscending ? query.OrderBy(n => n.SendTime) : query.OrderByDescending(n => n.SendTime);
+                        break;
+                    default:
+                        // 默认按创建时间降序排序
+                        query = query.OrderByDescending(n => n.CreateTime);
+                        break;
+                }
+            }
+            else
+            {
+                // 默认按创建时间降序排序
+                query = query.OrderByDescending(n => n.CreateTime);
+            }
+
+            // 分页
+            var totalCount = await query.CountAsync(cancellationToken);
+            var pagedNotifications = await query
+                .Skip((queryDto.PageIndex - 1) * queryDto.PageSize)
+                .Take(queryDto.PageSize)
+                .ToListAsync(cancellationToken);
+
+            return new PagedResponseDto<QuartzNotification>
+            {
+                Items = pagedNotifications,
+                TotalCount = totalCount,
+                PageIndex = queryDto.PageIndex,
+                PageSize = queryDto.PageSize
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取通知消息列表失败");
+            return new PagedResponseDto<QuartzNotification>();
+        }
+    }
+
+    /// <summary>
+    /// 删除通知消息
+    /// </summary>
+    /// <param name="notificationId">通知ID</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>删除成功返回true，失败返回false</returns>
+    public async Task<bool> DeleteNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var notification = await _dbContext.QuartzNotifications
+                .FirstOrDefaultAsync(n => n.NotificationId == notificationId, cancellationToken);
+
+            if (notification == null)
+            {
+                _logger.LogWarning("删除通知消息失败: 通知不存在 {NotificationId}", notificationId);
+                return false;
+            }
+
+            _dbContext.QuartzNotifications.Remove(notification);
+            var result = await _dbContext.SaveChangesAsync(cancellationToken);
+            return result > 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "删除通知消息失败: {NotificationId}", notificationId);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 根据查询条件清空通知消息
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>清空成功返回true，失败返回false</returns>
+    public async Task<bool> ClearNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var query = _dbContext.QuartzNotifications.AsQueryable();
+
+            // 应用过滤条件
+            if (queryDto.Status.HasValue)
+            {
+                query = query.Where(n => n.Status == queryDto.Status.Value);
+            }
+
+            if (!string.IsNullOrEmpty(queryDto.TriggeredBy))
+            {
+                query = query.Where(n => EF.Functions.Like(n.TriggeredBy, $"%{queryDto.TriggeredBy}%"));
+            }
+
+            if (queryDto.StartTime.HasValue)
+            {
+                query = query.Where(n => n.CreateTime >= queryDto.StartTime.Value);
+            }
+
+            if (queryDto.EndTime.HasValue)
+            {
+                query = query.Where(n => n.CreateTime <= queryDto.EndTime.Value);
+            }
+
+            // 执行删除操作
+            var notificationsToDelete = await query.ToListAsync(cancellationToken);
+            if (notificationsToDelete.Count > 0)
+            {
+                _dbContext.QuartzNotifications.RemoveRange(notificationsToDelete);
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("清空通知消息成功: 共清空 {Count} 条通知", notificationsToDelete.Count);
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "清空通知消息失败");
+            return false;
+        }
+    }
 
     #endregion
 }

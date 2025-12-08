@@ -1,12 +1,12 @@
 {
   "profiles": {
-    "Chet.QuartzNet.Example": {
+    "Chet.QuartzNet.File.Example": {
       "commandName": "Project",
       "launchBrowser": true,
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       },
-      "applicationUrl": "http://localhost:14850"
+      "applicationUrl": "http://localhost:5001"
     }
   }
 }

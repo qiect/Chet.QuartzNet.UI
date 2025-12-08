@@ -152,4 +152,79 @@ public interface IJobStorage
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业执行耗时数据</returns>
     Task<List<JobExecutionTimeDto>> GetJobExecutionTimeAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default);
+
+    #region 通知管理
+
+    /// <summary>
+    /// 保存设置
+    /// </summary>
+    /// <param name="setting">设置信息</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>保存成功返回true，失败返回false</returns>
+    Task<bool> SaveSettingAsync(QuartzSetting setting, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取设置
+    /// </summary>
+    /// <param name="key">设置键</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>设置信息，不存在返回null</returns>
+    Task<QuartzSetting?> GetSettingAsync(string key, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取所有设置
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>设置列表</returns>
+    Task<List<QuartzSetting>> GetAllSettingsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 添加通知消息
+    /// </summary>
+    /// <param name="notification">通知消息</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>添加成功返回true，失败返回false</returns>
+    Task<bool> AddNotificationAsync(QuartzNotification notification, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 更新通知消息
+    /// </summary>
+    /// <param name="notification">通知消息</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>更新成功返回true，失败返回false</returns>
+    Task<bool> UpdateNotificationAsync(QuartzNotification notification, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取通知消息
+    /// </summary>
+    /// <param name="notificationId">通知ID</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>通知消息，不存在返回null</returns>
+    Task<QuartzNotification?> GetNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取通知消息列表，支持分页、过滤和排序
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>分页通知消息列表</returns>
+    Task<PagedResponseDto<QuartzNotification>> GetNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 删除通知消息
+    /// </summary>
+    /// <param name="notificationId">通知ID</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>删除成功返回true，失败返回false</returns>
+    Task<bool> DeleteNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 根据查询条件清空通知消息
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>清空成功返回true，失败返回false</returns>
+    Task<bool> ClearNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default);
+
+    #endregion
 }
