@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Chet.QuartzNet.EFCore.SqlServer</PackageId>
-    <Version>1.0.3</Version>
+    <Version>1.1.0</Version>
     <Authors>Chet</Authors>
     <Description>Quartz.Net UI SQL Server 数据库支持</Description>
     <PackageTags>Quartz;Scheduler;EFCore;SqlServer</PackageTags>
