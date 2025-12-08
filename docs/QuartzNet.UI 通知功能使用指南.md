@@ -4,6 +4,14 @@
 
 QuartzNet.UI 支持使用 PushPlus 服务发送任务执行和调度器异常通知，替代了传统的邮件通知方式。PushPlus 是一个集成了多种推送渠道的通知服务，支持微信、企业微信、钉钉、邮件、短信等多种推送方式。
 
+![alt text](4333d3125171ecb41ce1b8777a84cfd5.png)
+
+![alt text](50d02b95651a18980b1d07cf7abf567d.png)
+
+![alt text](5860633bf236976072440cc64d166e6f.jpg)
+
+![alt text](d9a96b2cd79d0ffd1a9dc735df79c99f.jpg)
+
 ### 1.1 通知类型
 
 - **作业执行通知**：当定时任务执行成功或失败时发送
