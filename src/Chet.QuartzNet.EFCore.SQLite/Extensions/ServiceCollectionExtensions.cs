@@ -43,7 +43,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddQuartzUISQLite(this IServiceCollection services, IConfiguration configuration)
     {
         var quartzUIOptions = configuration.GetSection("QuartzUI").Get<QuartzUIOptions>();
-        
+
         if (quartzUIOptions?.StorageType == StorageType.Database)
         {
             var connectionString = configuration.GetConnectionString("QuartzUI");

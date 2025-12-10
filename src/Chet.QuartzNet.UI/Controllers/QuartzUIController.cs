@@ -1,7 +1,6 @@
 using Chet.QuartzNet.Core.Configuration;
 using Chet.QuartzNet.Core.Interfaces;
 using Chet.QuartzNet.Models.DTOs;
-using Chet.QuartzNet.Models.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

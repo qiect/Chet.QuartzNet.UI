@@ -1,13 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Net.Mail;
-using System.Threading;
-using System.Threading.Tasks;
 using Chet.QuartzNet.Core.Configuration;
 using Chet.QuartzNet.Core.Interfaces;
 using Microsoft.Extensions.Logging;
+using System.Net;
+using System.Net.Mail;
 
 namespace Chet.QuartzNet.Core.Services;
 
@@ -41,7 +36,7 @@ public class EmailNotificationService : IEmailNotificationService
         {
             var subject = $"{_emailOptions.SubjectPrefix} 作业执行{(success ? "成功" : "失败")} - {jobName}";
             var content = GenerateJobExecutionEmailContent(jobName, jobGroup, success, message, duration, errorMessage);
-            
+
             await SendEmailAsync(subject, content, true, cancellationToken);
         }
         catch (Exception ex)
@@ -61,7 +56,7 @@ public class EmailNotificationService : IEmailNotificationService
         {
             var subject = $"{_emailOptions.SubjectPrefix} 调度器异常";
             var content = GenerateSchedulerErrorEmailContent(exception);
-            
+
             await SendEmailAsync(subject, content, true, cancellationToken);
         }
         catch (Exception ex)
@@ -137,9 +132,9 @@ public class EmailNotificationService : IEmailNotificationService
                          $"发件人：{_emailOptions.SenderEmail}\n" +
                          $"测试时间：{DateTime.Now:yyyy-MM-dd HH:mm:ss}\n\n" +
                          $"如果您收到此邮件，说明邮件配置正常。";
-            
+
             await SendEmailAsync(subject, content, false, cancellationToken);
-            
+
             _logger.LogInformation("邮件配置测试成功");
             return true;
         }
@@ -178,11 +173,11 @@ public class EmailNotificationService : IEmailNotificationService
         try
         {
             _logger.LogInformation("正在发送邮件：SMTP服务器={SmtpServer}:{SmtpPort}, SSL={EnableSsl}, 发件人={SenderEmail}, 收件人={Recipients}",
-                _emailOptions.SmtpServer, _emailOptions.SmtpPort, _emailOptions.EnableSsl, _emailOptions.SenderEmail, 
+                _emailOptions.SmtpServer, _emailOptions.SmtpPort, _emailOptions.EnableSsl, _emailOptions.SenderEmail,
                 string.Join(", ", recipients));
 
             using var smtpClient = new SmtpClient();
-            
+
             // 配置SMTP客户端
             smtpClient.Host = _emailOptions.SmtpServer;
             smtpClient.Port = _emailOptions.SmtpPort;
@@ -190,7 +185,7 @@ public class EmailNotificationService : IEmailNotificationService
             smtpClient.UseDefaultCredentials = false;
             smtpClient.Credentials = new NetworkCredential(_emailOptions.SenderEmail, _emailOptions.SenderPassword);
             smtpClient.DeliveryMethod = SmtpDeliveryMethod.Network;
-            
+
             // 设置超时时间
             smtpClient.Timeout = 30000; // 30秒
 
@@ -210,8 +205,8 @@ public class EmailNotificationService : IEmailNotificationService
             }
 
             await smtpClient.SendMailAsync(mailMessage, cancellationToken);
-            
-            _logger.LogInformation("邮件发送成功: {Subject}, 收件人: {Recipients}", 
+
+            _logger.LogInformation("邮件发送成功: {Subject}, 收件人: {Recipients}",
                 subject, string.Join(", ", recipients));
         }
         catch (SmtpException ex) when (ex.Message.Contains("Syntax error, command unrecognized"))
@@ -241,7 +236,7 @@ public class EmailNotificationService : IEmailNotificationService
     {
         var status = success ? "成功" : "失败";
         var statusColor = success ? "#28a745" : "#dc3545";
-        
+
         var errorRow = (success || string.IsNullOrEmpty(errorMessage)) ? "" : $@"
             <tr>
                 <td style='padding: 10px; border-bottom: 1px solid #dee2e6;'><strong>错误信息：</strong></td>

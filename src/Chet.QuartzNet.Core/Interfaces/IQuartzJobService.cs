@@ -144,7 +144,7 @@ public interface IQuartzJobService
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>操作结果</returns>
     Task<ApiResponseDto<bool>> UpdateJobExecutionTimesAsync(string jobName, string jobGroup, Quartz.ITrigger trigger, CancellationToken cancellationToken = default);
-    
+
     /// <summary>
     /// 清空作业日志
     /// </summary>

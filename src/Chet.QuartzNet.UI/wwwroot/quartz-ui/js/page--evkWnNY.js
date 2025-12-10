@@ -1,1 +1,0 @@
-const o={login:"登录",register:"注册",codeLogin:"验证码登录",qrcodeLogin:"二维码登录",forgetPassword:"忘记密码",profile:"个人中心"},e={analytics:"分析页",jobManagement:"作业管理",logManagement:"日志管理"},a={auth:o,quartz:e};export{o as auth,a as default,e as quartz};

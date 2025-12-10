@@ -1508,7 +1508,7 @@ public class QuartzJobService : IQuartzJobService
         try
         {
             var result = await _jobStorage.GetNotificationsAsync(queryDto, cancellationToken);
-            
+
             // 将实体转换为DTO
             var notificationDtos = result.Items.Select(MapToNotificationDto).ToList();
             var pagedDto = new PagedResponseDto<QuartzNotificationDto>
@@ -1518,7 +1518,7 @@ public class QuartzJobService : IQuartzJobService
                 PageIndex = result.PageIndex,
                 PageSize = result.PageSize
             };
-            
+
             return ApiResponseDto<PagedResponseDto<QuartzNotificationDto>>.SuccessResponse(pagedDto, "获取通知消息列表成功");
         }
         catch (Exception ex)

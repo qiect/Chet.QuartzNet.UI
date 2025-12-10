@@ -8,9 +8,12 @@
     <PackageId>Chet.QuartzNet.EFCore.MySQL</PackageId>
     <Version>1.1.0</Version>
     <Authors>Chet</Authors>
-    <Description>Quartz.Net UI MySQL 数据库支持</Description>
+    <Description>Chet.QuartzNet.UI MySQL 数据库支持</Description>
     <PackageTags>Quartz;Scheduler;EFCore;MySQL</PackageTags>
-  </PropertyGroup>
+		<PackageProjectUrl>https://github.com/qiect/Chet.QuartzNet.UI</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/qiect/Chet.QuartzNet.UI</RepositoryUrl>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+	</PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.0" />

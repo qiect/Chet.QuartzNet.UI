@@ -90,7 +90,7 @@ public interface IJobStorage
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>清除的日志数量</returns>
     Task<int> ClearExpiredLogsAsync(int daysToKeep, CancellationToken cancellationToken = default);
-    
+
     /// <summary>
     /// 清空作业日志
     /// </summary>

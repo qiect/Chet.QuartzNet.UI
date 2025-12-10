@@ -7,11 +7,12 @@
     <PackageId>Chet.QuartzNet.EFCore.SQLite</PackageId>
     <Version>1.1.0</Version>
     <Authors>Chet</Authors>
-    <Description>Quartz.Net UI EFCore SQLite数据库支持</Description>
+    <Description>Chet.QuartzNet.UI SQLite 数据库支持</Description>
+		<PackageTags>Quartz;Scheduler;EFCore;SQLite</PackageTags>
     <PackageProjectUrl>https://github.com/qiect/Chet.QuartzNet.UI</PackageProjectUrl>
     <RepositoryUrl>https://github.com/qiect/Chet.QuartzNet.UI</RepositoryUrl>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-  </PropertyGroup>
+	</PropertyGroup>
 
   <ItemGroup>
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.0" />

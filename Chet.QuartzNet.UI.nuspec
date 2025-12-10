@@ -2,7 +2,7 @@
 <package >
 	<metadata>
 		<id>Chet.QuartzNet.UI</id>
-		<version>1.1.0</version>
+		<version>1.1.1</version>
 		<title>Chet.QuartzNet.UI</title>
 		<authors>Chet</authors>
 		<owners>Chet</owners>
@@ -10,7 +10,7 @@
 		<license type="expression">MIT</license>
 		<projectUrl>https://github.com/qiect/Chet.QuartzNet.UI</projectUrl>
 		<description>基于QuartzNet的可视化作业调度管理平台，支持文件存储和数据库存储、JWT认证登录、通知消息等</description>
-		<releaseNotes>v1.1.0: 新增通知管理功能，集成PushPlus通知等</releaseNotes>
+		<releaseNotes>v1.1.1: 开放通知管理页面</releaseNotes>
 		<copyright>Copyright 2025</copyright>
 		<tags>quartz quartz.net scheduler task job cron ui management</tags>
 		<repository type="git" url="https://github.com/qiect/Chet.QuartzNet.UI" />

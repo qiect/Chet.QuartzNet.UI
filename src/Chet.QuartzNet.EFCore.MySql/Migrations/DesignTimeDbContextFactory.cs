@@ -12,7 +12,7 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<QuartzDbCo
     public QuartzDbContext CreateDbContext(string[] args)
     {
         // 直接硬编码连接字符串，仅用于生成迁移
-        var connectionString = "Server=localhost;Database=quartzui;User=root;Password=password;";
+        var connectionString = "Server=localhost;Database=quartzui;User=root;Password=123456;";
 
         // 配置DbContext
         var optionsBuilder = new DbContextOptionsBuilder<QuartzDbContext>();

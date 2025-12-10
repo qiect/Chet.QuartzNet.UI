@@ -2,23 +2,14 @@ using Chet.QuartzNet.Core.Configuration;
 using Chet.QuartzNet.Core.Interfaces;
 using Chet.QuartzNet.Core.Services;
 using Chet.QuartzNet.Models.Entities;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Quartz;
 using Quartz.Impl.Matchers;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Security.Claims;
-using System.Text;
-using System.Text.Encodings.Web;
 
 namespace Chet.QuartzNet.UI.Extensions;
 
@@ -147,10 +138,10 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IQuartzJobService, QuartzJobService>();
         services.TryAddScoped<QuartzJobListener>();
         services.TryAddSingleton<JobClassScanner>();
-        
+
         // 添加HTTP客户端支持
         services.AddHttpClient();
-        
+
         // 注册推送通知服务
         services.TryAddScoped<INotificationService, PushPlusNotificationService>();
 

@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Chet.QuartzNet.Models.DTOs
+﻿namespace Chet.QuartzNet.Models.DTOs
 {
     /// <summary>
     /// 登录请求DTO

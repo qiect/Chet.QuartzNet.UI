@@ -63,9 +63,7 @@ namespace Chet.QuartzNet.EFCore.SqlServer.Migrations
                         .HasComment("创建人");
 
                     b.Property<DateTime>("CreateTime")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime2")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                        .HasColumnType("timestamp without time zone")
                         .HasComment("创建时间");
 
                     b.Property<string>("CronExpression")
@@ -80,7 +78,7 @@ namespace Chet.QuartzNet.EFCore.SqlServer.Migrations
                         .HasComment("作业描述");
 
                     b.Property<DateTime?>("EndTime")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp without time zone")
                         .HasComment("结束时间");
 
                     b.Property<bool>("IsEnabled")
@@ -104,11 +102,11 @@ namespace Chet.QuartzNet.EFCore.SqlServer.Migrations
                         .HasComment("作业类型");
 
                     b.Property<DateTime?>("NextRunTime")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp without time zone")
                         .HasComment("下次执行时间");
 
                     b.Property<DateTime?>("PreviousRunTime")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp without time zone")
                         .HasComment("上次执行时间");
 
                     b.Property<string>("Remark")
@@ -123,7 +121,7 @@ namespace Chet.QuartzNet.EFCore.SqlServer.Migrations
                         .HasComment("是否跳过SSL验证");
 
                     b.Property<DateTime?>("StartTime")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp without time zone")
                         .HasComment("开始时间");
 
                     b.Property<int>("Status")
@@ -152,7 +150,7 @@ namespace Chet.QuartzNet.EFCore.SqlServer.Migrations
                         .HasComment("更新人");
 
                     b.Property<DateTime?>("UpdateTime")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp without time zone")
                         .HasComment("更新时间");
 
                     b.HasKey("JobName", "JobGroup");
@@ -176,14 +174,11 @@ namespace Chet.QuartzNet.EFCore.SqlServer.Migrations
                 {
                     b.Property<Guid>("LogId")
                         .ValueGeneratedOnAdd()
-                        .HasMaxLength(50)
                         .HasColumnType("uniqueidentifier")
                         .HasComment("日志ID");
 
                     b.Property<DateTime>("CreateTime")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime2")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                        .HasColumnType("timestamp without time zone")
                         .HasComment("创建时间");
 
                     b.Property<long?>("Duration")
@@ -191,7 +186,7 @@ namespace Chet.QuartzNet.EFCore.SqlServer.Migrations
                         .HasComment("执行耗时(毫秒)");
 
                     b.Property<DateTime?>("EndTime")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp without time zone")
                         .HasComment("结束时间");
 
                     b.Property<string>("ErrorMessage")
@@ -203,36 +198,37 @@ namespace Chet.QuartzNet.EFCore.SqlServer.Migrations
                         .HasComment("错误堆栈");
 
                     b.Property<string>("Exception")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("text")
+                        .HasComment("异常信息");
 
                     b.Property<string>("JobData")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("text")
+                        .HasComment("执行参数");
 
                     b.Property<string>("JobGroup")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
                         .HasDefaultValue("DEFAULT")
                         .HasComment("作业分组");
 
                     b.Property<string>("JobName")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
                         .HasComment("作业名称");
 
                     b.Property<string>("Message")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("text")
+                        .HasComment("执行结果消息");
 
                     b.Property<string>("Result")
                         .HasColumnType("text")
                         .HasComment("执行结果");
 
                     b.Property<DateTime>("StartTime")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime2")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                        .HasColumnType("timestamp without time zone")
                         .HasComment("开始时间");
 
                     b.Property<int>("Status")
@@ -244,15 +240,15 @@ namespace Chet.QuartzNet.EFCore.SqlServer.Migrations
                     b.Property<string>("TriggerGroup")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
                         .HasDefaultValue("DEFAULT")
                         .HasComment("触发器分组");
 
                     b.Property<string>("TriggerName")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
                         .HasComment("触发器名称");
 
                     b.HasKey("LogId");
@@ -270,6 +266,112 @@ namespace Chet.QuartzNet.EFCore.SqlServer.Migrations
                         .HasDatabaseName("idx_log_job");
 
                     b.ToTable("quartz_job_logs", (string)null);
+                });
+
+            modelBuilder.Entity("Chet.QuartzNet.Models.Entities.QuartzNotification", b =>
+                {
+                    b.Property<Guid>("NotificationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasComment("通知ID");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasComment("通知内容");
+
+                    b.Property<DateTime>("CreateTime")
+                        .HasColumnType("timestamp without time zone")
+                        .HasComment("创建时间");
+
+                    b.Property<long?>("Duration")
+                        .HasColumnType("bigint")
+                        .HasComment("发送耗时(毫秒)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text")
+                        .HasComment("错误信息");
+
+                    b.Property<DateTime?>("SendTime")
+                        .HasColumnType("timestamp without time zone")
+                        .HasComment("发送时间");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasComment("发送状态");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasComment("通知标题");
+
+                    b.Property<string>("TriggeredBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasComment("触发来源");
+
+                    b.HasKey("NotificationId");
+
+                    b.HasIndex("CreateTime")
+                        .HasDatabaseName("idx_notification_create_time");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("idx_notification_status");
+
+                    b.HasIndex("TriggeredBy")
+                        .HasDatabaseName("idx_notification_triggered_by");
+
+                    b.ToTable("quartz_notifications", (string)null);
+                });
+
+            modelBuilder.Entity("Chet.QuartzNet.Models.Entities.QuartzSetting", b =>
+                {
+                    b.Property<Guid>("SettingId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasComment("设置ID");
+
+                    b.Property<DateTime>("CreateTime")
+                        .HasColumnType("timestamp without time zone")
+                        .HasComment("创建时间");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasComment("设置描述");
+
+                    b.Property<bool>("Enabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasComment("是否启用");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasComment("设置键");
+
+                    b.Property<DateTime?>("UpdateTime")
+                        .HasColumnType("timestamp without time zone")
+                        .HasComment("更新时间");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasComment("设置值");
+
+                    b.HasKey("SettingId");
+
+                    b.HasIndex("Key")
+                        .IsUnique()
+                        .HasDatabaseName("idx_setting_key");
+
+                    b.ToTable("quartz_settings", (string)null);
                 });
 #pragma warning restore 612, 618
         }

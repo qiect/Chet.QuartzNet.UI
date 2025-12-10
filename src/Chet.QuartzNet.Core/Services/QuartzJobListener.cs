@@ -154,24 +154,24 @@ namespace Chet.QuartzNet.Core.Services
             try
             {
                 // 检查是否是手动触发的作业
-                bool isManualTrigger = context.MergedJobDataMap.TryGetValue("IsManualTrigger", out var manualTriggerValue) && 
+                bool isManualTrigger = context.MergedJobDataMap.TryGetValue("IsManualTrigger", out var manualTriggerValue) &&
                                       manualTriggerValue is bool && (bool)manualTriggerValue;
-                
+
                 if (!isManualTrigger)
                 {
                     // 不是手动触发，检查作业状态
                     using var scope = _scopeFactory.CreateScope();
                     var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
-                    
+
                     // 获取作业信息
                     var jobInfo = await jobStorage.GetJobAsync(context.JobDetail.Key.Name, context.JobDetail.Key.Group, cancellationToken);
-                    
+
                     if (jobInfo != null && jobInfo.Status == JobStatus.Paused)
                     {
                         // 作业被暂停，记录日志并抛出异常阻止执行
-                        _logger.LogWarning("作业执行被阻止: 作业已被暂停 - {JobKey}", 
+                        _logger.LogWarning("作业执行被阻止: 作业已被暂停 - {JobKey}",
                             $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}");
-                        
+
                         // 抛出JobExecutionException来阻止作业执行
                         throw new JobExecutionException($"作业 {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name} 已被暂停，执行被阻止");
                     }
@@ -179,7 +179,7 @@ namespace Chet.QuartzNet.Core.Services
                 else
                 {
                     // 是手动触发的作业，即使处于暂停状态也允许执行
-                    _logger.LogInformation("手动触发作业，忽略暂停状态检查: {JobKey}", 
+                    _logger.LogInformation("手动触发作业，忽略暂停状态检查: {JobKey}",
                         $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}");
                 }
             }

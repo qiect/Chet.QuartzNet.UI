@@ -8,9 +8,12 @@
     <PackageId>Chet.QuartzNet.EFCore.PostgreSQL</PackageId>
     <Version>1.1.0</Version>
     <Authors>Chet</Authors>
-    <Description>Quartz.Net UI PostgreSQL 数据库支持</Description>
+    <Description>Chet.QuartzNet.UI PostgreSQL 数据库支持</Description>
     <PackageTags>Quartz;Scheduler;EFCore;PostgreSQL</PackageTags>
-  </PropertyGroup>
+		<PackageProjectUrl>https://github.com/qiect/Chet.QuartzNet.UI</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/qiect/Chet.QuartzNet.UI</RepositoryUrl>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+	</PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />

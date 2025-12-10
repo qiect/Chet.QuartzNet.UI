@@ -267,6 +267,112 @@ namespace Chet.QuartzNet.EFCore.PostgreSQL.Migrations
 
                     b.ToTable("quartz_job_logs", (string)null);
                 });
+
+            modelBuilder.Entity("Chet.QuartzNet.Models.Entities.QuartzNotification", b =>
+                {
+                    b.Property<Guid>("NotificationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasComment("通知ID");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasComment("通知内容");
+
+                    b.Property<DateTime>("CreateTime")
+                        .HasColumnType("timestamp without time zone")
+                        .HasComment("创建时间");
+
+                    b.Property<long?>("Duration")
+                        .HasColumnType("bigint")
+                        .HasComment("发送耗时(毫秒)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text")
+                        .HasComment("错误信息");
+
+                    b.Property<DateTime?>("SendTime")
+                        .HasColumnType("timestamp without time zone")
+                        .HasComment("发送时间");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasComment("发送状态");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasComment("通知标题");
+
+                    b.Property<string>("TriggeredBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasComment("触发来源");
+
+                    b.HasKey("NotificationId");
+
+                    b.HasIndex("CreateTime")
+                        .HasDatabaseName("idx_notification_create_time");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("idx_notification_status");
+
+                    b.HasIndex("TriggeredBy")
+                        .HasDatabaseName("idx_notification_triggered_by");
+
+                    b.ToTable("quartz_notifications", (string)null);
+                });
+
+            modelBuilder.Entity("Chet.QuartzNet.Models.Entities.QuartzSetting", b =>
+                {
+                    b.Property<Guid>("SettingId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasComment("设置ID");
+
+                    b.Property<DateTime>("CreateTime")
+                        .HasColumnType("timestamp without time zone")
+                        .HasComment("创建时间");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasComment("设置描述");
+
+                    b.Property<bool>("Enabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasComment("是否启用");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasComment("设置键");
+
+                    b.Property<DateTime?>("UpdateTime")
+                        .HasColumnType("timestamp without time zone")
+                        .HasComment("更新时间");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasComment("设置值");
+
+                    b.HasKey("SettingId");
+
+                    b.HasIndex("Key")
+                        .IsUnique()
+                        .HasDatabaseName("idx_setting_key");
+
+                    b.ToTable("quartz_settings", (string)null);
+                });
 #pragma warning restore 612, 618
         }
     }

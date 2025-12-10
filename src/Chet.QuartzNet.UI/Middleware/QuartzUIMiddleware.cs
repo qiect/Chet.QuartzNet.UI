@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 using System.Reflection;
-using System.IO;
 
 namespace Chet.QuartzNet.UI.Middleware;
 

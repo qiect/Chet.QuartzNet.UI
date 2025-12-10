@@ -497,7 +497,7 @@ public class PushPlusNotificationService : INotificationService
     private string GenerateSchedulerErrorHtmlContent(Exception exception, string executionTime)
     {
         var statusColor = "#cf222e";
-        
+
         // 使用简单的字符串拼接，避免复杂的转义问题
         return $"<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #24292f; max-width: 720px; margin: 0 auto; padding: 20px;\">" +
                $"<div style=\"background-color: #ffffff; border: 1px solid #e1e4e8; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;\">" +
