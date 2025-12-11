@@ -78,19 +78,18 @@ const sortOrder = ref<string>('');
 // 列配置（使用computed属性，当排序状态变化时自动更新）
 const columns = computed<ColumnsType<LogResponseDto>[]>(() => [
   {
-    title: '作业ID',
-    dataIndex: 'logId',
-    ellipsis: true,
-  },
-  {
     title: '作业名称',
     dataIndex: 'jobName',
     ellipsis: true,
+    fixed: 'left',
+    width: 300,
   },
   {
     title: '作业分组',
     dataIndex: 'jobGroup',
     ellipsis: true,
+    fixed: 'left',
+    width: 300,
   },
   {
     title: '状态',

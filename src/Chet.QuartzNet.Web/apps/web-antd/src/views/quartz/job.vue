@@ -174,6 +174,8 @@ const columns = computed(() => [
     dataIndex: 'jobName',
     ellipsis: true,
     sorter: true,
+    fixed: 'left',
+    width: 300,
     sortOrder: sortBy.value === 'jobName' ? (sortOrder.value === 'asc' ? 'ascend' : sortOrder.value === 'desc' ? 'descend' : undefined) : undefined,
   },
   {
@@ -181,6 +183,8 @@ const columns = computed(() => [
     dataIndex: 'jobGroup',
     ellipsis: true,
     sorter: true,
+    fixed: 'left',
+    width: 300,
     sortOrder: sortBy.value === 'jobGroup' ? (sortOrder.value === 'asc' ? 'ascend' : sortOrder.value === 'desc' ? 'descend' : undefined) : undefined,
   },
   {
@@ -533,15 +537,24 @@ const handleSave = async () => {
 };
 
 // 删除作业
-const handleDelete = async (job: QuartzJobResponseDto) => {
-  try {
-    await deleteJob(job.jobName, job.jobGroup);
-    message.success('作业删除成功');
-    loadJobList();
-  } catch (error) {
-    message.error('作业删除失败');
-    console.error('删除作业失败:', error);
-  }
+const handleDelete = (job: QuartzJobResponseDto) => {
+  Modal.confirm({
+    title: '确认删除',
+    content: `确定要删除作业 "${job.jobName}" 吗？此操作不可恢复，相关的作业日志和配置也将被删除。`,
+    okText: '确定',
+    okType: 'danger',
+    cancelText: '取消',
+    async onOk() {
+      try {
+        await deleteJob(job.jobName, job.jobGroup);
+        message.success('作业删除成功');
+        loadJobList();
+      } catch (error) {
+        message.error('作业删除失败');
+        console.error('删除作业失败:', error);
+      }
+    },
+  });
 };
 
 // 停止作业
@@ -613,18 +626,27 @@ const handleStartScheduler = async () => {
 };
 
 // 停止调度器
-const handleStopScheduler = async () => {
-  try {
-    const response = await stopScheduler();
-    if (response.success) {
-      message.success('调度器停止成功');
-      await getSchedulerStatusInfo();
-      loadJobList();
-    }
-  } catch (error) {
-    console.error('停止调度器失败:', error);
-    message.error('停止调度器失败');
-  }
+const handleStopScheduler = () => {
+  Modal.confirm({
+    title: '确认停止调度器',
+    content: '确定要停止调度器吗？停止后所有作业将不再执行，直到重新启动调度器。',
+    okText: '确定',
+    okType: 'danger',
+    cancelText: '取消',
+    async onOk() {
+      try {
+        const response = await stopScheduler();
+        if (response.success) {
+          message.success('调度器停止成功');
+          await getSchedulerStatusInfo();
+          loadJobList();
+        }
+      } catch (error) {
+        console.error('停止调度器失败:', error);
+        message.error('停止调度器失败');
+      }
+    },
+  });
 };
 
 // 生命周期
