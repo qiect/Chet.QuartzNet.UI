@@ -348,40 +348,58 @@ const handleDetail = (notification: QuartzNotificationDto) => {
 };
 
 // 删除通知
-const handleDelete = async (notification: QuartzNotificationDto) => {
-  try {
-    const response = await deleteNotification(notification.notificationId);
-    if (response.success) {
-      message.success('通知删除成功');
-      loadNotificationList();
-    } else {
-      message.error(response.message || '通知删除失败');
-    }
-  } catch (error) {
-    message.error('通知删除失败');
-    console.error('删除通知失败:', error);
-  }
+const handleDelete = (notification: QuartzNotificationDto) => {
+  Modal.confirm({
+    title: '确认删除',
+    content: '确定要删除这条通知吗？此操作不可恢复。',
+    okText: '确定',
+    okType: 'danger',
+    cancelText: '取消',
+    async onOk() {
+      try {
+        const response = await deleteNotification(notification.notificationId);
+        if (response.success) {
+          message.success('通知删除成功');
+          loadNotificationList();
+        } else {
+          message.error(response.message || '通知删除失败');
+        }
+      } catch (error) {
+        message.error('通知删除失败');
+        console.error('删除通知失败:', error);
+      }
+    },
+  });
 };
 
 // 清空通知
-const handleClearNotifications = async () => {
-  try {
-    const response = await clearNotifications({
-      pageIndex: 1,
-      pageSize: 1,
-      status: searchForm.value.status,
-      triggeredBy: searchForm.value.triggeredBy,
-    });
-    if (response.success) {
-      message.success('通知清空成功');
-      loadNotificationList();
-    } else {
-      message.error(response.message || '通知清空失败');
-    }
-  } catch (error) {
-    message.error('通知清空失败');
-    console.error('清空通知失败:', error);
-  }
+const handleClearNotifications = () => {
+  Modal.confirm({
+    title: '确认清空',
+    content: '确定要清空所有符合条件的通知吗？此操作不可恢复。',
+    okText: '确定',
+    okType: 'danger',
+    cancelText: '取消',
+    async onOk() {
+      try {
+        const response = await clearNotifications({
+          pageIndex: 1,
+          pageSize: 1,
+          status: searchForm.value.status,
+          triggeredBy: searchForm.value.triggeredBy,
+        });
+        if (response.success) {
+          message.success('通知清空成功');
+          loadNotificationList();
+        } else {
+          message.error(response.message || '通知清空失败');
+        }
+      } catch (error) {
+        message.error('通知清空失败');
+        console.error('清空通知失败:', error);
+      }
+    },
+  });
 };
 
 // 生命周期
