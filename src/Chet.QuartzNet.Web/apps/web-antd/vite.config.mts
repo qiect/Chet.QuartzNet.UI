@@ -22,6 +22,8 @@ export default defineConfig(async () => {
       },
       build: {
         outDir: '../../../Chet.QuartzNet.UI/wwwroot/quartz-ui',
+        // 构建前清空输出目录
+        emptyOutDir: true,
       },
     },
   };

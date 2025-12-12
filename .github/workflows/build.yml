@@ -1,0 +1,82 @@
+name: Build and Publish NuGet Packages
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'NuGet Package Version'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      # 1. 代码检查与依赖安装
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8.0
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      # 2. 前端项目构建
+      - name: Install frontend dependencies
+        working-directory: src/Chet.QuartzNet.Web/apps/web-antd
+        run: pnpm install
+
+      - name: Build frontend project
+        working-directory: src/Chet.QuartzNet.Web/apps/web-antd
+        run: pnpm build
+
+      # 3. NuGet 包版本管理
+      - name: Extract version from tag
+        id: extract-version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=${{ github.event.inputs.version }}
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Update nuspec version
+        run: |
+          sed -i "s/<version>.*<\/version>/<version>$VERSION<\/version>/" Chet.QuartzNet.UI.nuspec
+
+      # 4. 主包打包
+      - name: Build main package
+        run: dotnet build src/Chet.QuartzNet.UI/Chet.QuartzNet.UI.csproj --configuration Release
+
+      - name: Pack main package
+        run: dotnet pack src/Chet.QuartzNet.UI/Chet.QuartzNet.UI.csproj --configuration Release --no-build --output ./artifacts
+
+      # 5. 数据库存储包打包
+      - name: Pack database packages
+        run: |
+          dotnet pack src/Chet.QuartzNet.EFCore.MySql/Chet.QuartzNet.EFCore.MySql.csproj --configuration Release --output ./artifacts
+          dotnet pack src/Chet.QuartzNet.EFCore.PostgreSql/Chet.QuartzNet.EFCore.PostgreSql.csproj --configuration Release --output ./artifacts
+          dotnet pack src/Chet.QuartzNet.EFCore.SQLite/Chet.QuartzNet.EFCore.SQLite.csproj --configuration Release --output ./artifacts
+          dotnet pack src/Chet.QuartzNet.EFCore.SqlServer/Chet.QuartzNet.EFCore.SqlServer.csproj --configuration Release --output ./artifacts
+
+      # 6. NuGet 包发布
+      - name: Publish NuGet packages (Trusted Publishing)
+        run: dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate

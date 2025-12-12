@@ -302,7 +302,7 @@ public class QuartzUIController : ControllerBase
 
     #endregion
 
-    #region 作业日志管理
+    #region 日志管理
 
     /// <summary>
     /// 获取作业日志

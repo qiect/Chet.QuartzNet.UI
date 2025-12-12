@@ -14,30 +14,30 @@ const routes: RouteRecordRaw[] = [
     },
   },
   {
-    name: 'JobManagement',
-    path: '/job-management',
-    component: () => import('#/views/quartz/job-management.vue'),
+    name: 'Job',
+    path: '/job',
+    component: () => import('#/views/quartz/job.vue'),
     meta: {
       icon: 'ion:time-outline',
-      title: $t('page.quartz.jobManagement'),
+      title: $t('page.quartz.job'),
     },
   },
   {
-    name: 'LogManagement',
-    path: '/log-management',
-    component: () => import('#/views/quartz/log-management.vue'),
+    name: 'Log',
+    path: '/log',
+    component: () => import('#/views/quartz/log.vue'),
     meta: {
       icon: 'lucide:logs',
-      title: $t('page.quartz.logManagement'),
+      title: $t('page.quartz.log'),
     },
   },
   {
-    name: 'NotificationManagement',
-    path: '/notification-management',
-    component: () => import('#/views/quartz/notification-management.vue'),
+    name: 'Notification',
+    path: '/notification',
+    component: () => import('#/views/quartz/notification.vue'),
     meta: {
       icon: 'lucide:bell',
-      title: $t('page.quartz.notificationManagement'),
+      title: $t('page.quartz.notification'),
     },
   },
 ];

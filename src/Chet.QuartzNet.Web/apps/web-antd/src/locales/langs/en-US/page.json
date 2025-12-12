@@ -9,8 +9,8 @@
   },
   "quartz": {
     "analytics": "Analytics",
-    "jobManagement": "Job Management",
-    "logManagement": "Log Management",
-    "notificationManagement": "Notification Management"
+    "job": "Job",
+    "log": "Log",
+    "notification": "Notification"
   }
 }

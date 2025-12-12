@@ -1,1 +1,0 @@
-const o={login:"Login",register:"Register",codeLogin:"Code Login",qrcodeLogin:"Qr Code Login",forgetPassword:"Forget Password",profile:"Profile"},e={analytics:"Analytics",jobManagement:"Job Management",logManagement:"Log Management",notificationManagement:"Notification Management"},n={auth:o,quartz:e};export{o as auth,n as default,e as quartz};

@@ -1,0 +1,1 @@
+const o={login:"Login",register:"Register",codeLogin:"Code Login",qrcodeLogin:"Qr Code Login",forgetPassword:"Forget Password",profile:"Profile"},i={analytics:"Analytics",job:"Job",log:"Log",notification:"Notification"},t={auth:o,quartz:i};export{o as auth,t as default,i as quartz};
