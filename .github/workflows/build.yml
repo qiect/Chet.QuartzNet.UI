@@ -106,4 +106,4 @@ jobs:
 
       # 6. NuGet 包发布
       - name: Publish NuGet packages (Trusted Publishing)
-        run: dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --api-key az --skip-duplicate
