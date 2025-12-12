@@ -14,9 +14,7 @@ on:
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
-    environment: production
     permissions:
-      id-token: write
       contents: read
     steps:
       # 1. 代码检查与依赖安装
@@ -106,5 +104,5 @@ jobs:
         run: dotnet pack src/Chet.QuartzNet.EFCore.SqlServer/Chet.QuartzNet.EFCore.SqlServer.csproj --configuration Release --output ./artifacts -p:PackageVersion=$VERSION
 
       # 6. NuGet 包发布
-      - name: Publish NuGet packages (Trusted Publishing)
-        run: dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --api-key az --skip-duplicate
+      - name: Publish NuGet packages (API Key)
+        run: dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
