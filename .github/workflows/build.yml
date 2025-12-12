@@ -63,8 +63,8 @@ jobs:
         id: extract-version
         run: |
           # 从标签或输入获取版本号
-          if [[ $GITHUB_REF == refs/tags/v* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
           else
             VERSION=${{ github.event.inputs.version }}
           fi
