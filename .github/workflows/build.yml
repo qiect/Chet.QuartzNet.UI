@@ -2,8 +2,6 @@ name: Build and Publish NuGet Packages
 
 on:
   push:
-    branches:
-      - main
     tags:
       - 'v*.*.*'
   workflow_dispatch:
@@ -61,34 +59,37 @@ jobs:
         run: pnpm run build:antd
 
       # 3. NuGet 包版本管理
-      - name: Extract version from tag
+      - name: Extract version from tag or input
         id: extract-version
         run: |
+          # 从标签或输入获取版本号
           if [[ $GITHUB_REF == refs/tags/v* ]]; then
             VERSION=${GITHUB_REF#refs/tags/v}
           else
             VERSION=${{ github.event.inputs.version }}
           fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Update nuspec version
         run: |
-          sed -i "s/<version>.*<\/version>/<version>$VERSION<\/version>/" Chet.QuartzNet.UI.nuspec
+          # 更新根目录下的nuspec文件
+          sed -i "s/<version>.*<\/version>/<version>$VERSION<\/version>/" ./Chet.QuartzNet.UI.nuspec
 
       # 4. 主包打包
       - name: Build main package
-        run: dotnet build src/Chet.QuartzNet.UI/Chet.QuartzNet.UI.csproj --configuration Release
+        run: dotnet build src/Chet.QuartzNet.UI/Chet.QuartzNet.UI.csproj --configuration Release -p:PackageVersion=$VERSION
 
       - name: Pack main package
-        run: dotnet pack src/Chet.QuartzNet.UI/Chet.QuartzNet.UI.csproj --configuration Release --no-build --output ./artifacts
+        run: dotnet pack src/Chet.QuartzNet.UI/Chet.QuartzNet.UI.csproj --configuration Release --no-build --output ./artifacts -p:PackageVersion=$VERSION
 
       # 5. 数据库存储包打包
       - name: Pack database packages
         run: |
-          dotnet pack src/Chet.QuartzNet.EFCore.MySql/Chet.QuartzNet.EFCore.MySql.csproj --configuration Release --output ./artifacts
-          dotnet pack src/Chet.QuartzNet.EFCore.PostgreSql/Chet.QuartzNet.EFCore.PostgreSql.csproj --configuration Release --output ./artifacts
-          dotnet pack src/Chet.QuartzNet.EFCore.SQLite/Chet.QuartzNet.EFCore.SQLite.csproj --configuration Release --output ./artifacts
-          dotnet pack src/Chet.QuartzNet.EFCore.SqlServer/Chet.QuartzNet.EFCore.SqlServer.csproj --configuration Release --output ./artifacts
+          dotnet pack src/Chet.QuartzNet.EFCore.MySql/Chet.QuartzNet.EFCore.MySql.csproj --configuration Release --output ./artifacts -p:PackageVersion=$VERSION
+          dotnet pack src/Chet.QuartzNet.EFCore.PostgreSql/Chet.QuartzNet.EFCore.PostgreSql.csproj --configuration Release --output ./artifacts -p:PackageVersion=$VERSION
+          dotnet pack src/Chet.QuartzNet.EFCore.SQLite/Chet.QuartzNet.EFCore.SQLite.csproj --configuration Release --output ./artifacts -p:PackageVersion=$VERSION
+          dotnet pack src/Chet.QuartzNet.EFCore.SqlServer/Chet.QuartzNet.EFCore.SqlServer.csproj --configuration Release --output ./artifacts -p:PackageVersion=$VERSION
 
       # 6. NuGet 包发布
       - name: Publish NuGet packages (Trusted Publishing)
