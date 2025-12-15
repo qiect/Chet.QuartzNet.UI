@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Chet.QuartzNet.Core</PackageId>
-    <Version>1.1.0</Version>
+    <Version>1.1.4</Version>
     <Authors>Chet</Authors>
     <Description>Quartz.Net UI 核心业务逻辑库</Description>
     <PackageTags>Quartz;Scheduler;Core</PackageTags>
@@ -26,3 +26,5 @@
   </ItemGroup>
 
 </Project>
+
+

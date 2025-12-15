@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Chet.QuartzNet.EFCore.SqlServer</PackageId>
-    <Version>1.1.0</Version>
+    <Version>1.1.4</Version>
     <Authors>Chet</Authors>
     <Description>Chet.QuartzNet.UI SQL Server 数据库支持</Description>
     <PackageTags>Quartz;Scheduler;EFCore;SqlServer</PackageTags>
@@ -26,3 +26,6 @@
   </ItemGroup>
 
 </Project>
+
+
+

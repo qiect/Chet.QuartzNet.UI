@@ -1,11 +1,11 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>Chet.QuartzNet.EFCore</PackageId>
-    <Version>1.1.0</Version>
+    <Version>1.1.4</Version>
     <Authors>Chet</Authors>
     <Description>Quartz.Net UI EFCore数据访问层</Description>
     <PackageProjectUrl>https://github.com/qiect/Chet.QuartzNet.UI</PackageProjectUrl>
@@ -24,3 +24,5 @@
   </ItemGroup>
 
 </Project>
+
+
