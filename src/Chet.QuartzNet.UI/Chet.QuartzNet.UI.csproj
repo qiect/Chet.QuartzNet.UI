@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Razor">
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Chet.QuartzNet.UI</PackageId>
-    <PackageVersion>1.1.0</PackageVersion>
+    <PackageVersion>1.1.4</PackageVersion>
     <Authors>Chet</Authors>
     <Company>Chet</Company>
     <Product>Chet.QuartzNet.UI 作业调度管理系统</Product>
@@ -61,3 +61,5 @@
   </ItemGroup>
 
 </Project>
+
+

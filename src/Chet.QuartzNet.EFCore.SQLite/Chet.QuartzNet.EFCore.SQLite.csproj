@@ -1,11 +1,11 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>Chet.QuartzNet.EFCore.SQLite</PackageId>
-    <Version>1.1.0</Version>
+    <Version>1.1.4</Version>
     <Authors>Chet</Authors>
     <Description>Chet.QuartzNet.UI SQLite 数据库支持</Description>
 		<PackageTags>Quartz;Scheduler;EFCore;SQLite</PackageTags>
@@ -25,3 +25,6 @@
   </ItemGroup>
 
 </Project>
+
+
+
