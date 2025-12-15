@@ -44,6 +44,25 @@ public class QuartzDbContext : DbContext
 
         // 应用实体配置
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+
+        // 如果是 PostgreSQL 数据库，为所有时间类型属性设置 PostgreSQL 特定的时间类型
+        if (_isPostgreSql)
+        {
+            // 遍历所有实体
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            {
+                // 遍历所有属性
+                foreach (var property in entityType.GetProperties())
+                {
+                    // 如果属性类型是时间类型（DateTime 或 DateTimeOffset）
+                    if (property.ClrType == typeof(DateTime) || property.ClrType == typeof(DateTime?) || property.ClrType == typeof(DateTimeOffset) || property.ClrType == typeof(DateTimeOffset?))
+                    {
+                        // 设置为 PostgreSQL 兼容的时间类型
+                        property.SetColumnType("timestamp without time zone");
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -127,19 +146,15 @@ public class QuartzJobInfoConfiguration : IEntityTypeConfiguration<QuartzJobInfo
             .HasComment("是否跳过SSL验证");
 
         builder.Property(j => j.StartTime)
-            .HasColumnType("timestamp without time zone")
             .HasComment("开始时间");
 
         builder.Property(j => j.EndTime)
-            .HasColumnType("timestamp without time zone")
             .HasComment("结束时间");
 
         builder.Property(j => j.NextRunTime)
-            .HasColumnType("timestamp without time zone")
             .HasComment("下次执行时间");
 
         builder.Property(j => j.PreviousRunTime)
-            .HasColumnType("timestamp without time zone")
             .HasComment("上次执行时间");
 
         builder.Property(j => j.IsEnabled)
@@ -154,7 +169,6 @@ public class QuartzJobInfoConfiguration : IEntityTypeConfiguration<QuartzJobInfo
 
         builder.Property(j => j.CreateTime)
             .IsRequired()
-            .HasColumnType("timestamp without time zone")
             .HasComment("创建时间");
 
         builder.Property(j => j.CreateBy)
@@ -162,7 +176,6 @@ public class QuartzJobInfoConfiguration : IEntityTypeConfiguration<QuartzJobInfo
             .HasComment("创建人");
 
         builder.Property(j => j.UpdateTime)
-            .HasColumnType("timestamp without time zone")
             .HasComment("更新时间");
 
         builder.Property(j => j.UpdateBy)
@@ -225,11 +238,9 @@ public class QuartzJobLogConfiguration : IEntityTypeConfiguration<QuartzJobLog>
 
         builder.Property(l => l.StartTime)
             .IsRequired()
-            .HasColumnType("timestamp without time zone")
             .HasComment("开始时间");
 
         builder.Property(l => l.EndTime)
-            .HasColumnType("timestamp without time zone")
             .HasComment("结束时间");
 
         builder.Property(l => l.Duration)
@@ -261,7 +272,6 @@ public class QuartzJobLogConfiguration : IEntityTypeConfiguration<QuartzJobLog>
 
         builder.Property(l => l.CreateTime)
             .IsRequired()
-            .HasColumnType("timestamp without time zone")
             .HasComment("创建时间");
 
         // 索引配置
@@ -308,11 +318,9 @@ public class QuartzSettingConfiguration : IEntityTypeConfiguration<QuartzSetting
 
         builder.Property(s => s.CreateTime)
             .IsRequired()
-            .HasColumnType("timestamp without time zone")
             .HasComment("创建时间");
 
         builder.Property(s => s.UpdateTime)
-            .HasColumnType("timestamp without time zone")
             .HasComment("更新时间");
 
         // 索引配置
@@ -360,11 +368,9 @@ public class QuartzNotificationConfiguration : IEntityTypeConfiguration<QuartzNo
 
         builder.Property(n => n.CreateTime)
             .IsRequired()
-            .HasColumnType("timestamp without time zone")
             .HasComment("创建时间");
 
         builder.Property(n => n.SendTime)
-            .HasColumnType("timestamp without time zone")
             .HasComment("发送时间");
 
         builder.Property(n => n.Duration)

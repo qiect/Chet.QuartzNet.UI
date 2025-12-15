@@ -3,34 +3,39 @@ using System;
 using Chet.QuartzNet.EFCore.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace Chet.QuartzNet.EFCore.SQLite.Migrations
+namespace Chet.QuartzNet.EFCore.SqlServer.Migrations
 {
     [DbContext(typeof(QuartzDbContext))]
-    [Migration("20251209091515_InitialCreate")]
+    [Migration("20251214031024_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "8.0.0");
+            modelBuilder
+                .HasAnnotation("ProductVersion", "8.0.0")
+                .HasAnnotation("Relational:MaxIdentifierLength", 128);
+
+            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
             modelBuilder.Entity("Chet.QuartzNet.Models.Entities.QuartzJobInfo", b =>
                 {
                     b.Property<string>("JobName")
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(100)")
                         .HasComment("作业名称");
 
                     b.Property<string>("JobGroup")
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(100)")
                         .HasDefaultValue("DEFAULT")
                         .HasComment("作业分组");
 
@@ -45,50 +50,50 @@ namespace Chet.QuartzNet.EFCore.SQLite.Migrations
                     b.Property<string>("ApiMethod")
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(10)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(10)")
                         .HasDefaultValue("GET")
                         .HasComment("API请求方法");
 
                     b.Property<int>("ApiTimeout")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("int")
                         .HasDefaultValue(30000)
                         .HasComment("API超时时间(毫秒)");
 
                     b.Property<string>("CreateBy")
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(100)")
                         .HasComment("创建人");
 
                     b.Property<DateTime>("CreateTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime2")
                         .HasComment("创建时间");
 
                     b.Property<string>("CronExpression")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(200)")
                         .HasComment("Cron表达式");
 
                     b.Property<string>("Description")
                         .HasMaxLength(500)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(500)")
                         .HasComment("作业描述");
 
                     b.Property<DateTime?>("EndTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime2")
                         .HasComment("结束时间");
 
                     b.Property<bool>("IsEnabled")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("bit")
                         .HasDefaultValue(true)
                         .HasComment("是否启用");
 
                     b.Property<string>("JobClassOrApi")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(500)")
                         .HasComment("作业类名或API URL");
 
                     b.Property<string>("JobData")
@@ -96,35 +101,35 @@ namespace Chet.QuartzNet.EFCore.SQLite.Migrations
                         .HasComment("作业数据(JSON格式)");
 
                     b.Property<int>("JobType")
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("int")
                         .HasComment("作业类型");
 
                     b.Property<DateTime?>("NextRunTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime2")
                         .HasComment("下次执行时间");
 
                     b.Property<DateTime?>("PreviousRunTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime2")
                         .HasComment("上次执行时间");
 
                     b.Property<string>("Remark")
                         .HasMaxLength(500)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(500)")
                         .HasComment("备注");
 
                     b.Property<bool>("SkipSslValidation")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("bit")
                         .HasDefaultValue(false)
                         .HasComment("是否跳过SSL验证");
 
                     b.Property<DateTime?>("StartTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime2")
                         .HasComment("开始时间");
 
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("int")
                         .HasDefaultValue(0)
                         .HasComment("作业状态");
 
@@ -132,23 +137,23 @@ namespace Chet.QuartzNet.EFCore.SQLite.Migrations
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(100)")
                         .HasDefaultValue("DEFAULT")
                         .HasComment("触发器分组");
 
                     b.Property<string>("TriggerName")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(100)")
                         .HasComment("触发器名称");
 
                     b.Property<string>("UpdateBy")
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(100)")
                         .HasComment("更新人");
 
                     b.Property<DateTime?>("UpdateTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime2")
                         .HasComment("更新时间");
 
                     b.HasKey("JobName", "JobGroup");
@@ -172,19 +177,19 @@ namespace Chet.QuartzNet.EFCore.SQLite.Migrations
                 {
                     b.Property<Guid>("LogId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT")
+                        .HasColumnType("uniqueidentifier")
                         .HasComment("日志ID");
 
                     b.Property<DateTime>("CreateTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime2")
                         .HasComment("创建时间");
 
                     b.Property<long?>("Duration")
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("bigint")
                         .HasComment("执行耗时(毫秒)");
 
                     b.Property<DateTime?>("EndTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime2")
                         .HasComment("结束时间");
 
                     b.Property<string>("ErrorMessage")
@@ -207,14 +212,14 @@ namespace Chet.QuartzNet.EFCore.SQLite.Migrations
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(100)")
                         .HasDefaultValue("DEFAULT")
                         .HasComment("作业分组");
 
                     b.Property<string>("JobName")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(100)")
                         .HasComment("作业名称");
 
                     b.Property<string>("Message")
@@ -226,12 +231,12 @@ namespace Chet.QuartzNet.EFCore.SQLite.Migrations
                         .HasComment("执行结果");
 
                     b.Property<DateTime>("StartTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime2")
                         .HasComment("开始时间");
 
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("int")
                         .HasDefaultValue(0)
                         .HasComment("日志状态");
 
@@ -239,14 +244,14 @@ namespace Chet.QuartzNet.EFCore.SQLite.Migrations
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(100)")
                         .HasDefaultValue("DEFAULT")
                         .HasComment("触发器分组");
 
                     b.Property<string>("TriggerName")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(100)")
                         .HasComment("触发器名称");
 
                     b.HasKey("LogId");
@@ -270,7 +275,7 @@ namespace Chet.QuartzNet.EFCore.SQLite.Migrations
                 {
                     b.Property<Guid>("NotificationId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT")
+                        .HasColumnType("uniqueidentifier")
                         .HasComment("通知ID");
 
                     b.Property<string>("Content")
@@ -279,11 +284,11 @@ namespace Chet.QuartzNet.EFCore.SQLite.Migrations
                         .HasComment("通知内容");
 
                     b.Property<DateTime>("CreateTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime2")
                         .HasComment("创建时间");
 
                     b.Property<long?>("Duration")
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("bigint")
                         .HasComment("发送耗时(毫秒)");
 
                     b.Property<string>("ErrorMessage")
@@ -291,24 +296,24 @@ namespace Chet.QuartzNet.EFCore.SQLite.Migrations
                         .HasComment("错误信息");
 
                     b.Property<DateTime?>("SendTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime2")
                         .HasComment("发送时间");
 
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("int")
                         .HasDefaultValue(0)
                         .HasComment("发送状态");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(200)")
                         .HasComment("通知标题");
 
                     b.Property<string>("TriggeredBy")
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(100)")
                         .HasComment("触发来源");
 
                     b.HasKey("NotificationId");
@@ -329,33 +334,33 @@ namespace Chet.QuartzNet.EFCore.SQLite.Migrations
                 {
                     b.Property<Guid>("SettingId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT")
+                        .HasColumnType("uniqueidentifier")
                         .HasComment("设置ID");
 
                     b.Property<DateTime>("CreateTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime2")
                         .HasComment("创建时间");
 
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(500)")
                         .HasComment("设置描述");
 
                     b.Property<bool>("Enabled")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("bit")
                         .HasDefaultValue(true)
                         .HasComment("是否启用");
 
                     b.Property<string>("Key")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("nvarchar(100)")
                         .HasComment("设置键");
 
                     b.Property<DateTime?>("UpdateTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime2")
                         .HasComment("更新时间");
 
                     b.Property<string>("Value")

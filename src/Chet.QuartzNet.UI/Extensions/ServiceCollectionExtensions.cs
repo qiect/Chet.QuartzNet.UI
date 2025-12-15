@@ -119,13 +119,30 @@ public static class ServiceCollectionExtensions
             throw new InvalidOperationException($"未找到数据库提供程序程序集，请确保已引用对应 NuGet 包：{providerMeta.TypeName}");
         }
 
-        var method = providerType.GetMethod(providerMeta.MethodName, new[] { typeof(IServiceCollection), typeof(string) });
+        var methods = providerType.GetMethods(BindingFlags.Public | BindingFlags.Static);
+        var method = methods.FirstOrDefault(m =>
+            m.Name == providerMeta.MethodName &&
+            m.GetParameters().Length >= 2 &&
+            m.GetParameters()[0].ParameterType == typeof(IServiceCollection) &&
+            m.GetParameters()[1].ParameterType == typeof(string));
+
         if (method == null)
         {
-            throw new InvalidOperationException($"在 {providerType.FullName} 中未找到 {providerMeta.MethodName}(IServiceCollection, string) 方法，请更新对应数据库包版本。");
+            throw new InvalidOperationException($"在 {providerType.FullName} 中未找到合适的 {providerMeta.MethodName} 方法，请更新对应数据库包版本。");
         }
 
-        method.Invoke(null, new object[] { services, connectionString });
+        // 根据方法参数数量传递相应的参数
+        var parameters = method.GetParameters();
+        object[] args = new object[parameters.Length];
+        args[0] = services;
+        args[1] = connectionString;
+        // 对于可选参数，传入 null
+        for (int i = 2; i < parameters.Length; i++)
+        {
+            args[i] = null;
+        }
+
+        method.Invoke(null, args);
     }
 
     /// <summary>

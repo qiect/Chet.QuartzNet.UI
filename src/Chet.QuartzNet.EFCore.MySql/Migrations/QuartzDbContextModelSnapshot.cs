@@ -60,7 +60,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasComment("创建人");
 
                     b.Property<DateTime>("CreateTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime(6)")
                         .HasComment("创建时间");
 
                     b.Property<string>("CronExpression")
@@ -75,7 +75,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasComment("作业描述");
 
                     b.Property<DateTime?>("EndTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime(6)")
                         .HasComment("结束时间");
 
                     b.Property<bool>("IsEnabled")
@@ -99,11 +99,11 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasComment("作业类型");
 
                     b.Property<DateTime?>("NextRunTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime(6)")
                         .HasComment("下次执行时间");
 
                     b.Property<DateTime?>("PreviousRunTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime(6)")
                         .HasComment("上次执行时间");
 
                     b.Property<string>("Remark")
@@ -118,7 +118,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasComment("是否跳过SSL验证");
 
                     b.Property<DateTime?>("StartTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime(6)")
                         .HasComment("开始时间");
 
                     b.Property<int>("Status")
@@ -147,7 +147,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasComment("更新人");
 
                     b.Property<DateTime?>("UpdateTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime(6)")
                         .HasComment("更新时间");
 
                     b.HasKey("JobName", "JobGroup");
@@ -175,7 +175,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasComment("日志ID");
 
                     b.Property<DateTime>("CreateTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime(6)")
                         .HasComment("创建时间");
 
                     b.Property<long?>("Duration")
@@ -183,7 +183,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasComment("执行耗时(毫秒)");
 
                     b.Property<DateTime?>("EndTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime(6)")
                         .HasComment("结束时间");
 
                     b.Property<string>("ErrorMessage")
@@ -225,7 +225,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasComment("执行结果");
 
                     b.Property<DateTime>("StartTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime(6)")
                         .HasComment("开始时间");
 
                     b.Property<int>("Status")
@@ -278,7 +278,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasComment("通知内容");
 
                     b.Property<DateTime>("CreateTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime(6)")
                         .HasComment("创建时间");
 
                     b.Property<long?>("Duration")
@@ -290,7 +290,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasComment("错误信息");
 
                     b.Property<DateTime?>("SendTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime(6)")
                         .HasComment("发送时间");
 
                     b.Property<int>("Status")
@@ -332,7 +332,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasComment("设置ID");
 
                     b.Property<DateTime>("CreateTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime(6)")
                         .HasComment("创建时间");
 
                     b.Property<string>("Description")
@@ -354,7 +354,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasComment("设置键");
 
                     b.Property<DateTime?>("UpdateTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("datetime(6)")
                         .HasComment("更新时间");
 
                     b.Property<string>("Value")

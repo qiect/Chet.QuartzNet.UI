@@ -5,13 +5,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace Chet.QuartzNet.EFCore.MySQL.Migrations
+namespace Chet.QuartzNet.EFCore.PostgreSQL.Migrations
 {
     [DbContext(typeof(QuartzDbContext))]
-    [Migration("20251209101211_InitialCreate")]
+    [Migration("20251214032720_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -20,19 +21,21 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasAnnotation("ProductVersion", "8.0.0")
-                .HasAnnotation("Relational:MaxIdentifierLength", 64);
+                .HasAnnotation("Relational:MaxIdentifierLength", 63);
+
+            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Chet.QuartzNet.Models.Entities.QuartzJobInfo", b =>
                 {
                     b.Property<string>("JobName")
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasComment("作业名称");
 
                     b.Property<string>("JobGroup")
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasDefaultValue("DEFAULT")
                         .HasComment("作业分组");
 
@@ -47,19 +50,19 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                     b.Property<string>("ApiMethod")
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(10)
-                        .HasColumnType("varchar(10)")
+                        .HasColumnType("character varying(10)")
                         .HasDefaultValue("GET")
                         .HasComment("API请求方法");
 
                     b.Property<int>("ApiTimeout")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasDefaultValue(30000)
                         .HasComment("API超时时间(毫秒)");
 
                     b.Property<string>("CreateBy")
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasComment("创建人");
 
                     b.Property<DateTime>("CreateTime")
@@ -69,12 +72,12 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                     b.Property<string>("CronExpression")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("varchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasComment("Cron表达式");
 
                     b.Property<string>("Description")
                         .HasMaxLength(500)
-                        .HasColumnType("varchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasComment("作业描述");
 
                     b.Property<DateTime?>("EndTime")
@@ -83,14 +86,14 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
 
                     b.Property<bool>("IsEnabled")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("tinyint(1)")
+                        .HasColumnType("boolean")
                         .HasDefaultValue(true)
                         .HasComment("是否启用");
 
                     b.Property<string>("JobClassOrApi")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("varchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasComment("作业类名或API URL");
 
                     b.Property<string>("JobData")
@@ -98,7 +101,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasComment("作业数据(JSON格式)");
 
                     b.Property<int>("JobType")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasComment("作业类型");
 
                     b.Property<DateTime?>("NextRunTime")
@@ -111,12 +114,12 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
 
                     b.Property<string>("Remark")
                         .HasMaxLength(500)
-                        .HasColumnType("varchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasComment("备注");
 
                     b.Property<bool>("SkipSslValidation")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("tinyint(1)")
+                        .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasComment("是否跳过SSL验证");
 
@@ -126,7 +129,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
 
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasDefaultValue(0)
                         .HasComment("作业状态");
 
@@ -134,19 +137,19 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasDefaultValue("DEFAULT")
                         .HasComment("触发器分组");
 
                     b.Property<string>("TriggerName")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasComment("触发器名称");
 
                     b.Property<string>("UpdateBy")
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasComment("更新人");
 
                     b.Property<DateTime?>("UpdateTime")
@@ -174,7 +177,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                 {
                     b.Property<Guid>("LogId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)")
+                        .HasColumnType("uuid")
                         .HasComment("日志ID");
 
                     b.Property<DateTime>("CreateTime")
@@ -209,14 +212,14 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasDefaultValue("DEFAULT")
                         .HasComment("作业分组");
 
                     b.Property<string>("JobName")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasComment("作业名称");
 
                     b.Property<string>("Message")
@@ -233,7 +236,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
 
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasDefaultValue(0)
                         .HasComment("日志状态");
 
@@ -241,14 +244,14 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasDefaultValue("DEFAULT")
                         .HasComment("触发器分组");
 
                     b.Property<string>("TriggerName")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasComment("触发器名称");
 
                     b.HasKey("LogId");
@@ -272,7 +275,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                 {
                     b.Property<Guid>("NotificationId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)")
+                        .HasColumnType("uuid")
                         .HasComment("通知ID");
 
                     b.Property<string>("Content")
@@ -298,19 +301,19 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
 
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasDefaultValue(0)
                         .HasComment("发送状态");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("varchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasComment("通知标题");
 
                     b.Property<string>("TriggeredBy")
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasComment("触发来源");
 
                     b.HasKey("NotificationId");
@@ -331,7 +334,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                 {
                     b.Property<Guid>("SettingId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)")
+                        .HasColumnType("uuid")
                         .HasComment("设置ID");
 
                     b.Property<DateTime>("CreateTime")
@@ -341,19 +344,19 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("varchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasComment("设置描述");
 
                     b.Property<bool>("Enabled")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("tinyint(1)")
+                        .HasColumnType("boolean")
                         .HasDefaultValue(true)
                         .HasComment("是否启用");
 
                     b.Property<string>("Key")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasComment("设置键");
 
                     b.Property<DateTime?>("UpdateTime")

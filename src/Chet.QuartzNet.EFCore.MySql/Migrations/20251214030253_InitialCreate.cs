@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -23,8 +24,8 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                     JobGroup = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false, defaultValue: "DEFAULT", comment: "作业分组")
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Status = table.Column<int>(type: "int", nullable: false, defaultValue: 0, comment: "日志状态"),
-                    StartTime = table.Column<DateTime>(type: "timestamp without time zone(6)", nullable: false, comment: "开始时间"),
-                    EndTime = table.Column<DateTime>(type: "timestamp without time zone(6)", nullable: true, comment: "结束时间"),
+                    StartTime = table.Column<DateTime>(type: "datetime(6)", nullable: false, comment: "开始时间"),
+                    EndTime = table.Column<DateTime>(type: "datetime(6)", nullable: true, comment: "结束时间"),
                     Duration = table.Column<long>(type: "bigint", nullable: true, comment: "执行耗时(毫秒)"),
                     Message = table.Column<string>(type: "text", nullable: true, comment: "执行结果消息")
                         .Annotation("MySql:CharSet", "utf8mb4"),
@@ -42,7 +43,7 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     JobData = table.Column<string>(type: "text", nullable: true, comment: "执行参数")
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    CreateTime = table.Column<DateTime>(type: "timestamp without time zone(6)", nullable: false, comment: "创建时间")
+                    CreateTime = table.Column<DateTime>(type: "datetime(6)", nullable: false, comment: "创建时间")
                 },
                 constraints: table =>
                 {
@@ -79,16 +80,16 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     ApiTimeout = table.Column<int>(type: "int", nullable: false, defaultValue: 30000, comment: "API超时时间(毫秒)"),
                     SkipSslValidation = table.Column<bool>(type: "tinyint(1)", nullable: false, defaultValue: false, comment: "是否跳过SSL验证"),
-                    StartTime = table.Column<DateTime>(type: "timestamp without time zone(6)", nullable: true, comment: "开始时间"),
-                    EndTime = table.Column<DateTime>(type: "timestamp without time zone(6)", nullable: true, comment: "结束时间"),
+                    StartTime = table.Column<DateTime>(type: "datetime(6)", nullable: true, comment: "开始时间"),
+                    EndTime = table.Column<DateTime>(type: "datetime(6)", nullable: true, comment: "结束时间"),
                     Status = table.Column<int>(type: "int", nullable: false, defaultValue: 0, comment: "作业状态"),
                     IsEnabled = table.Column<bool>(type: "tinyint(1)", nullable: false, defaultValue: true, comment: "是否启用"),
-                    NextRunTime = table.Column<DateTime>(type: "timestamp without time zone(6)", nullable: true, comment: "下次执行时间"),
-                    PreviousRunTime = table.Column<DateTime>(type: "timestamp without time zone(6)", nullable: true, comment: "上次执行时间"),
+                    NextRunTime = table.Column<DateTime>(type: "datetime(6)", nullable: true, comment: "下次执行时间"),
+                    PreviousRunTime = table.Column<DateTime>(type: "datetime(6)", nullable: true, comment: "上次执行时间"),
                     Remark = table.Column<string>(type: "varchar(500)", maxLength: 500, nullable: true, comment: "备注")
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    CreateTime = table.Column<DateTime>(type: "timestamp without time zone(6)", nullable: false, comment: "创建时间"),
-                    UpdateTime = table.Column<DateTime>(type: "timestamp without time zone(6)", nullable: true, comment: "更新时间"),
+                    CreateTime = table.Column<DateTime>(type: "datetime(6)", nullable: false, comment: "创建时间"),
+                    UpdateTime = table.Column<DateTime>(type: "datetime(6)", nullable: true, comment: "更新时间"),
                     CreateBy = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: true, comment: "创建人")
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     UpdateBy = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: true, comment: "更新人")
@@ -114,8 +115,8 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     TriggeredBy = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: true, comment: "触发来源")
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    CreateTime = table.Column<DateTime>(type: "timestamp without time zone(6)", nullable: false, comment: "创建时间"),
-                    SendTime = table.Column<DateTime>(type: "timestamp without time zone(6)", nullable: true, comment: "发送时间"),
+                    CreateTime = table.Column<DateTime>(type: "datetime(6)", nullable: false, comment: "创建时间"),
+                    SendTime = table.Column<DateTime>(type: "datetime(6)", nullable: true, comment: "发送时间"),
                     Duration = table.Column<long>(type: "bigint", nullable: true, comment: "发送耗时(毫秒)")
                 },
                 constraints: table =>
@@ -136,8 +137,8 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                     Description = table.Column<string>(type: "varchar(500)", maxLength: 500, nullable: false, comment: "设置描述")
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Enabled = table.Column<bool>(type: "tinyint(1)", nullable: false, defaultValue: true, comment: "是否启用"),
-                    CreateTime = table.Column<DateTime>(type: "timestamp without time zone(6)", nullable: false, comment: "创建时间"),
-                    UpdateTime = table.Column<DateTime>(type: "timestamp without time zone(6)", nullable: true, comment: "更新时间")
+                    CreateTime = table.Column<DateTime>(type: "datetime(6)", nullable: false, comment: "创建时间"),
+                    UpdateTime = table.Column<DateTime>(type: "datetime(6)", nullable: true, comment: "更新时间")
                 },
                 constraints: table =>
                 {
