@@ -88,6 +88,23 @@ Write-Host "已更新: $nuspecFile"
 Write-Host "版本号同步完成！"
 ```
 
+### 3.3 使用示例
+
+1. **查看当前版本**：
+   ```powershell
+   .\sync-version.ps1
+   ```
+
+2. **更新版本号**：
+   ```powershell
+   .\sync-version.ps1 -newVersion 1.2.0
+   ```
+
+3. **检查版本配置**：
+   ```powershell
+   Get-Content -Path "version.json"
+   ```
+
 ## 4. CHANGELOG 规范
 
 ### 4.1 标准格式
@@ -119,6 +136,35 @@ Write-Host "版本号同步完成！"
 - 兼容性说明
 ```
 
+### 4.2 实际示例
+
+```markdown
+# 更新说明
+
+## [1.1.3] - 2025-12-12
+
+### 新增
+- 支持Quartz 3.8.1版本
+- 添加了作业执行历史查询功能
+
+### 修复
+- 修复了作业调度器初始化失败的问题
+- 解决了任务执行日志丢失的bug
+
+### 优化
+- 优化了作业执行性能
+- 改进了UI界面的响应速度
+
+### 变更
+- 更新了依赖包版本
+- 调整了配置文件结构
+
+## [1.1.2] - 2025-11-20
+
+### 修复
+- 修复了作业暂停功能失效的问题
+```
+
 ## 5. 版本发布流程
 
 ### 5.1 准备阶段
@@ -128,10 +174,9 @@ Write-Host "版本号同步完成！"
    .\sync-version.ps1 -newVersion 1.1.3
    ```
 
-2. **手动更新CHANGELOG.md**
-   - 打开CHANGELOG.md文件
-   - 添加新版本条目（如果不存在）
-   - 在对应类型下添加条目
+2. **手动更新说明README.md**
+   - 打开README.md文件
+   - 添加更新说明新版本条目（如果不存在）
 
 3. **提交代码**
    ```bash
@@ -147,14 +192,15 @@ Write-Host "版本号同步完成！"
 
 ### 5.2 构建阶段
 
-1. **运行构建脚本**
+1. **构建项目**
    ```powershell
-   .\build-nuget.bat
+   dotnet build -c Release
    ```
 
-2. **验证构建结果**
-   - 检查 `nupkgs` 目录下的NuGet包
-   - 验证包版本和内容
+2. **生成NuGet包**
+   ```powershell
+   dotnet pack -c Release -o nupkgs
+   ```
 
 ### 5.3 发布阶段
 
@@ -164,154 +210,112 @@ Write-Host "版本号同步完成！"
    ```
 
 2. **更新GitHub Release**
-   - 从CHANGELOG.md复制版本说明
+   - 从README.md的更新说明部分复制版本说明
    - 上传NuGet包作为发布附件
 
 ## 6. 自动化集成
 
 ### 6.1 GitHub Actions 工作流
 
-创建 `.github/workflows/release.yml`，实现自动化发布：
+使用 `.github/workflows/release.yml`，实现自动化构建、测试和发布：
 
 ```yaml
+# .github/workflows/release.yml
 name: Release
 
 on:
   push:
     tags:
-      - 'v*'
+      - v*.*.*
 
 jobs:
-  release:
+  build:
     runs-on: windows-latest
+    
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+    
+    - name: Test
+      run: dotnet test --configuration Release --no-build --verbosity normal
+    
+    - name: Pack
+      run: dotnet pack --configuration Release --no-build -o nupkgs
+    
+    - name: Push to NuGet
+      run: dotnet nuget push nupkgs\*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
       
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
-      
-      - name: Restore dependencies
-        run: dotnet restore
-      
-      - name: Build
-        run: dotnet build --configuration Release --no-restore
-      
-      - name: Pack
-        run: dotnet pack --configuration Release --no-build --output nupkgs
-      
-      - name: Push to NuGet.org
-        run: dotnet nuget push nupkgs/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
-      
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: nupkgs/*.nupkg
-          body_path: CHANGELOG.md
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
 ```
 
-### 6.2 预发布检查脚本
+### 6.2 工作流触发条件
 
-创建 `pre-release-check.ps1`，用于在发布前进行自动化检查：
+- 当推送符合 `v*.*.*` 格式的git标签时自动触发
+- 执行构建、测试、打包和发布流程
+- 自动创建GitHub Release
 
-```powershell
-# pre-release-check.ps1
-Write-Host "正在执行预发布检查..."
+### 6.3 环境变量配置
 
-# 检查版本号一致性
-Write-Host "\n1. 检查版本号一致性..."
-$versionConfig = Get-Content -Path "version.json" -Raw | ConvertFrom-Json
-$version = $versionConfig.version
-
-$inconsistentFiles = @()
-
-# 检查csproj文件
-$csprojFiles = Get-ChildItem -Path "src" -Recurse -Filter "*.csproj"
-foreach ($file in $csprojFiles) {
-    $content = Get-Content -Path $file.FullName -Raw
-    if (-not ($content -match "<Version>$version</Version>" -or $content -match "<PackageVersion>$version</PackageVersion>")) {
-        $inconsistentFiles += $file.FullName
-    }
-}
-
-# 检查nuspec文件
-$nuspecFile = "Chet.QuartzNet.UI.nuspec"
-$content = Get-Content -Path $nuspecFile -Raw
-if (-not ($content -match "<version>$version</version>")) {
-    $inconsistentFiles += $nuspecFile
-}
-
-if ($inconsistentFiles.Count -gt 0) {
-    Write-Host "❌ 版本号不一致的文件:"
-    foreach ($file in $inconsistentFiles) {
-        Write-Host "   - $file"
-    }
-    exit 1
-} else {
-    Write-Host "✅ 版本号一致"
-}
-
-# 检查CHANGELOG是否有当前版本
-Write-Host "\n2. 检查CHANGELOG..."
-$changelogContent = Get-Content -Path "CHANGELOG.md" -Raw
-if (-not ($changelogContent -match "## \[$version\]")) {
-    Write-Host "❌ CHANGELOG中未找到版本 $version"
-    exit 1
-} else {
-    Write-Host "✅ CHANGELOG包含当前版本"
-}
-
-# 检查构建
-Write-Host "\n3. 执行构建检查..."
-dotnet build --configuration Release --no-restore
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ 构建失败"
-    exit 1
-} else {
-    Write-Host "✅ 构建成功"
-}
-
-Write-Host "\n✅ 所有预发布检查通过！"
-```
+| 环境变量 | 用途 | 配置位置 |
+|----------|------|----------|
+| `NUGET_API_KEY` | NuGet发布密钥 | GitHub仓库Settings → Secrets and variables → Actions |
+| `GITHUB_TOKEN` | GitHub API访问令牌 | 自动生成，无需手动配置 |
 
 ## 7. 最佳实践
 
 ### 7.1 版本管理原则
 
-1. **统一版本号**: 所有项目组件使用相同的版本号，便于管理和追溯
-2. **及时更新CHANGELOG**: 每次代码变更都应更新CHANGELOG，避免集中更新
-3. **自动化优先**: 尽量使用脚本自动化版本管理流程，减少手动操作
-4. **语义化版本**: 严格遵循语义化版本规则，清晰传达版本变更内容
-5. **标签管理**: 每个版本都应创建git标签，便于代码回溯
+- **统一版本号**: 所有项目组件使用相同的版本号，便于管理和追溯
+- **及时更新CHANGELOG**: 每次代码变更都应更新CHANGELOG，避免集中更新
+- **自动化优先**: 尽量使用脚本自动化版本管理流程，减少手动操作
+- **语义化版本**: 严格遵循语义化版本规则，清晰传达版本变更内容
+- **标签管理**: 每个版本都应创建git标签，便于代码回溯
+- **版本锁定**: 关键依赖项应使用固定版本，避免意外更新
 
 ### 7.2 发布频率建议
 
-- **补丁版本**: 修复关键bug时立即发布
-- **次版本**: 新增功能稳定后发布，建议每月1-2次
-- **主版本**: 重大架构变更时发布，不频繁
+| 版本类型 | 发布时机 | 建议频率 |
+|----------|----------|----------|
+| 补丁版本 | 修复关键bug时 | 立即发布 |
+| 次版本 | 新增功能稳定后 | 每月1-2次 |
+| 主版本 | 重大架构变更时 | 不频繁（季度或年度） |
 
 ### 7.3 回滚机制
 
-1. 保留所有已发布的NuGet包
-2. 每个git标签对应一个可回滚的版本
-3. 在CHANGELOG中记录重大变更的回滚说明
-4. 发布新版本前进行充分测试
+1. **保留发布历史**: 保留所有已发布的NuGet包
+2. **标签对应版本**: 每个git标签对应一个可回滚的版本
+3. **变更记录**: 在CHANGELOG中记录重大变更的回滚说明
+4. **测试验证**: 发布新版本前进行充分测试
+5. **回滚流程**: 制定清晰的回滚步骤，包括代码回滚、NuGet包撤销和通知机制
 
-## 8. 实施步骤
+### 7.4 团队协作建议
 
-1. **创建配置文件**: 执行 `New-Item -ItemType File -Name version.json -Value '{"version": "1.1.3", "releaseDate": "2025-12-12"}'`
-2. **创建脚本文件**: 复制上述PowerShell脚本到项目根目录
-3. **更新CHANGELOG格式**: 将现有CHANGELOG.md转换为标准格式
-4. **集成CI/CD**: 配置GitHub Actions工作流
-5. **培训团队**: 确保团队成员了解并遵循版本管理流程
-6. **定期审计**: 定期检查版本管理执行情况，持续优化流程
+- **明确职责**: 指定专人负责版本管理和发布
+- **沟通机制**: 发布前通知团队成员，确保大家了解版本变更
+- **代码审查**: 所有版本相关的代码变更都应经过审查
+- **文档同步**: 版本更新后及时同步相关文档
 
-## 9. 常见问题处理
+## 8. 常见问题处理
 
-### 9.1 版本号冲突
+### 8.1 版本号冲突
 
 **问题**: 本地版本与远程仓库版本冲突
 **解决方案**: 
@@ -319,7 +323,7 @@ Write-Host "\n✅ 所有预发布检查通过！"
 - 执行 `sync-version.ps1` 重新同步版本号
 - 解决代码冲突后再提交
 
-### 9.2 CHANGELOG格式错误
+### 8.2 CHANGELOG格式错误
 
 **问题**: CHANGELOG条目格式不一致
 **解决方案**: 
@@ -327,26 +331,16 @@ Write-Host "\n✅ 所有预发布检查通过！"
 - 定期执行格式检查脚本
 - 使用Markdownlint工具验证格式
 
-### 9.3 自动化脚本执行失败
+### 8.3 自动化脚本执行失败
 
 **问题**: PowerShell脚本执行权限不足
 **解决方案**: 
 - 执行 `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
 - 或使用 `PowerShell -ExecutionPolicy Bypass -File script.ps1` 执行脚本
 
-## 10. 附录
+## 9. 附录
 
-### 10.1 版本管理命令速查
-
-| 命令 | 功能 | 示例 |
-|------|------|------|
-| `sync-version.ps1 -version 1.1.3` | 同步版本号 | `.\sync-version.ps1 -version 1.1.3` |
-| `update-changelog.ps1` | 更新CHANGELOG | `.\update-changelog.ps1 -version 1.1.3 -type 新增 -description "功能描述"` |
-| `pre-release-check.ps1` | 预发布检查 | `.\pre-release-check.ps1` |
-| `git tag -a v1.1.3 -m "Release 1.1.3"` | 创建git标签 | `git tag -a v1.1.3 -m "Release 1.1.3"` |
-| `git push origin v1.1.3` | 推送git标签 | `git push origin v1.1.3` |
-
-### 10.2 版本号命名规范
+### 9.1 版本号命名规范
 
 | 场景 | 版本号示例 | 说明 |
 |------|------------|------|
@@ -357,7 +351,7 @@ Write-Host "\n✅ 所有预发布检查通过！"
 | 预发布版本 | 1.1.0-alpha.1 | 内部测试版本 |
 | RC版本 | 1.1.0-rc.1 | 候选发布版本 |
 
-### 10.3 CHANGELOG类型说明
+### 9.2 CHANGELOG类型说明
 
 | 类型 | 描述 |
 |------|------|
@@ -367,7 +361,7 @@ Write-Host "\n✅ 所有预发布检查通过！"
 | 变更 | 配置变更、依赖更新、API调整 |
 | 兼容性 | 版本兼容性说明、迁移指南 |
 
-## 11. 总结
+## 10. 总结
 
 本版本管理方案旨在通过标准化的流程和自动化工具，确保项目版本更新的规范性和可追溯性。实施该方案后，团队可以：
 

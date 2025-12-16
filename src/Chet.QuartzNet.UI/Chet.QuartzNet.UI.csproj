@@ -6,26 +6,17 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<PackageId>Chet.QuartzNet.UI</PackageId>
-		<PackageVersion>1.1.5</PackageVersion>
-		<Authors>Chet</Authors>
-		<Company>Chet</Company>
+		<PackageVersion>1.2.0</PackageVersion>
 		<Product>Chet.QuartzNet.UI 可视化作业调度管理系统</Product>
 		<Description>基于QuartzNet的可视化作业调度管理平台，支持文件存储和数据库存储、JWT认证登录</Description>
 		<PackageProjectUrl>https://github.com/qiect/Chet.QuartzNet.UI</PackageProjectUrl>
-		<RepositoryUrl>https://github.com/qiect/Chet.QuartzNet.UI</RepositoryUrl>
-		<PackageLicenseExpression>MIT</PackageLicenseExpression>
-		<PackageTags>quartz,quartz.net,scheduler,task,job,cron,ui,ant-design,vue</PackageTags>
-		<IncludeContentInPack>true</IncludeContentInPack>
 		<IncludeRazorContentInPack>false</IncludeRazorContentInPack>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 		<NoWarn>$(NoWarn);1591</NoWarn>
 		<StaticWebAssetBasePath>quartz-ui</StaticWebAssetBasePath>
 		<AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+		<NuspecFile>..\..\Chet.QuartzNet.UI.nuspec</NuspecFile>
 		<NuspecProperties>Configuration=Release</NuspecProperties>
-		<PackageIcon>icon.png</PackageIcon>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<RepositoryType>git</RepositoryType>
-		<PackageReleaseNotes></PackageReleaseNotes>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -55,13 +46,8 @@
 		<Content Remove="wwwroot\**\*" />
 	</ItemGroup>
 
-	<!-- 打包配置 -->
-	<ItemGroup>
-		<None Include="..\..\README.md" Pack="true" PackagePath="\" />
-		<None Include="..\..\icon.png" Pack="true" PackagePath="\" />
-	</ItemGroup>
-
 </Project>
+
 
 
 
