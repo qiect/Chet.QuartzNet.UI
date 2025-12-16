@@ -78,12 +78,26 @@ jobs:
           echo "RELEASE_NOTES=$RELEASE_NOTES" >> $GITHUB_ENV
 
       # 3.1 Update nuspec file version
-      - name: Update nuspec version
+      - name: Update nuspec version and release notes
         run: |
+          # 移除版本号中的 v 前缀（如果存在）
+          VERSION=${VERSION#v}
+          
           # 使用 sed 命令更新 nuspec 文件中的版本号
           sed -i "s/<version>.*<\/version>/<version>$VERSION<\/version>/g" Chet.QuartzNet.UI.nuspec
+          
+          # 使用 sed 命令更新 nuspec 文件中的 releaseNotes
+          if [ -z "$RELEASE_NOTES" ]; then
+            # 如果没有发布说明，保持空元素
+            sed -i "s/<releaseNotes>.*<\/releaseNotes>/<releaseNotes><\/releaseNotes>/g" Chet.QuartzNet.UI.nuspec
+          else
+            # 否则更新为实际的发布说明，需要先处理换行符
+            ESCAPED_NOTES=$(echo "$RELEASE_NOTES" | sed 's/"/\\"/g')
+            sed -i "s/<releaseNotes>.*<\/releaseNotes>/<releaseNotes>$ESCAPED_NOTES<\/releaseNotes>/g" Chet.QuartzNet.UI.nuspec
+          fi
+          
           # 验证更新结果
-          grep -A 1 "<id>Chet.QuartzNet.UI<\/id>" Chet.QuartzNet.UI.nuspec
+          grep -A 3 "<id>Chet.QuartzNet.UI<\/id>" Chet.QuartzNet.UI.nuspec
 
       # 4. 主包打包
       - name: Build main package
