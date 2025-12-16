@@ -1,65 +1,78 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
 
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <PackageId>Chet.QuartzNet.UI</PackageId>
-    <PackageVersion>1.1.4</PackageVersion>
-    <Authors>Chet</Authors>
-    <Company>Chet</Company>
-    <Product>Chet.QuartzNet.UI 作业调度管理系统</Product>
-    <Description>基于QuartzNet的可视化作业调度管理平台，支持文件存储和数据库存储、JWT认证登录</Description>
-    <PackageProjectUrl>https://github.com/qiect/Chet.QuartzNet.UI</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/qiect/Chet.QuartzNet.UI</RepositoryUrl>
-    <!-- <PackageIcon>icon.png</PackageIcon> -->
-    <!-- <PackageReadmeFile>README.md</PackageReadmeFile> -->
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageTags>quartz,quartz.net,scheduler,task,job,cron,ui,ant-design,vue</PackageTags>
-    <IncludeContentInPack>false</IncludeContentInPack>
-    <IncludeRazorContentInPack>false</IncludeRazorContentInPack>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);1591</NoWarn>
-    <StaticWebAssetBasePath>quartz-ui</StaticWebAssetBasePath>
-    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
-    <NuspecFile>..\..\Chet.QuartzNet.UI.nuspec</NuspecFile>
-    <NuspecProperties>Configuration=Release</NuspecProperties>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<PackageId>Chet.QuartzNet.UI</PackageId>
+		<PackageVersion>1.1.5</PackageVersion>
+		<Authors>Chet</Authors>
+		<Company>Chet</Company>
+		<Product>Chet.QuartzNet.UI 可视化作业调度管理系统</Product>
+		<Description>基于QuartzNet的可视化作业调度管理平台，支持文件存储和数据库存储、JWT认证登录</Description>
+		<PackageProjectUrl>https://github.com/qiect/Chet.QuartzNet.UI</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/qiect/Chet.QuartzNet.UI</RepositoryUrl>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageTags>quartz,quartz.net,scheduler,task,job,cron,ui,ant-design,vue</PackageTags>
+		<IncludeContentInPack>true</IncludeContentInPack>
+		<IncludeRazorContentInPack>false</IncludeRazorContentInPack>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<NoWarn>$(NoWarn);1591</NoWarn>
+		<StaticWebAssetBasePath>quartz-ui</StaticWebAssetBasePath>
+		<AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+		<NuspecProperties>Configuration=Release</NuspecProperties>
+		<PackageIcon>icon.png</PackageIcon>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<RepositoryType>git</RepositoryType>
+		<PackageReleaseNotes>### 修复
+- 修复使用数据库存储方式时迁移失败的问题
 
-  <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-  </ItemGroup>
+### 优化
+- 操作时添加提醒
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
-    <PackageReference Include="Quartz" Version="3.8.0" />
-    <PackageReference Include="Quartz.AspNetCore" Version="3.8.0" />
-    <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.8.0" />
-    <PackageReference Include="Quartz.Extensions.Hosting" Version="3.8.0" />
-  </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Chet.QuartzNet.Core\Chet.QuartzNet.Core.csproj" />
-    <ProjectReference Include="..\Chet.QuartzNet.EFCore\Chet.QuartzNet.EFCore.csproj" />
-  </ItemGroup>
+### 兼容性
+- 与现有版本完全兼容
+- 无需数据库迁移或配置更改</PackageReleaseNotes>
+	</PropertyGroup>
 
-  <!-- 嵌入静态资源 -->
-  <ItemGroup>
-    <EmbeddedResource Include="wwwroot\**\*" />
-    <Content Remove="wwwroot\**\*" />
-  </ItemGroup>
+	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
 
-  <!-- 打包配置 -->
-  <ItemGroup>
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
-    <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
+		<PackageReference Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="8.0.0" />
+		<PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="8.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
+		<PackageReference Include="Quartz" Version="3.8.0" />
+		<PackageReference Include="Quartz.AspNetCore" Version="3.8.0" />
+		<PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.8.0" />
+		<PackageReference Include="Quartz.Extensions.Hosting" Version="3.8.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Chet.QuartzNet.Core\Chet.QuartzNet.Core.csproj" />
+		<ProjectReference Include="..\Chet.QuartzNet.EFCore\Chet.QuartzNet.EFCore.csproj" />
+	</ItemGroup>
+
+	<!-- 嵌入静态资源 -->
+	<ItemGroup>
+		<EmbeddedResource Include="wwwroot\**\*" />
+		<Content Remove="wwwroot\**\*" />
+	</ItemGroup>
+
+	<!-- 打包配置 -->
+	<ItemGroup>
+		<None Include="..\..\README.md" Pack="true" PackagePath="\" />
+		<None Include="..\..\icon.png" Pack="true" PackagePath="\" />
+	</ItemGroup>
 
 </Project>
+
+
+
 
 

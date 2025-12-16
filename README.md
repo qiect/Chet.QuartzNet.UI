@@ -344,29 +344,35 @@ Chet.QuartzNet.UI/
 ├── examples/
 │   ├── Chet.QuartzNet.Database.Example/      # 数据库存储示例项目
 │   └── Chet.QuartzNet.File.Example/          # 文件存储示例项目
-├── docs/                                    # 项目文档
-│   ├── README.md                            # 项目简介和使用文档
-│   └── QuartzNet.UI 通知功能使用指南.md      # 通知功能使用指南
-├── .github/                                 # GitHub 配置文件
-├── nupkgs/                                  # NuGet 包输出目录
 ├── README.md                                # 项目根目录文档
 ├── LICENSE                                  # 许可证文件
-├── build-nuget.bat                          # Windows 构建脚本
 └── Chet.QuartzNet.UI.sln                    # 解决方案文件
 ```
 
-## 🚀 开发计划
+##  更新说明
 
-- [x] 核心功能实现
-- [x] EFCore数据访问层
-- [x] VbenAdmin 前端界面
-- [x] JWT授权支持
-- [x] Razor Class Library打包
-- [x] 示例项目
-- [x] PushPlus通知功能（替代邮件通知）
-- [ ] 更多数据库支持
-- [ ] 作业分组管理
-- [ ] 批量操作功能
+### [1.1.5] - 2025-12-16
+
+#### 优化
+- 更换Logo
+- 打包时添加README.md文件
+
+#### 兼容性
+- 与现有版本完全兼容
+- 无需数据库迁移或配置更改
+
+### [1.1.4] - 2025-12-14
+
+#### 修复
+- 修复使用数据库存储方式时迁移失败的问题
+
+#### 优化
+- 操作时添加提醒
+
+#### 兼容性
+- 与现有版本完全兼容
+- 无需数据库迁移或配置更改
+
 
 ## 🤝 贡献指南
 

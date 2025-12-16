@@ -1,26 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.13.35825.156 d17.13
+# Visual Studio Version 18
+VisualStudioVersion = 18.3.11304.161 d18.3
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{A34BE231-6D0F-4548-AFC6-F3C11BF28E9F}"
-	ProjectSection(SolutionItems) = preProject
-		docs\Chet.QuartzNet.UI 发布指南.md = docs\Chet.QuartzNet.UI 发布指南.md
-		docs\QuartzNet.UI 通知功能使用指南.md = docs\QuartzNet.UI 通知功能使用指南.md
-		docs\README.md = docs\README.md
-		docs\QuartzNet.UI 邮件通知功能使用指南.md = docs\QuartzNet.UI 邮件通知功能使用指南.md
-		docs\数据库迁移生成指南与使用说明.md = docs\数据库迁移生成指南与使用说明.md
-		docs\使用NuGet包的数据库存储方式与迁移指南.md = docs\使用NuGet包的数据库存储方式与迁移指南.md
-		docs\集成式 EFCore 使用指南.md = docs\集成式 EFCore 使用指南.md
-	EndProjectSection
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "nuget", "nuget", "{894710E2-1439-4520-8D0C-826C788FF6E8}"
-	ProjectSection(SolutionItems) = preProject
-		build-nuget.bat = build-nuget.bat
-		build-nuget.sh = build-nuget.sh
-		Chet.QuartzNet.UI.nuspec = Chet.QuartzNet.UI.nuspec
-	EndProjectSection
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{626708D2-DC7B-4DDC-9A97-A8D10C88541B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chet.QuartzNet.File.Example", "examples\Chet.QuartzNet.File.Example\Chet.QuartzNet.File.Example.csproj", "{12345678-1234-5678-9012-345678901234}"
