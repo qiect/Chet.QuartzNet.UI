@@ -25,16 +25,7 @@
 		<PackageIcon>icon.png</PackageIcon>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<RepositoryType>git</RepositoryType>
-		<PackageReleaseNotes>### 修复
-- 修复使用数据库存储方式时迁移失败的问题
-
-### 优化
-- 操作时添加提醒
-
-
-### 兼容性
-- 与现有版本完全兼容
-- 无需数据库迁移或配置更改</PackageReleaseNotes>
+		<PackageReleaseNotes></PackageReleaseNotes>
 	</PropertyGroup>
 
 	<ItemGroup>
