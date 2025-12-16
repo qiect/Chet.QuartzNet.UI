@@ -13,6 +13,6 @@ export const overridesPreferences = defineOverridesPreferences({
   logo: {
     enable: true,
     fit: 'contain',
-    source: '/icon.png',
+    source: `${import.meta.env.BASE_URL}icon.svg`,
   },
 });

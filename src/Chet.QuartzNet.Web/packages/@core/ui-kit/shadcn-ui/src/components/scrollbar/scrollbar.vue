@@ -7,6 +7,15 @@ import { cn } from '@vben-core/shared/utils';
 
 import { ScrollArea, ScrollBar } from '../../ui';
 
+// 导出Scrollbar滚动事件的参数类型
+export interface ScrollbarScrollAtEvent {
+  bottom: boolean;
+  left: boolean;
+  right: boolean;
+  top: boolean;
+}
+
+// 导出Scrollbar组件的Props类型
 export interface ScrollbarProps {
   class?: ClassType;
   horizontal?: boolean;
@@ -19,9 +28,8 @@ export interface ScrollbarProps {
   shadowTop?: boolean;
 }
 
-interface Props extends ScrollbarProps {}
-
-const props = withDefaults(defineProps<Props>(), {
+// 直接使用导出的ScrollbarProps作为组件Props类型
+const props = withDefaults(defineProps<ScrollbarProps>(), {
   class: '',
   horizontal: false,
   shadow: false,
@@ -32,8 +40,9 @@ const props = withDefaults(defineProps<Props>(), {
   shadowTop: true,
 });
 
+// 使用命名接口作为emit参数类型
 const emit = defineEmits<{
-  scrollAt: [{ bottom: boolean; left: boolean; right: boolean; top: boolean }];
+  scrollAt: [ScrollbarScrollAtEvent];
 }>();
 
 const isAtTop = ref(true);
