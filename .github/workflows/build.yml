@@ -77,6 +77,14 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "RELEASE_NOTES=$RELEASE_NOTES" >> $GITHUB_ENV
 
+      # 3.1 Update nuspec file version
+      - name: Update nuspec version
+        run: |
+          # 使用 sed 命令更新 nuspec 文件中的版本号
+          sed -i "s/<version>.*<\/version>/<version>$VERSION<\/version>/g" Chet.QuartzNet.UI.nuspec
+          # 验证更新结果
+          grep -A 1 "<id>Chet.QuartzNet.UI<\/id>" Chet.QuartzNet.UI.nuspec
+
       # 4. 主包打包
       - name: Build main package
         run: dotnet build src/Chet.QuartzNet.UI/Chet.QuartzNet.UI.csproj --configuration Release -p:PackageVersion=$VERSION

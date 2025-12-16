@@ -1,5 +1,6 @@
 using Chet.QuartzNet.Core.Attributes;
 using Quartz;
+using System.Text.Json;
 
 namespace Chet.QuartzNet.File.Example.Jobs
 {
@@ -33,6 +34,7 @@ namespace Chet.QuartzNet.File.Example.Jobs
             {
                 // 从作业数据中获取参数
                 var jobDataMap = context.JobDetail.JobDataMap;
+                var json = JsonSerializer.Serialize(jobDataMap.WrappedMap);
                 if (jobDataMap.ContainsKey("TestParam"))
                 {
                     var testParam = jobDataMap.GetString("TestParam");

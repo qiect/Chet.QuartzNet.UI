@@ -2,7 +2,7 @@
 <package >
 	<metadata>
 		<id>Chet.QuartzNet.UI</id>
-		<version>1.2.0</version>
+		<version>1.2.2</version>
 		<title>Chet.QuartzNet.UI</title>
 		<authors>Chet</authors>
 		<owners>Chet</owners>
@@ -52,5 +52,6 @@
     <file src="README.md" target="" />
   </files>
 </package>
+
 
 

@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Chet.QuartzNet.EFCore.PostgreSQL</PackageId>
-    <Version>1.2.0</Version>
+    <Version>1.2.2</Version>
     <Authors>Chet</Authors>
     <Description>Chet.QuartzNet.UI PostgreSQL 数据库支持</Description>
     <PackageTags>Quartz;Scheduler;EFCore;PostgreSQL</PackageTags>
@@ -26,6 +26,7 @@
   </ItemGroup>
 
 </Project>
+
 
 
 

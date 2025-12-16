@@ -7,7 +7,7 @@ import { cn } from '@vben-core/shared/utils';
 
 import { ScrollArea, ScrollBar } from '../../ui';
 
-interface Props {
+export interface ScrollbarProps {
   class?: ClassType;
   horizontal?: boolean;
   scrollBarClass?: ClassType;
@@ -18,6 +18,8 @@ interface Props {
   shadowRight?: boolean;
   shadowTop?: boolean;
 }
+
+interface Props extends ScrollbarProps {}
 
 const props = withDefaults(defineProps<Props>(), {
   class: '',
