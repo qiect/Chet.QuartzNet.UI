@@ -6,7 +6,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<PackageId>Chet.QuartzNet.UI</PackageId>
-		<PackageVersion>1.2.2</PackageVersion>
+		<PackageVersion>1.3.0</PackageVersion>
 		<Product>Chet.QuartzNet.UI 可视化作业调度管理系统</Product>
 		<Description>基于QuartzNet的可视化作业调度管理平台，支持文件存储和数据库存储、JWT认证登录</Description>
 		<PackageProjectUrl>https://github.com/qiect/Chet.QuartzNet.UI</PackageProjectUrl>
@@ -48,6 +48,9 @@
 	</ItemGroup>
 
 </Project>
+
+
+
 
 
 
