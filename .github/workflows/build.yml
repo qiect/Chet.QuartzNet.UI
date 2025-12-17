@@ -99,33 +99,75 @@ jobs:
           # 验证更新结果
           grep -A 3 "<id>Chet.QuartzNet.UI<\/id>" Chet.QuartzNet.UI.nuspec
 
+      # 3.2 Update database storage packages nuspec files
+      - name: Update database storage packages nuspec version and release notes
+        run: |
+          # 移除版本号中的 v 前缀（如果存在）
+          VERSION=${VERSION#v}
+          
+          # 更新MySQL包nuspec
+          sed -i "s/<version>.*<\/version>/<version>$VERSION<\/version>/g" src/Chet.QuartzNet.EFCore.MySql/Chet.QuartzNet.EFCore.MySQL.nuspec
+          if [ -z "$RELEASE_NOTES" ]; then
+            sed -i "s/<releaseNotes>.*<\/releaseNotes>/<releaseNotes><\/releaseNotes>/g" src/Chet.QuartzNet.EFCore.MySql/Chet.QuartzNet.EFCore.MySQL.nuspec
+          else
+            ESCAPED_NOTES=$(echo "$RELEASE_NOTES" | sed 's/"/\\"/g')
+            sed -i "s/<releaseNotes>.*<\/releaseNotes>/<releaseNotes>$ESCAPED_NOTES<\/releaseNotes>/g" src/Chet.QuartzNet.EFCore.MySql/Chet.QuartzNet.EFCore.MySQL.nuspec
+          fi
+          
+          # 更新PostgreSQL包nuspec
+          sed -i "s/<version>.*<\/version>/<version>$VERSION<\/version>/g" src/Chet.QuartzNet.EFCore.PostgreSql/Chet.QuartzNet.EFCore.PostgreSQL.nuspec
+          if [ -z "$RELEASE_NOTES" ]; then
+            sed -i "s/<releaseNotes>.*<\/releaseNotes>/<releaseNotes><\/releaseNotes>/g" src/Chet.QuartzNet.EFCore.PostgreSql/Chet.QuartzNet.EFCore.PostgreSQL.nuspec
+          else
+            ESCAPED_NOTES=$(echo "$RELEASE_NOTES" | sed 's/"/\\"/g')
+            sed -i "s/<releaseNotes>.*<\/releaseNotes>/<releaseNotes>$ESCAPED_NOTES<\/releaseNotes>/g" src/Chet.QuartzNet.EFCore.PostgreSql/Chet.QuartzNet.EFCore.PostgreSQL.nuspec
+          fi
+          
+          # 更新SQLite包nuspec
+          sed -i "s/<version>.*<\/version>/<version>$VERSION<\/version>/g" src/Chet.QuartzNet.EFCore.SQLite/Chet.QuartzNet.EFCore.SQLite.nuspec
+          if [ -z "$RELEASE_NOTES" ]; then
+            sed -i "s/<releaseNotes>.*<\/releaseNotes>/<releaseNotes><\/releaseNotes>/g" src/Chet.QuartzNet.EFCore.SQLite/Chet.QuartzNet.EFCore.SQLite.nuspec
+          else
+            ESCAPED_NOTES=$(echo "$RELEASE_NOTES" | sed 's/"/\\"/g')
+            sed -i "s/<releaseNotes>.*<\/releaseNotes>/<releaseNotes>$ESCAPED_NOTES<\/releaseNotes>/g" src/Chet.QuartzNet.EFCore.SQLite/Chet.QuartzNet.EFCore.SQLite.nuspec
+          fi
+          
+          # 更新SqlServer包nuspec
+          sed -i "s/<version>.*<\/version>/<version>$VERSION<\/version>/g" src/Chet.QuartzNet.EFCore.SqlServer/Chet.QuartzNet.EFCore.SqlServer.nuspec
+          if [ -z "$RELEASE_NOTES" ]; then
+            sed -i "s/<releaseNotes>.*<\/releaseNotes>/<releaseNotes><\/releaseNotes>/g" src/Chet.QuartzNet.EFCore.SqlServer/Chet.QuartzNet.EFCore.SqlServer.nuspec
+          else
+            ESCAPED_NOTES=$(echo "$RELEASE_NOTES" | sed 's/"/\\"/g')
+            sed -i "s/<releaseNotes>.*<\/releaseNotes>/<releaseNotes>$ESCAPED_NOTES<\/releaseNotes>/g" src/Chet.QuartzNet.EFCore.SqlServer/Chet.QuartzNet.EFCore.SqlServer.nuspec
+          fi
+
       # 4. 主包打包
       - name: Build main package
         run: dotnet build src/Chet.QuartzNet.UI/Chet.QuartzNet.UI.csproj --configuration Release -p:PackageVersion=$VERSION
 
       - name: Pack main package
-        run: dotnet pack src/Chet.QuartzNet.UI/Chet.QuartzNet.UI.csproj --configuration Release --no-build --output ./artifacts -p:PackageVersion=$VERSION -p:PackageReleaseNotes="$RELEASE_NOTES"
+        run: dotnet pack src/Chet.QuartzNet.UI/Chet.QuartzNet.UI.csproj --configuration Release --no-build --output ./artifacts
 
       # 5. 数据库存储包打包
       - name: Build MySQL package
-        run: dotnet build src/Chet.QuartzNet.EFCore.MySql/Chet.QuartzNet.EFCore.MySQL.csproj --configuration Release -p:PackageVersion=$VERSION
+        run: dotnet build src/Chet.QuartzNet.EFCore.MySql/Chet.QuartzNet.EFCore.MySQL.csproj --configuration Release
       - name: Pack MySQL package
-        run: dotnet pack src/Chet.QuartzNet.EFCore.MySql/Chet.QuartzNet.EFCore.MySQL.csproj --configuration Release --output ./artifacts -p:PackageVersion=$VERSION -p:PackageReleaseNotes="$RELEASE_NOTES"
+        run: dotnet pack src/Chet.QuartzNet.EFCore.MySql/Chet.QuartzNet.EFCore.MySQL.csproj --configuration Release --output ./artifacts
       
       - name: Build PostgreSQL package
-        run: dotnet build src/Chet.QuartzNet.EFCore.PostgreSql/Chet.QuartzNet.EFCore.PostgreSQL.csproj --configuration Release -p:PackageVersion=$VERSION
+        run: dotnet build src/Chet.QuartzNet.EFCore.PostgreSql/Chet.QuartzNet.EFCore.PostgreSQL.csproj --configuration Release
       - name: Pack PostgreSQL package
-        run: dotnet pack src/Chet.QuartzNet.EFCore.PostgreSql/Chet.QuartzNet.EFCore.PostgreSQL.csproj --configuration Release --output ./artifacts -p:PackageVersion=$VERSION -p:PackageReleaseNotes="$RELEASE_NOTES"
+        run: dotnet pack src/Chet.QuartzNet.EFCore.PostgreSql/Chet.QuartzNet.EFCore.PostgreSQL.csproj --configuration Release --output ./artifacts
       
       - name: Build SQLite package
-        run: dotnet build src/Chet.QuartzNet.EFCore.SQLite/Chet.QuartzNet.EFCore.SQLite.csproj --configuration Release -p:PackageVersion=$VERSION
+        run: dotnet build src/Chet.QuartzNet.EFCore.SQLite/Chet.QuartzNet.EFCore.SQLite.csproj --configuration Release
       - name: Pack SQLite package
-        run: dotnet pack src/Chet.QuartzNet.EFCore.SQLite/Chet.QuartzNet.EFCore.SQLite.csproj --configuration Release --output ./artifacts -p:PackageVersion=$VERSION -p:PackageReleaseNotes="$RELEASE_NOTES"
+        run: dotnet pack src/Chet.QuartzNet.EFCore.SQLite/Chet.QuartzNet.EFCore.SQLite.csproj --configuration Release --output ./artifacts
       
       - name: Build SqlServer package
-        run: dotnet build src/Chet.QuartzNet.EFCore.SqlServer/Chet.QuartzNet.EFCore.SqlServer.csproj --configuration Release -p:PackageVersion=$VERSION
+        run: dotnet build src/Chet.QuartzNet.EFCore.SqlServer/Chet.QuartzNet.EFCore.SqlServer.csproj --configuration Release
       - name: Pack SqlServer package
-        run: dotnet pack src/Chet.QuartzNet.EFCore.SqlServer/Chet.QuartzNet.EFCore.SqlServer.csproj --configuration Release --output ./artifacts -p:PackageVersion=$VERSION -p:PackageReleaseNotes="$RELEASE_NOTES"
+        run: dotnet pack src/Chet.QuartzNet.EFCore.SqlServer/Chet.QuartzNet.EFCore.SqlServer.csproj --configuration Release --output ./artifacts
 
       # 6. NuGet 包发布
       - name: Publish NuGet packages (API Key)

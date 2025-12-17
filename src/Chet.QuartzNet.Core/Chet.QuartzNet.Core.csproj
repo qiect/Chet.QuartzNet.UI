@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Chet.QuartzNet.Core</PackageId>
-    <Version>1.2.2</Version>
+    <Version>1.3.0</Version>
     <Authors>Chet</Authors>
     <Description>Quartz.Net UI 核心业务逻辑库</Description>
     <PackageTags>Quartz;Scheduler;Core</PackageTags>
@@ -26,6 +26,9 @@
   </ItemGroup>
 
 </Project>
+
+
+
 
 
 

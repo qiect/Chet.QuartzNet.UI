@@ -27,12 +27,25 @@ foreach ($file in $csprojFiles) {
     Write-Host "Updated: $($file.FullName)"
 }
 
-# Update nuspec file
-$nuspecFile = "Chet.QuartzNet.UI.nuspec"
-$content = Get-Content -Path $nuspecFile -Raw -Encoding UTF8
-$content = $content -replace '<version>(.*?)</version>', "<version>$version</version>"
-$content = $content -replace '<releaseNotes>(.*?)</releaseNotes>', "<releaseNotes>v${version}: Please refer to CHANGELOG.md</releaseNotes>"
-Set-Content -Path $nuspecFile -Value $content -Encoding UTF8
-Write-Host "Updated: $nuspecFile"
+# Update all nuspec files
+$nuspecFiles = @(
+    "Chet.QuartzNet.UI.nuspec",
+    "src\Chet.QuartzNet.EFCore.MySql\Chet.QuartzNet.EFCore.MySQL.nuspec",
+    "src\Chet.QuartzNet.EFCore.PostgreSql\Chet.QuartzNet.EFCore.PostgreSQL.nuspec",
+    "src\Chet.QuartzNet.EFCore.SQLite\Chet.QuartzNet.EFCore.SQLite.nuspec",
+    "src\Chet.QuartzNet.EFCore.SqlServer\Chet.QuartzNet.EFCore.SqlServer.nuspec"
+)
+
+foreach ($nuspecFile in $nuspecFiles) {
+    if (Test-Path -Path $nuspecFile) {
+        $content = Get-Content -Path $nuspecFile -Raw -Encoding UTF8
+        $content = $content -replace '<version>(.*?)</version>', "<version>$version</version>"
+        $content = $content -replace '<releaseNotes>(.*?)</releaseNotes>', "<releaseNotes>v${version}: Please refer to README.md</releaseNotes>"
+        Set-Content -Path $nuspecFile -Value $content -Encoding UTF8
+        Write-Host "Updated: $nuspecFile"
+    } else {
+        Write-Host "Warning: $nuspecFile not found, skipping."
+    }
+}
 
 Write-Host "Version synchronization completed!"

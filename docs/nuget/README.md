@@ -1,20 +1,8 @@
 # Chet.QuartzNet.UI 可视化作业调度管理系统
 
-Chet.QuartzNet.UI 是一个基于 .NET 8.0 和VbenAdmin 框架开发的可视化作业调度管理系统，提供了完整的任务调度管理功能，支持文件存储和数据库存储两种模式。该组件库旨在简化 Quartz.Net 的使用门槛，提供直观、易用的可视化管理界面，使开发人员能够轻松地创建、管理、监控和调试定时作业，无需深入了解 Quartz.Net 的复杂 API。
+Chet.QuartzNet.UI 是一个基于 .NET 8.0 和 VbenAdmin 框架开发的可视化作业调度管理系统，提供了完整的任务调度管理功能，支持文件存储和数据库存储两种模式。该组件库旨在简化 Quartz.Net 的使用门槛，提供直观、易用的可视化管理界面，使开发人员能够轻松地创建、管理、监控和调试定时作业，无需深入了解 Quartz.Net 的复杂 API。
 
 通过 Chet.QuartzNet.UI，您可以快速集成任务调度功能到现有项目中，实现作业的可视化配置、实时监控和历史记录查询，大大提高开发效率和运维便利性。
-
-![仪表盘](docs/images/dashboard.png)
-
-![作业管理](docs/images/job-management.png)
-
-![日志管理](docs/images/log-management.png)
-
-![通知管理](docs/images/notification-management.png)
-
-![调度器状态](docs/images/scheduler-status.png)
-
-![作业分析](docs/images/job-analysis.png)
 
 ## ✨ 功能特性
 
@@ -23,18 +11,16 @@ Chet.QuartzNet.UI 是一个基于 .NET 8.0 和VbenAdmin 框架开发的可视化
 - 🎯 **ClassJob 模式支持**：支持基于类的作业定义，简化作业创建
 - ✅ **ClassJob 自动注册**：自动扫描和注册带有特定特性的作业类
 - 💾 **多种存储方式**：支持文件存储和数据库存储（MySQL、PostgreSQL、SQL Server、SQLite）
-- 🔔 **PushPlus 通知集成**：支持多种渠道的通知推送（微信、企业微信、钉钉、邮件等）
-- 📋 **通知模板支持**：支持 HTML、Markdown、纯文本三种通知模板
-- 🎛️ **灵活的通知策略**：可配置作业成功/失败、调度器异常时的通知规则
-- 📜 **通知历史管理**：完整的通知发送历史记录
 - 🔐 **认证保护**：提供 JWT 认证保护管理界面
 - 📦 **RCL 打包**：使用 Razor Class Library 打包，无侵入集成
 - 🚀 **快速集成**：简单配置即可集成到现有项目
 - 🎨 **现代化 UI**：基于 VbenAdmin 框架，界面美观易用
 - 📱 **响应式设计**：支持移动端访问
 - 📝 **作业执行历史**：记录作业执行历史和结果
-- 🎯 **数据同步功能**：支持数据同步作业示例
-- ⏱️ **灵活的时间调度**：支持 Cron 表达式和多种触发器类型
+- 📜 **通知历史管理**：完整的通知发送历史记录
+- 🔔 **PushPlus 通知集成**：支持多种渠道的通知推送（微信、企业微信、钉钉、邮件等）
+- 📋 **通知模板支持**：支持 HTML、Markdown、纯文本三种通知模板
+- 🎛️ **灵活的通知策略**：可配置作业成功/失败、调度器异常时的通知规则
 
 ## 📦 安装
 
@@ -164,7 +150,6 @@ app.UseQuartz();
 认证配置会自动被 `AddQuartzUI` 方法读取，无需额外代码。
 
 
-
 ### 3. 访问管理界面
 
 启动应用后，访问 `/quartz-ui` 即可进入管理界面。
@@ -245,9 +230,6 @@ app.UseQuartz();
 - 📉 **作业执行趋势**：作业执行趋势的折线图展示
 - ⏱️ **作业执行耗时**：作业执行耗时的柱状图展示
 
-
-
-
 ### 作业管理
 - 📋 作业列表展示（支持分页、搜索、筛选）
 - ➕ 添加新作业（支持Cron表达式验证）
@@ -319,36 +301,6 @@ builder.Services.AddQuartzUI(builder.Configuration);
 }
 ```
 
-## 📁 项目结构
-
-```
-Chet.QuartzNet.UI/
-├── src/
-│   ├── Chet.QuartzNet.EFCore/                # EF Core 数据访问层核心
-│   │   ├── Data/                           # 数据库上下文
-│   │   ├── Extensions/                      # 扩展方法
-│   │   └── Services/                        # 数据库存储服务
-│   ├── Chet.QuartzNet.EFCore.MySql/          # MySQL 数据库支持
-│   ├── Chet.QuartzNet.EFCore.PostgreSql/     # PostgreSQL 数据库支持
-│   ├── Chet.QuartzNet.EFCore.SQLite/         # SQLite 数据库支持
-│   ├── Chet.QuartzNet.EFCore.SqlServer/     # SQL Server 数据库支持
-│   ├── Chet.QuartzNet.Models/               # 数据模型和 DTO
-│   │   ├── DTOs/                            # 数据传输对象
-│   │   └── Entities/                         # 实体类
-│   ├── Chet.QuartzNet.UI/                   # UI 组件和控制器
-│   │   ├── Controllers/                     # API 控制器
-│   │   ├── Extensions/                      # 扩展方法
-│   │   ├── Middleware/                      # 中间件
-│   │   └── wwwroot/                         # 静态资源
-│   └── Chet.QuartzNet.Web/                  # Web 应用示例
-├── examples/
-│   ├── Chet.QuartzNet.Database.Example/      # 数据库存储示例项目
-│   └── Chet.QuartzNet.File.Example/          # 文件存储示例项目
-├── README.md                                # 项目根目录文档
-├── LICENSE                                  # 许可证文件
-└── Chet.QuartzNet.UI.sln                    # 解决方案文件
-```
-
 ##  更新说明
 
 ### [1.3.0] - 2025-12-17
@@ -382,16 +334,6 @@ Chet.QuartzNet.UI/
 - 与现有版本完全兼容
 - 无需数据库迁移或配置更改
 
-
-## 🤝 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
-
-1. Fork 项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 打开 Pull Request
 
 ## 📝 许可证
 
