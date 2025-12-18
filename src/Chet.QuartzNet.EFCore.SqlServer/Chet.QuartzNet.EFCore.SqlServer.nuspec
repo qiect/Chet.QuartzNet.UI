@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
   <metadata>
     <id>Chet.QuartzNet.EFCore.SqlServer</id>
@@ -10,7 +10,7 @@
     <repository type="git" url="https://github.com/qiect/Chet.QuartzNet.UI" />
     <icon>icon.png</icon>
     <readme>README.md</readme>
-    <releaseNotes>v1.3.0: Please refer to README.md</releaseNotes>
+    <releaseNotes>v1.3.1: Please refer to README.md</releaseNotes>
     <dependencies>
       <group targetFramework=".NETCoreApp8.0">
         <dependency id="Microsoft.EntityFrameworkCore.SqlServer" version="8.0.0" exclude="Build,Analyzers" />
@@ -33,4 +33,5 @@
     <file src="..\..\docs\nuget\README.md" target="" />
   </files>
 </package>
+
 
