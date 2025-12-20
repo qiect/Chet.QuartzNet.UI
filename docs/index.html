@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chet.QuartzNet.UI - 可视化作业调度管理系统</title>
+    <link rel="stylesheet" href="styles/main.css" />
+  </head>
+  <body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+      <div class="container">
+        <div class="navbar-brand">
+          <img src="../icon.png" alt="Chet.QuartzNet.UI" class="logo" />
+          <span class="brand-name">Chet.QuartzNet.UI</span>
+        </div>
+        <div class="navbar-menu">
+          <a href="#home" class="nav-link">首页</a>
+          <a href="#features" class="nav-link">功能特性</a>
+          <a href="#installation" class="nav-link">安装指南</a>
+          <a href="#quickstart" class="nav-link">快速开始</a>
+          <a href="#examples" class="nav-link">使用示例</a>
+          <a href="#ui-features" class="nav-link">界面功能</a>
+          <a href="#configuration" class="nav-link">配置选项</a>
+          <a href="#updates" class="nav-link">更新说明</a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- 首页横幅 -->
+    <header id="home" class="hero">
+      <div class="container">
+        <div class="hero-content">
+          <h1 class="hero-title">Chet.QuartzNet.UI</h1>
+          <p class="hero-subtitle">可视化作业调度管理系统</p>
+          <p class="hero-description">
+            基于 .NET 8.0 和 VbenAdmin
+            框架开发，提供完整的任务调度管理功能，支持文件存储和数据库存储两种模式。
+          </p>
+          <div class="hero-buttons">
+            <a href="#quickstart" class="btn btn-primary">快速开始</a>
+            <a href="#features" class="btn btn-secondary">了解更多</a>
+          </div>
+        </div>
+        <div class="hero-image">
+          <img src="images/dashboard.png" alt="仪表盘" class="dashboard-img" />
+        </div>
+      </div>
+    </header>
+
+    <!-- 功能特性 -->
+    <section id="features" class="features">
+      <div class="container">
+        <h2 class="section-title">✨ 功能特性</h2>
+        <div class="features-grid">
+          <div class="feature-card">
+            <h3 class="feature-title">🚀 快速集成</h3>
+            <p class="feature-description">简单配置即可集成到现有项目</p>
+          </div>
+          <div class="feature-card">
+            <h3 class="feature-title">🎨 现代化 UI</h3>
+            <p class="feature-description">基于 VbenAdmin 框架，界面美观易用</p>
+          </div>
+          <div class="feature-card">
+            <h3 class="feature-title">🔧 可视化管理 Quartz 作业</h3>
+            <p class="feature-description">
+              通过 Web 界面管理 Quartz 作业、触发器和调度器
+            </p>
+          </div>
+          <div class="feature-card">
+            <h3 class="feature-title">📊 实时监控</h3>
+            <p class="feature-description">实时查看作业执行状态和日志</p>
+          </div>
+          <div class="feature-card">
+            <h3 class="feature-title">📦 作业管理</h3>
+            <p class="feature-description">
+              可视化管理 Quartz 作业、触发器和调度器
+            </p>
+          </div>
+          <div class="feature-card">
+            <h3 class="feature-title">📝 日志管理</h3>
+            <p class="feature-description">
+              可视化查看作业执行日志，支持搜索和过滤
+            </p>
+          </div>
+          <div class="feature-card">
+            <h3 class="feature-title">🎯 ClassJob 模式支持</h3>
+            <p class="feature-description">
+              支持基于类的作业定义，简化作业创建
+            </p>
+          </div>
+          <div class="feature-card">
+            <h3 class="feature-title">✅ ClassJob 自动注册</h3>
+            <p class="feature-description">
+              自动扫描和注册带有特定特性的作业类
+            </p>
+          </div>
+          <div class="feature-card">
+            <h3 class="feature-title">💾 多种存储方式</h3>
+            <p class="feature-description">
+              支持文件存储和数据库存储（MySQL、PostgreSQL、SQL Server、SQLite）
+            </p>
+          </div>
+          <div class="feature-card">
+            <h3 class="feature-title">🔐 认证保护</h3>
+            <p class="feature-description">提供 JWT 认证保护管理界面</p>
+          </div>
+          <div class="feature-card">
+            <h3 class="feature-title">📱 响应式设计</h3>
+            <p class="feature-description">支持移动端访问</p>
+          </div>
+          <div class="feature-card">
+            <h3 class="feature-title">📜 通知管理</h3>
+            <p class="feature-description">完整的通知发送历史记录</p>
+          </div>
+          <div class="feature-card">
+            <h3 class="feature-title">🔔 PushPlus 通知集成</h3>
+            <p class="feature-description">
+              支持多种渠道的通知推送（微信、企业微信、钉钉、邮件等）
+            </p>
+          </div>
+          <div class="feature-card">
+            <h3 class="feature-title">📋 通知模板支持</h3>
+            <p class="feature-description">
+              支持 HTML、Markdown、纯文本三种通知模板
+            </p>
+          </div>
+          <div class="feature-card">
+            <h3 class="feature-title">🎛️ 灵活的通知策略</h3>
+            <p class="feature-description">
+              可配置作业成功/失败、调度器异常时的通知规则
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 安装指南 -->
+    <section id="installation" class="installation">
+      <div class="container">
+        <h2 class="section-title">📦 安装</h2>
+
+        <h3 class="subsection-title">NuGet 安装</h3>
+        <div class="code-block">
+          <pre><code># 主包（包含核心功能和文件存储）
+dotnet add package Chet.QuartzNet.UI
+
+# 如果需要数据库存储支持（核心包）
+# 数据库扩展包（根据需要选择其中一个）
+dotnet add package Chet.QuartzNet.EFCore.MySql        # MySQL 支持
+dotnet add package Chet.QuartzNet.EFCore.PostgreSql    # PostgreSQL 支持
+dotnet add package Chet.QuartzNet.EFCore.SqlServer   # SQL Server 支持
+dotnet add package Chet.QuartzNet.EFCore.SQLite      # SQLite 支持</code></pre>
+        </div>
+
+        <h3 class="subsection-title">依赖要求</h3>
+        <ul class="dependency-list">
+          <li>.NET 8.0</li>
+          <li>ASP.NET Core 8.0+</li>
+          <li>Quartz.NET 3.8.1+ - 作业调度核心库</li>
+          <li>Entity Framework Core 8.0+（可选，用于数据库存储）</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 快速开始 -->
+    <section id="quickstart" class="quickstart">
+      <div class="container">
+        <h2 class="section-title">🚀 快速开始</h2>
+        <h3 class="subsubsection-title">1. 文件存储模式（轻量级应用）</h3>
+        <p>
+          系统支持两种存储模式：<strong>文件存储</strong>和<strong>数据库存储</strong>，均可通过同一套
+          API 进行配置和使用。
+        </p>
+        <div class="code-block">
+          <pre><code>// Program.cs
+// 添加 Quartz UI 服务（文件存储模式）
+builder.Services.AddQuartzUI(builder.Configuration);
+// 可选：ClassJob 自动扫描注册
+builder.Services.AddQuartzClassJobs();
+// 启用中间件
+app.UseQuartz();</code></pre>
+        </div>
+        <div class="code-block">
+            <pre><code>// appsettings.json
+  "QuartzUI": {
+    "JwtSecret": "Y2V0aFF1YXJ6TmV0VUlBdXRoZW50aWNhdGlvblNlY3JldA==",
+    "JwtExpiresInMinutes": 360,
+    "JwtIssuer": "Chet.QuartzNet.UI",
+    "JwtAudience": "Chet.QuartzNet.UI",
+    "UserName": "Admin",
+    "Password": "123456"
+  } </code></pre>
+        </div>
+        <p class="code-description">
+          文件存储模式无需额外配置，系统会自动使用文件存储，作业数据存储在应用目录下的
+          JSON 文件中。
+        </p>
+
+        <h3 class="subsubsection-title">2. 数据库存储模式（中大型应用）</h3>
+        <div class="code-block">
+          <pre><code>// Program.cs
+// 添加 Quartz UI 服务（数据库存储模式）
+builder.Services.AddQuartzUI(builder.Configuration);
+// 可选：ClassJob 自动扫描注册
+builder.Services.AddQuartzClassJobs();
+// 启用中间件
+app.UseQuartz();</code></pre>
+        </div>
+                <div class="code-block">
+          <pre><code>// appsettings.json
+  "ConnectionStrings": {
+    "QuartzUI": "Server=localhost;Database=quartzui;User=root;Password=123456;" //MySQL 数据库连接字符串
+    //"QuartzUI": "Data Source=quartzui.db"
+  },
+  "QuartzUI": {
+    "StorageType": "Database", // 指定使用数据库存储
+    "DatabaseProvider": "mysql", // 可选，数据库提供者：mysql、postgresql、sqlserver、sqlite
+    "JwtSecret": "Y2V0aFF1YXJ6TmV0VUlBdXRoZW50aWNhdGlvblNlY3JldA==",
+    "JwtExpiresInMinutes": 360,
+    "JwtIssuer": "Chet.QuartzNet.UI",
+    "JwtAudience": "Chet.QuartzNet.UI",
+    "UserName": "Admin",
+    "Password": "123456"
+  }</code></pre>
+        </div>
+        <p class="code-description">
+          数据库存储模式适合中大型应用，支持 MySQL、PostgreSQL、SQL Server 和
+          SQLite。
+        </p>
+
+
+
+    <!-- 使用示例 -->
+    <section id="examples" class="examples">
+      <div class="container">
+        <h2 class="section-title">📋 ClassJob使用示例</h2>
+
+        <h3 class="subsection-title">创建 ClassJob</h3>
+        <div class="code-block">
+          <pre><code>using Chet.QuartzNet.Core.Attributes;
+using Quartz;
+
+[QuartzJob("SampleJob", "DEFAULT", "0 0/5 * * * ?", Description = "示例作业，每5分钟执行一次")]
+public class SampleJob : IJob
+{
+    private readonly ILogger&lt;SampleJob&gt; _logger;
+
+    public SampleJob(ILogger&lt;SampleJob&gt; logger)
+    {
+        _logger = logger;
+    }
+
+    public async Task Execute(IJobExecutionContext context)
+    {
+        _logger.LogInformation("SampleJob开始执行，执行时间: {ExecuteTime}", DateTime.Now);
+        
+        try
+        {
+            // 业务逻辑处理
+            await Task.Delay(1000);
+            _logger.LogInformation("SampleJob执行完成");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SampleJob执行失败");
+            throw;
+        }
+    }
+}</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 界面功能 -->
+    <section id="ui-features" class="ui-features">
+      <div class="container">
+        <h2 class="section-title">🎯 界面功能</h2>
+
+        <h3 class="subsection-title">分析页</h3>
+        <ul class="feature-list">
+          <li>
+            📊
+            <strong>作业统计概览</strong
+            >：总作业数、启用/禁用作业数、正在执行作业数、成功/失败执行次数
+          </li>
+          <li>
+            📈 <strong>作业状态分布</strong>：各状态作业数量和百分比的饼图展示
+          </li>
+          <li>
+            📋 <strong>作业类型分布</strong>：各类型作业数量和百分比的饼图展示
+          </li>
+          <li>📉 <strong>作业执行趋势</strong>：作业执行趋势的折线图展示</li>
+          <li>⏱️ <strong>作业执行耗时</strong>：作业执行耗时的柱状图展示</li>
+        </ul>
+
+        <h3 class="subsection-title">作业管理</h3>
+        <ul class="feature-list">
+          <li>📋 作业列表展示（支持分页、搜索、筛选）</li>
+          <li>➕ 添加新作业（支持 Cron 表达式验证）</li>
+          <li>✏️ 编辑现有作业</li>
+          <li>🔄 触发作业（立即执行）</li>
+          <li>⏸️ 暂停/恢复作业</li>
+          <li>🗑️ 删除作业</li>
+          <li>📊 查看作业状态（正常、暂停、完成、错误、阻塞）</li>
+          <li>📝 查看作业执行历史记录</li>
+        </ul>
+
+        <h3 class="subsection-title">日志管理</h3>
+        <ul class="feature-list">
+          <li>📜 查看作业执行历史</li>
+          <li>🔍 按状态筛选日志（运行中、成功、失败）</li>
+          <li>⏱️ 查看执行耗时</li>
+          <li>❌ 查看错误信息</li>
+          <li>📋 分页显示日志记录</li>
+        </ul>
+
+        <h3 class="subsection-title">通知管理</h3>
+        <ul class="feature-list">
+          <li>
+            🔔 <strong>通知配置</strong>：配置 PushPlus
+            Token、推送渠道、消息模板等
+          </li>
+          <li>
+            🎛️
+            <strong>通知策略</strong>：设置作业成功/失败、调度器异常时的通知规则
+          </li>
+          <li>📋 <strong>通知历史</strong>：查看所有通知发送记录</li>
+          <li>🔍 <strong>通知筛选</strong>：按状态、触发来源筛选通知</li>
+          <li>🗑️ <strong>通知清理</strong>：删除单条或批量清空通知记录</li>
+          <li>📤 <strong>测试通知</strong>：发送测试通知验证配置是否正确</li>
+        </ul>
+
+        <h3 class="subsection-title">调度器状态</h3>
+        <ul class="feature-list">
+          <li>🟢 实时显示调度器运行状态</li>
+          <li>📈 自动刷新状态信息</li>
+          <li>📊 显示当前活跃作业数量</li>
+        </ul>
+
+        <h3 class="subsection-title">作业类型支持</h3>
+        <ul class="feature-list">
+          <li>🎯 DLL 模式：基于类的作业定义</li>
+          <li>⚙️ API 模式：基于 API 调用的作业定义</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 配置选项 -->
+    <section id="configuration" class="configuration">
+      <div class="container">
+        <h2 class="section-title">🔧 配置选项</h2>
+
+        <h3 class="subsection-title">数据库配置</h3>
+        <p>
+          系统支持通过不同的扩展包来支持多种数据库。您需要根据实际使用的数据库安装对应的扩展包：
+        </p>
+        <div class="table-container">
+          <table class="database-table">
+            <thead>
+              <tr>
+                <th>数据库类型</th>
+                <th>扩展包名称</th>
+                <th>安装命令</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>MySQL</td>
+                <td>Chet.QuartzNet.EFCore.MySql</td>
+                <td>`dotnet add package Chet.QuartzNet.EFCore.MySql`</td>
+              </tr>
+              <tr>
+                <td>PostgreSQL</td>
+                <td>Chet.QuartzNet.EFCore.PostgreSQL</td>
+                <td>`dotnet add package Chet.QuartzNet.EFCore.PostgreSQL`</td>
+              </tr>
+              <tr>
+                <td>SQL Server</td>
+                <td>Chet.QuartzNet.EFCore.SqlServer</td>
+                <td>`dotnet add package Chet.QuartzNet.EFCore.SqlServer`</td>
+              </tr>
+              <tr>
+                <td>SQLite</td>
+                <td>Chet.QuartzNet.EFCore.SQLite</td>
+                <td>`dotnet add package Chet.QuartzNet.EFCore.SQLite`</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="subsection-title">授权配置</h3>
+        <div class="code-block">
+          <pre><code>{  "QuartzUI": {
+    "UserName": "自定义用户名",
+    "Password": "自定义密码",
+    "JwtSecret": "your-secret-key-change-this-in-production",
+    "JwtExpiresInMinutes": 30,
+    "JwtIssuer": "Chet",
+    "JwtAudience": "Chet.QuartzNet.UI"
+  }
+}</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 更新说明 -->
+    <section id="updates" class="updates">
+      <div class="container">
+        <h2 class="section-title">📝 更新说明</h2>
+
+        <div class="update-item">
+          <h3 class="update-version">[1.3.0] - 2025-12-17</h3>
+          <h4 class="update-type">修复</h4>
+          <ul class="update-list">
+            <li>修复使用数据库存储方式时 Nuget 包源的问题</li>
+          </ul>
+          <h4 class="update-type">兼容性</h4>
+          <ul class="update-list">
+            <li>与现有版本完全兼容</li>
+            <li>无需数据库迁移或配置更改</li>
+          </ul>
+        </div>
+
+        <div class="update-item">
+          <h3 class="update-version">[1.2.4] - 2025-12-16</h3>
+          <h4 class="update-type">优化</h4>
+          <ul class="update-list">
+            <li>更换 Logo</li>
+            <li>打包时添加 README.md 文件</li>
+          </ul>
+          <h4 class="update-type">兼容性</h4>
+          <ul class="update-list">
+            <li>与现有版本完全兼容</li>
+            <li>无需数据库迁移或配置更改</li>
+          </ul>
+        </div>
+
+        <div class="update-item">
+          <h3 class="update-version">[1.1.4] - 2025-12-14</h3>
+          <h4 class="update-type">修复</h4>
+          <ul class="update-list">
+            <li>修复使用数据库存储方式时迁移失败的问题</li>
+          </ul>
+          <h4 class="update-type">优化</h4>
+          <ul class="update-list">
+            <li>操作时添加提醒</li>
+          </ul>
+          <h4 class="update-type">兼容性</h4>
+          <ul class="update-list">
+            <li>与现有版本完全兼容</li>
+            <li>无需数据库迁移或配置更改</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-content">
+          <div class="footer-section">
+            <h3>Chet.QuartzNet.UI</h3>
+            <p>可视化作业调度管理系统</p>
+          </div>
+          <div class="footer-section">
+            <h3>快速链接</h3>
+            <ul class="footer-links">
+              <li><a href="#home">首页</a></li>
+              <li><a href="#features">功能特性</a></li>
+              <li><a href="#installation">安装指南</a></li>
+              <li><a href="#quickstart">快速开始</a></li>
+            </ul>
+          </div>
+          <div class="footer-section">
+            <h3>资源</h3>
+            <ul class="footer-links">
+              <li><a href="#examples">使用示例</a></li>
+              <li><a href="#ui-features">界面功能</a></li>
+              <li><a href="#configuration">配置选项</a></li>
+            </ul>
+          </div>
+          <div class="footer-section">
+            <h3>支持</h3>
+            <ul class="footer-links">
+              <li><a href="#updates">更新说明</a></li>
+              <li><a href="#">贡献指南</a></li>
+              <li><a href="#">许可证</a></li>
+              <li><a href="#">提交 Issue</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <p>&copy; 2025 Chet.QuartzNet.UI. 采用 MIT 许可证.</p>
+        </div>
+      </div>
+    </footer>
+
+    <script src="scripts/main.js"></script>
+  </body>
+</html>

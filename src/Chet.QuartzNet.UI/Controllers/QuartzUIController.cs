@@ -1,6 +1,7 @@
 using Chet.QuartzNet.Core.Configuration;
 using Chet.QuartzNet.Core.Interfaces;
 using Chet.QuartzNet.Models.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -17,6 +18,7 @@ namespace Chet.QuartzNet.UI.Controllers;
 /// </summary>
 [Route("api/quartz")]
 [ApiController]
+[Authorize(Policy = "QuartzUIPolicy")]
 public class QuartzUIController : ControllerBase
 {
     private readonly IQuartzJobService _jobService;
@@ -446,6 +448,7 @@ public class QuartzUIController : ControllerBase
     /// 用户登录
     /// </summary>
     [HttpPost("Login")]
+    [AllowAnonymous]
     public ActionResult<ApiResponseDto<LoginResponseDto>> Login([FromBody] LoginRequestDto request)
     {
         try
