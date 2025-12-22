@@ -1,6 +1,6 @@
 # Chet.QuartzNet.UI 可视化作业调度管理系统
 
-Chet.QuartzNet.UI 是一个基于 .NET 8.0 和 VbenAdmin 框架开发的可视化作业调度管理系统，提供了完整的任务调度管理功能，支持文件存储和数据库存储两种模式。该组件库旨在简化 Quartz.Net 的使用门槛，提供直观、易用的可视化管理界面，使开发人员能够轻松地创建、管理、监控和调试定时作业，无需深入了解 Quartz.Net 的复杂 API。
+Chet.QuartzNet.UI 是一个基于 .NET 8.0 和VbenAdmin 框架开发的可视化作业调度管理系统，提供了完整的任务调度管理功能，支持文件存储和数据库存储两种模式。该组件库旨在简化 Quartz.Net 的使用门槛，提供直观、易用的可视化管理界面，使开发人员能够轻松地创建、管理、监控和调试定时作业，无需深入了解 Quartz.Net 的复杂 API。
 
 通过 Chet.QuartzNet.UI，您可以快速集成任务调度功能到现有项目中，实现作业的可视化配置、实时监控和历史记录查询，大大提高开发效率和运维便利性。
 
@@ -11,16 +11,16 @@ Chet.QuartzNet.UI 是一个基于 .NET 8.0 和 VbenAdmin 框架开发的可视�
 - 🎯 **ClassJob 模式支持**：支持基于类的作业定义，简化作业创建
 - ✅ **ClassJob 自动注册**：自动扫描和注册带有特定特性的作业类
 - 💾 **多种存储方式**：支持文件存储和数据库存储（MySQL、PostgreSQL、SQL Server、SQLite）
+- 📝 **作业执行历史**：记录作业执行历史和结果
+- 🔔 **PushPlus 通知集成**：支持多种渠道的通知推送（微信、企业微信、钉钉、邮件等）
+- 📋 **通知模板支持**：支持 HTML、Markdown、纯文本三种通知模板
+- 🎛️ **灵活的通知策略**：可配置作业成功/失败、调度器异常时的通知规则
+- 📜 **通知历史管理**：完整的通知发送历史记录
 - 🔐 **认证保护**：提供 JWT 认证保护管理界面
 - 📦 **RCL 打包**：使用 Razor Class Library 打包，无侵入集成
 - 🚀 **快速集成**：简单配置即可集成到现有项目
 - 🎨 **现代化 UI**：基于 VbenAdmin 框架，界面美观易用
 - 📱 **响应式设计**：支持移动端访问
-- 📝 **作业执行历史**：记录作业执行历史和结果
-- 📜 **通知历史管理**：完整的通知发送历史记录
-- 🔔 **PushPlus 通知集成**：支持多种渠道的通知推送（微信、企业微信、钉钉、邮件等）
-- 📋 **通知模板支持**：支持 HTML、Markdown、纯文本三种通知模板
-- 🎛️ **灵活的通知策略**：可配置作业成功/失败、调度器异常时的通知规则
 
 ## 📦 安装
 
@@ -55,39 +55,49 @@ dotnet add package Chet.QuartzNet.EFCore.SQLite      # SQLite 支持
 
 #### 1.1 文件存储模式（轻量级应用）
 
-文件存储模式适合轻量级应用，无需数据库，配置简单：
+**添加代码**
+需要再 `Program.cs` 中添加以下代码：
 
 ```csharp
 // Program.cs
-
 // 添加 Quartz UI 服务（文件存储模式）
 builder.Services.AddQuartzUI(builder.Configuration);
-
 // 可选：ClassJob 自动扫描注册
 builder.Services.AddQuartzClassJobs();
-
 // 启用中间件
 app.UseQuartz();
+```
+**配置说明**：
+需要在 `appsettings.json` 中添加以下配置：
+
+```json
+// appsettings.json
+  "QuartzUI": {
+    "JwtSecret": "Y2V0aFF1YXJ6TmV0VUlBdXRoZW50aWNhdGlvblNlY3JldA==",
+    "JwtExpiresInMinutes": 360,
+    "JwtIssuer": "Chet.QuartzNet.UI",
+    "JwtAudience": "Chet.QuartzNet.UI",
+    "UserName": "Admin",
+    "Password": "123456"
+  }
 ```
 
 **配置说明**：
 - 文件存储模式无需额外配置，系统会自动使用文件存储
 - 自动读取 `QuartzUI` 节中的 JWT 认证配置
-- 作业数据存储在应用目录下的 JSON 文件中
+- 作业数据存储在应用目录下的 `App_Data/QuartzJobs/` 文件夹下
 
 #### 1.2 数据库存储模式（中大型应用）
 
-数据库存储模式适合中大型应用，支持 MySQL、PostgreSQL、SQL Server 和 SQLite：
+**添加代码**
+需要再 `Program.cs` 中添加以下代码：
 
 ```csharp
 // Program.cs
-
 // 添加 Quartz UI 服务（数据库存储模式）
 builder.Services.AddQuartzUI(builder.Configuration);
-
 // 可选：ClassJob 自动扫描注册
 builder.Services.AddQuartzClassJobs();
-
 // 启用中间件
 app.UseQuartz();
 ```
@@ -96,16 +106,21 @@ app.UseQuartz();
 需要在 `appsettings.json` 中添加以下配置：
 
 ```json
-{
+// appsettings.json
   "ConnectionStrings": {
-    "QuartzUI": "server=localhost;database=quartz_db;User Id=root;PWD=password;" // 数据库连接字符串
+    "QuartzUI": "Server=localhost;Database=quartzui;User=root;Password=123456;" //MySQL 数据库连接字符串
+    //"QuartzUI": "Data Source=quartzui.db"
   },
   "QuartzUI": {
     "StorageType": "Database", // 指定使用数据库存储
-    "DatabaseProvider": "mysql" // 可选，数据库提供者：mysql、postgresql、sqlserver、sqlite（默认自动判断）
-    // 其他配置...
+    "DatabaseProvider": "mysql", // 可选，数据库提供者：mysql、postgresql、sqlserver、sqlite
+    "JwtSecret": "Y2V0aFF1YXJ6TmV0VUlBdXRoZW50aWNhdGlvblNlY3JldA==",
+    "JwtExpiresInMinutes": 360,
+    "JwtIssuer": "Chet.QuartzNet.UI",
+    "JwtAudience": "Chet.QuartzNet.UI",
+    "UserName": "Admin",
+    "Password": "123456"
   }
-}
 ```
 
 **数据库支持**：
@@ -114,47 +129,12 @@ app.UseQuartz();
 - ✅ SQL Server
 - ✅ SQLite
 
-### 2. 统一 API 设计
 
-无论选择哪种存储模式，API 调用方式完全一致，实现了**配置驱动**的存储选择：
-
-```csharp
-// 同一套 API，自动根据配置选择存储方式
-builder.Services.AddQuartzUI(builder.Configuration);
-app.UseQuartz();
-```
-
-**核心优势**：
-- 无需修改代码，仅需调整配置即可切换存储模式
-- 统一的 API 设计，降低学习成本
-- 便于应用从文件存储升级到数据库存储
-- 自动根据连接字符串判断数据库类型
-
-### 3. JWT 认证配置
-
-两种存储模式均支持 JWT 认证，配置方式一致：
-
-```json
-{
-  "QuartzUI": {
-    "JwtSecret": "your-secret-key",
-    "JwtExpiresInMinutes": 30,
-    "JwtIssuer": "Chet.QuartzNet.UI",
-    "JwtAudience": "Chet.QuartzNet.UI",
-    "UserName": "Admin",
-    "Password": "123456"
-  }
-}
-```
-
-认证配置会自动被 `AddQuartzUI` 方法读取，无需额外代码。
-
-
-### 3. 访问管理界面
+### 2. 访问管理界面
 
 启动应用后，访问 `/quartz-ui` 即可进入管理界面。
 
-## 📋 使用示例
+## 📋 ClassJob 使用示例
 
 ### 创建 ClassJob
 
@@ -200,27 +180,6 @@ public class SampleJob : IJob
 builder.Services.AddQuartzClassJobs();
 ```
 
-### 认证配置
-
-启用 JWT 认证：
-
-```csharp
-// 添加 Quartz UI 服务（自动读取 JWT 配置）
-builder.Services.AddQuartzUI(builder.Configuration);
-// 在 appsettings.json 中配置 JWT 相关选项
-"QuartzUI": {
-  "UserName": "admin",
-  "Password": "password",
-  "JwtSecret": "your-secret-key-change-this-in-production",
-  "JwtExpiresInMinutes": 30,
-  "JwtIssuer": "Chet",
-  "JwtAudience": "Chet.QuartzNet.UI"
-}
-
-// 启用中间件
-app.UseQuartz();
-```
-
 ## 🎯 界面功能
 
 ### 分析页
@@ -238,7 +197,6 @@ app.UseQuartz();
 - ⏸️ 暂停/恢复作业
 - 🗑️ 删除作业
 - 📊 查看作业状态（正常、暂停、完成、错误、阻塞）
-- 📝 查看作业执行历史记录
 
 ### 日志管理
 - 📜 查看作业执行历史
@@ -246,6 +204,7 @@ app.UseQuartz();
 - ⏱️ 查看执行耗时
 - ❌ 查看错误信息
 - 📋 分页显示日志记录
+- 🗑️ 删除日志记录
 
 ### 通知管理
 - 🔔 **通知配置**：配置 PushPlus Token、推送渠道、消息模板等
@@ -254,7 +213,6 @@ app.UseQuartz();
 - 🔍 **通知筛选**：按状态、触发来源筛选通知
 - 🗑️ **通知清理**：删除单条或批量清空通知记录
 - 📤 **测试通知**：发送测试通知验证配置是否正确
-
 
 ### 调度器状态
 - 🟢 实时显示调度器运行状态
@@ -265,9 +223,7 @@ app.UseQuartz();
 - 🎯 DLL 模式：基于类的作业定义
 - ⚙️ API 模式：基于 API 调用的作业定义
 
-## 🔧 配置选项
-
-### 数据库配置
+## 🔧 数据库配置
 
 系统支持通过不同的扩展包来支持多种数据库。您需要根据实际使用的数据库安装对应的扩展包：
 
@@ -278,35 +234,43 @@ app.UseQuartz();
 | SQL Server | Chet.QuartzNet.EFCore.SqlServer | `Install-Package Chet.QuartzNet.EFCore.SqlServer` 或 `dotnet add package Chet.QuartzNet.EFCore.SqlServer` |
 | SQLite | Chet.QuartzNet.EFCore.SQLite | `Install-Package Chet.QuartzNet.EFCore.SQLite` 或 `dotnet add package Chet.QuartzNet.EFCore.SQLite` |
 
-**配置示例**：
 
-```csharp
-// 以 MySQL 为例，其他数据库类似
-// 安装包后，在 appsettings.json 中配置连接字符串和存储类型
-builder.Services.AddQuartzUI(builder.Configuration);
+## 📁 项目结构
+
+```
+Chet.QuartzNet.UI/
+├── src/
+│   ├── Chet.QuartzNet.EFCore/                # EF Core 数据访问层核心
+│   │   ├── Data/                           # 数据库上下文
+│   │   ├── Extensions/                      # 扩展方法
+│   │   └── Services/                        # 数据库存储服务
+│   ├── Chet.QuartzNet.EFCore.MySql/          # MySQL 数据库支持
+│   ├── Chet.QuartzNet.EFCore.PostgreSql/     # PostgreSQL 数据库支持
+│   ├── Chet.QuartzNet.EFCore.SQLite/         # SQLite 数据库支持
+│   ├── Chet.QuartzNet.EFCore.SqlServer/     # SQL Server 数据库支持
+│   ├── Chet.QuartzNet.Models/               # 数据模型和 DTO
+│   │   ├── DTOs/                            # 数据传输对象
+│   │   └── Entities/                         # 实体类
+│   ├── Chet.QuartzNet.UI/                   # UI 组件和控制器
+│   │   ├── Controllers/                     # API 控制器
+│   │   ├── Extensions/                      # 扩展方法
+│   │   ├── Middleware/                      # 中间件
+│   │   └── wwwroot/                         # 静态资源
+│   └── Chet.QuartzNet.Web/                  # Web 应用示例
+├── examples/
+│   ├── Chet.QuartzNet.Database.Example/      # 数据库存储示例项目
+│   └── Chet.QuartzNet.File.Example/          # 文件存储示例项目
+├── README.md                                # 项目根目录文档
+├── LICENSE                                  # 许可证文件
+└── Chet.QuartzNet.UI.sln                    # 解决方案文件
 ```
 
-### 授权配置
-
-```json
-{
-  "QuartzUI": {
-    "UserName": "自定义用户名",
-    "Password": "自定义密码",
-    "JwtSecret": "your-secret-key-change-this-in-production",
-    "JwtExpiresInMinutes": 30,
-    "JwtIssuer": "Chet",
-    "JwtAudience": "Chet.QuartzNet.UI"
-  }
-}
-```
-
-##  更新说明
+## 📝 更新说明
 
 ### [1.3.0] - 2025-12-17
 
 #### 修复
--- 修复使用数据库存储方式时Nuget包源的问题
+- 修复使用数据库存储方式时 Nuget 包源的问题
 
 #### 兼容性
 - 与现有版本完全兼容
@@ -315,8 +279,8 @@ builder.Services.AddQuartzUI(builder.Configuration);
 ### [1.2.4] - 2025-12-16
 
 #### 优化
-- 更换Logo
-- 打包时添加README.md文件
+- 更换 Logo
+- 打包时添加 README.md 文件
 
 #### 兼容性
 - 与现有版本完全兼容
@@ -334,6 +298,16 @@ builder.Services.AddQuartzUI(builder.Configuration);
 - 与现有版本完全兼容
 - 无需数据库迁移或配置更改
 
+
+## 🤝 贡献指南
+
+欢迎提交 Issue 和 Pull Request！
+
+1. Fork 项目
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 打开 Pull Request
 
 ## 📝 许可证
 
