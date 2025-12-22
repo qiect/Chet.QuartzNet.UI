@@ -4,13 +4,13 @@
 
 QuartzNet.UI 支持使用 PushPlus 服务发送任务执行和调度器异常通知，替代了传统的邮件通知方式。PushPlus 是一个集成了多种推送渠道的通知服务，支持微信、企业微信、钉钉、邮件、短信等多种推送方式。
 
-![通知配置页面](images/screenshots/notification-config.png)
+![通知配置页面](../images/notification-config.png)
 
-![通知历史页面](images/screenshots/notification-history.png)
+![通知历史页面](../images/notification.png)
 
-![通知模板设计](images/design/notification-template-design.jpg)
+![通知推送](../images/wechat-notification-pushplus.png)
 
-![通知流程图](images/design/notification-flow-chart.jpg)
+![通知错误](../images/wechat-notification-error.png)
 
 ### 1.1 通知类型
 

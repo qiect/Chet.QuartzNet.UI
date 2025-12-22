@@ -4,17 +4,19 @@ Chet.QuartzNet.UI 是一个基于 .NET 8.0 和VbenAdmin 框架开发的可视化
 
 通过 Chet.QuartzNet.UI，您可以快速集成任务调度功能到现有项目中，实现作业的可视化配置、实时监控和历史记录查询，大大提高开发效率和运维便利性。
 
-![仪表盘](docs/images/dashboard.png)
+![仪表盘](docs/images/login.png)
 
-![作业管理](docs/images/job-management.png)
+![作业分析](docs/images/analytices1.png)
 
-![日志管理](docs/images/log-management.png)
+![作业分析](docs/images/analytices2.png)
 
-![通知管理](docs/images/notification-management.png)
+![作业管理](docs/images/job.png)
 
-![调度器状态](docs/images/scheduler-status.png)
+![日志管理](docs/images/log.png)
 
-![作业分析](docs/images/job-analysis.png)
+![通知管理](docs/images/notification.png)
+
+![通知详情](docs/images/notification-detail.png)
 
 ## ✨ 功能特性
 
