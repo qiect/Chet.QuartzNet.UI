@@ -560,7 +560,7 @@ public class QuartzJobService : IQuartzJobService
 
                         if (nextFireTimes.Any())
                         {
-                            jobInfo.NextRunTime = nextFireTimes.First().LocalDateTime;
+                            jobInfo.NextRunTime = jobInfo.NextRunTime == null ? nextFireTimes.First().LocalDateTime : jobInfo.NextRunTime;
                         }
 
                         var previousFireTimes = triggers.Select(t => t.GetPreviousFireTimeUtc())
@@ -571,7 +571,7 @@ public class QuartzJobService : IQuartzJobService
 
                         if (previousFireTimes.Any())
                         {
-                            jobInfo.PreviousRunTime = previousFireTimes.First().LocalDateTime;
+                            jobInfo.PreviousRunTime = jobInfo.PreviousRunTime == null ? previousFireTimes.First().LocalDateTime : jobInfo.PreviousRunTime;
                         }
                     }
                 }
@@ -599,7 +599,7 @@ public class QuartzJobService : IQuartzJobService
 
                 if (nextFireTimes.Any())
                 {
-                    jobInfo.NextRunTime = nextFireTimes.First().LocalDateTime;
+                    jobInfo.NextRunTime = jobInfo.NextRunTime == null ? nextFireTimes.First().LocalDateTime : jobInfo.NextRunTime;
                 }
 
                 var previousFireTimes = updatedTriggers.Select(t => t.GetPreviousFireTimeUtc())
@@ -610,7 +610,7 @@ public class QuartzJobService : IQuartzJobService
 
                 if (previousFireTimes.Any())
                 {
-                    jobInfo.PreviousRunTime = previousFireTimes.First().LocalDateTime;
+                    jobInfo.PreviousRunTime = jobInfo.PreviousRunTime == null ? previousFireTimes.First().LocalDateTime : jobInfo.PreviousRunTime;
                 }
             }
 
@@ -646,6 +646,9 @@ public class QuartzJobService : IQuartzJobService
                 return ApiResponseDto<bool>.ErrorResponse("作业不存在");
             }
 
+            // 创建包含完整作业数据和手动触发标记的作业数据映射
+            var jobDataMap = CreateJobDataMapWithManualTrigger(jobInfo);
+
             // 检查作业是否在调度器中存在
             var jobExists = await _scheduler.CheckExists(jobKey, cancellationToken);
 
@@ -669,64 +672,13 @@ public class QuartzJobService : IQuartzJobService
                 else
                 {
                     // DLL作业使用指定的作业类
-                    try
+                    var jobType = GetJobType(jobInfo.JobClassOrApi);
+                    if (jobType == null || !typeof(IJob).IsAssignableFrom(jobType))
                     {
-                        var jobType = Type.GetType(jobInfo.JobClassOrApi);
-                        if (jobType == null)
-                        {
-                            // 如果没找到，搜索所有已加载的程序集
-                            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-                            {
-                                jobType = assembly.GetType(jobInfo.JobClassOrApi);
-                                if (jobType != null)
-                                {
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (jobType == null || !typeof(IJob).IsAssignableFrom(jobType))
-                        {
-                            throw new InvalidOperationException($"无效的作业类型: {jobInfo.JobType}");
-                        }
-
-                        jobBuilder.OfType(jobType);
+                        return ApiResponseDto<bool>.ErrorResponse($"无效的作业类型: {jobInfo.JobClassOrApi}");
                     }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "无效的作业类型: {JobType}", jobInfo.JobType);
-                        return ApiResponseDto<bool>.ErrorResponse($"无效的作业类型: {ex.Message}");
-                    }
+                    jobBuilder.OfType(jobType);
                 }
-
-                // 设置作业数据
-                var jobDataMap = new JobDataMap();
-                if (!string.IsNullOrEmpty(jobInfo.JobData))
-                {
-                    try
-                    {
-                        // 解析JSON数据并添加到jobDataMap
-                        var jobDataDict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(jobInfo.JobData);
-                        if (jobDataDict != null)
-                        {
-                            foreach (var kvp in jobDataDict)
-                            {
-                                // 只添加非null值，避免CS8604警告
-                                if (kvp.Value != null)
-                                {
-                                    jobDataMap.Add(kvp.Key, kvp.Value);
-                                }
-                            }
-                        }
-                    }
-                    catch (System.Text.Json.JsonException ex)
-                    {
-                        _logger.LogError(ex, "解析作业数据JSON失败: {JobData}", jobInfo.JobData);
-                    }
-                }
-
-                // 添加手动触发标记
-                jobDataMap.Add("IsManualTrigger", true);
 
                 // 将作业数据添加到作业构建器
                 jobBuilder.UsingJobData(jobDataMap);
@@ -742,32 +694,9 @@ public class QuartzJobService : IQuartzJobService
             }
             else
             {
-                // 获取作业信息，检查是否为暂停状态
-                var wasPaused = false;
-
-                if (jobInfo.Status == JobStatus.Paused)
-                {
-                    // 临时将作业状态改为正常，允许手动触发执行
-                    wasPaused = true;
-                    jobInfo.Status = JobStatus.Normal;
-                    await _jobStorage.UpdateJobAsync(jobInfo, cancellationToken);
-                    _logger.LogInformation("临时修改暂停作业状态为正常，允许手动触发: {JobKey}", $"{jobGroup}.{jobName}");
-                }
-
-                // 创建包含手动触发标记的作业数据
-                var jobDataMap = new JobDataMap();
-                jobDataMap.Add("IsManualTrigger", true);
-
-                // 直接触发作业，不考虑触发器状态
+                // 直接触发作业，Quartz允许手动触发暂停的作业，无需修改作业状态
                 await _scheduler.TriggerJob(jobKey, jobDataMap, cancellationToken);
-
-                // 如果原来是暂停状态，执行完毕后恢复为暂停状态
-                if (wasPaused)
-                {
-                    jobInfo.Status = JobStatus.Paused;
-                    await _jobStorage.UpdateJobAsync(jobInfo, cancellationToken);
-                    _logger.LogInformation("手动触发执行完成，恢复作业暂停状态: {JobKey}", $"{jobGroup}.{jobName}");
-                }
+                _logger.LogInformation("手动触发作业成功: {JobKey}", $"{jobGroup}.{jobName}");
             }
 
             _logger.LogInformation("作业触发成功: {JobKey}", $"{jobGroup}.{jobName}");
@@ -778,6 +707,72 @@ public class QuartzJobService : IQuartzJobService
             _logger.LogError(ex, "触发作业失败: {JobKey}", $"{jobGroup}.{jobName}");
             return ApiResponseDto<bool>.ErrorResponse($"触发作业失败: {ex.Message}");
         }
+    }
+
+
+    /// <summary>
+    /// 创建包含手动触发标记的作业数据映射
+    /// </summary>
+    /// <param name="jobInfo">作业信息</param>
+    /// <returns>作业数据映射</returns>
+    private JobDataMap CreateJobDataMapWithManualTrigger(QuartzJobInfo jobInfo)
+    {
+        var jobDataMap = new JobDataMap();
+
+        // 添加手动触发标记
+        jobDataMap.Add("IsManualTrigger", true);
+
+        // 解析并添加作业数据
+        if (!string.IsNullOrEmpty(jobInfo.JobData))
+        {
+            try
+            {
+                var jobDataDict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(jobInfo.JobData);
+                if (jobDataDict != null)
+                {
+                    foreach (var kvp in jobDataDict)
+                    {
+                        if (kvp.Value != null)
+                        {
+                            jobDataMap.Add(kvp.Key, kvp.Value);
+                        }
+                    }
+                }
+            }
+            catch (System.Text.Json.JsonException ex)
+            {
+                _logger.LogError(ex, "解析作业数据JSON失败: {JobData}", jobInfo.JobData);
+                throw new InvalidOperationException("作业数据JSON格式无效", ex);
+            }
+        }
+
+        return jobDataMap;
+    }
+
+    /// <summary>
+    /// 获取作业类型
+    /// </summary>
+    /// <param name="jobClassOrApi">作业类名或API地址</param>
+    /// <returns>作业类型</returns>
+    private Type GetJobType(string jobClassOrApi)
+    {
+        // 先尝试直接获取类型
+        var jobType = Type.GetType(jobClassOrApi);
+
+        if (jobType == null)
+        {
+            // 如果没找到，搜索所有已加载的程序集
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                jobType = assembly.GetType(jobClassOrApi);
+                if (jobType != null)
+                {
+                    break;
+                }
+            }
+        }
+
+        return jobType;
     }
 
     /// <summary>
@@ -803,7 +798,6 @@ public class QuartzJobService : IQuartzJobService
                 {
                     var jobKey = new JobKey(jobInfo.JobName, jobInfo.JobGroup);
                     var triggers = await _scheduler.GetTriggersOfJob(jobKey, cancellationToken);
-
                     _logger.LogInformation("作业 {JobKey} 找到 {TriggerCount} 个触发器", $"{jobInfo.JobGroup}.{jobInfo.JobName}", triggers.Count);
 
                     if (triggers.Any())
@@ -817,7 +811,7 @@ public class QuartzJobService : IQuartzJobService
 
                         if (nextFireTimes.Any())
                         {
-                            jobResponse.NextRunTime = nextFireTimes.First().LocalDateTime;
+                            jobResponse.NextRunTime = jobResponse.NextRunTime == null ? nextFireTimes.First().LocalDateTime : jobResponse.NextRunTime;
                             _logger.LogInformation("作业 {JobKey} 的下次执行时间: {NextRunTime}", $"{jobInfo.JobGroup}.{jobInfo.JobName}", jobResponse.NextRunTime);
                         }
                         else
@@ -835,7 +829,7 @@ public class QuartzJobService : IQuartzJobService
                         if (previousFireTimes.Any())
                         {
                             // 将UTC时间转换为北京时间（UTC+8）
-                            jobResponse.PreviousRunTime = previousFireTimes.First().LocalDateTime;
+                            jobResponse.PreviousRunTime = jobResponse.PreviousRunTime == null ? previousFireTimes.First().LocalDateTime : jobResponse.PreviousRunTime;
                         }
                     }
                     else
@@ -895,9 +889,8 @@ public class QuartzJobService : IQuartzJobService
             if (triggers.Any())
             {
                 var trigger = triggers.First();
-                // 将UTC时间转换为北京时间（UTC+8）
-                response.NextRunTime = trigger.GetNextFireTimeUtc()?.LocalDateTime;
-                response.PreviousRunTime = trigger.GetPreviousFireTimeUtc()?.LocalDateTime;
+                response.NextRunTime = response.NextRunTime == null ? trigger.GetNextFireTimeUtc()?.LocalDateTime : response.NextRunTime;
+                response.PreviousRunTime = response.PreviousRunTime == null ? trigger.GetPreviousFireTimeUtc()?.LocalDateTime : response.PreviousRunTime;
             }
 
             return ApiResponseDto<QuartzJobResponseDto>.SuccessResponse(response);
@@ -1176,8 +1169,8 @@ public class QuartzJobService : IQuartzJobService
             UpdateTime = jobInfo.UpdateTime,
             CreateBy = jobInfo.CreateBy,
             UpdateBy = jobInfo.UpdateBy,
-            NextRunTime = null,
-            PreviousRunTime = null
+            NextRunTime = jobInfo.NextRunTime,
+            PreviousRunTime = jobInfo.PreviousRunTime
         };
     }
 
