@@ -50,6 +50,11 @@ public class FileJobStorage : IJobStorage
     /// </summary>
     private static readonly ConcurrentDictionary<string, object> _fileLocks = new();
 
+    /// <summary>
+    /// 最后备份时间字典，用于跟踪每个文件的最后备份时间
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, DateTime> _lastBackupTimes = new();
+
 
     /// <summary>
     /// 初始化FileJobStorage实例
@@ -694,10 +699,7 @@ public class FileJobStorage : IJobStorage
                 using (var reader = new StreamReader(stream))
                 {
                     var json = reader.ReadToEnd();
-                    var jobs = JsonSerializer.Deserialize<List<QuartzJobInfo>>(json, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    }) ?? new List<QuartzJobInfo>();
+                    var jobs = JsonSerializer.Deserialize<List<QuartzJobInfo>>(json, JsonSerializationConfig.JsonOptions()) ?? new List<QuartzJobInfo>();
 
                     return Task.FromResult(jobs);
                 }
@@ -728,7 +730,7 @@ public class FileJobStorage : IJobStorage
                 }
 
                 // 序列化作业列表为JSON
-                var json = JsonSerializer.Serialize(jobs, DateTimeSerializationConfig.JsonOptions());
+                var json = JsonSerializer.Serialize(jobs, JsonSerializationConfig.JsonOptions());
 
                 // 使用FileStream并设置FileShare参数，写入时允许其他进程读取
                 using (var stream = new FileStream(_jobsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
@@ -764,10 +766,7 @@ public class FileJobStorage : IJobStorage
                 using (var reader = new StreamReader(stream))
                 {
                     var json = reader.ReadToEnd();
-                    var logs = JsonSerializer.Deserialize<List<QuartzJobLog>>(json, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    }) ?? new List<QuartzJobLog>();
+                    var logs = JsonSerializer.Deserialize<List<QuartzJobLog>>(json, JsonSerializationConfig.JsonOptions()) ?? new List<QuartzJobLog>();
 
                     return Task.FromResult(logs);
                 }
@@ -787,7 +786,7 @@ public class FileJobStorage : IJobStorage
         {
             try
             {
-                var json = JsonSerializer.Serialize(logs, DateTimeSerializationConfig.JsonOptions());
+                var json = JsonSerializer.Serialize(logs, JsonSerializationConfig.JsonOptions());
 
                 // 使用FileStream并设置FileShare参数，写入时允许其他进程读取
                 using (var stream = new FileStream(_logsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
@@ -810,12 +809,29 @@ public class FileJobStorage : IJobStorage
     {
         try
         {
+            // 检查备份间隔配置，如果小于等于0，则每次都备份
+            if (_options.BackupIntervalSeconds > 0)
+            {
+                // 获取最后备份时间
+                var lastBackupTime = _lastBackupTimes.GetOrAdd(filePath, DateTime.MinValue);
+                var now = DateTime.Now;
+
+                // 如果距离上次备份的时间小于配置的间隔，则跳过本次备份
+                if ((now - lastBackupTime).TotalSeconds < _options.BackupIntervalSeconds)
+                {
+                    return;
+                }
+            }
+
             var fileName = Path.GetFileName(filePath);
             var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
             var backupFileName = $"{Path.GetFileNameWithoutExtension(fileName)}_{timestamp}{Path.GetExtension(fileName)}";
             var backupFilePath = Path.Combine(_options.FileBackupPath, backupFileName);
 
             File.Copy(filePath, backupFilePath, true);
+
+            // 更新最后备份时间
+            _lastBackupTimes[filePath] = DateTime.Now;
 
             // 清理旧备份
             CleanupOldBackups();
@@ -1088,10 +1104,7 @@ public class FileJobStorage : IJobStorage
                 using (var reader = new StreamReader(stream))
                 {
                     var json = reader.ReadToEnd();
-                    var settings = JsonSerializer.Deserialize<List<QuartzSetting>>(json, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    }) ?? new List<QuartzSetting>();
+                    var settings = JsonSerializer.Deserialize<List<QuartzSetting>>(json, JsonSerializationConfig.JsonOptions()) ?? new List<QuartzSetting>();
 
                     return Task.FromResult(settings);
                 }
@@ -1121,7 +1134,7 @@ public class FileJobStorage : IJobStorage
                     CreateBackup(_settingsFilePath);
                 }
 
-                var json = JsonSerializer.Serialize(settings, DateTimeSerializationConfig.JsonOptions());
+                var json = JsonSerializer.Serialize(settings, JsonSerializationConfig.JsonOptions());
 
                 using (var stream = new FileStream(_settingsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
                 using (var writer = new StreamWriter(stream))
@@ -1164,10 +1177,7 @@ public class FileJobStorage : IJobStorage
                 using (var reader = new StreamReader(stream))
                 {
                     var json = reader.ReadToEnd();
-                    var notifications = JsonSerializer.Deserialize<List<QuartzNotification>>(json, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    }) ?? new List<QuartzNotification>();
+                    var notifications = JsonSerializer.Deserialize<List<QuartzNotification>>(json, JsonSerializationConfig.JsonOptions()) ?? new List<QuartzNotification>();
 
                     return Task.FromResult(notifications);
                 }
@@ -1197,7 +1207,7 @@ public class FileJobStorage : IJobStorage
                     CreateBackup(_notificationsFilePath);
                 }
 
-                var json = JsonSerializer.Serialize(notifications, DateTimeSerializationConfig.JsonOptions());
+                var json = JsonSerializer.Serialize(notifications, JsonSerializationConfig.JsonOptions());
 
                 using (var stream = new FileStream(_notificationsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
                 using (var writer = new StreamWriter(stream))

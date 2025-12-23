@@ -71,6 +71,12 @@ public class QuartzUIOptions
     public int MaxBackupFiles { get; set; } = 10;
 
     /// <summary>
+    /// 备份时间间隔（秒），默认为 300 秒（5分钟）
+    /// 小于等于0表示每次保存都备份
+    /// </summary>
+    public int BackupIntervalSeconds { get; set; } = 300;
+
+    /// <summary>
     /// 是否自动启动调度器，默认为 true
     /// </summary>
     public bool AutoStartScheduler { get; set; } = true;
