@@ -367,7 +367,7 @@ public static class ServiceCollectionExtensions
                             JobName = attribute.Name,
                             JobGroup = attribute.Group,
                             TriggerName = $"{attribute.Name}_Trigger",
-                            TriggerGroup = "DEFAULT",
+                            TriggerGroup = attribute.Group,
                             CronExpression = attribute.CronExpression, // 使用特性中的Cron表达式
                             Description = attribute.Description,
                             JobType = JobTypeEnum.DLL,

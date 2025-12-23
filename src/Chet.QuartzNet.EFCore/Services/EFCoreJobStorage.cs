@@ -343,7 +343,7 @@ public class EFCoreJobStorage : IJobStorage
             }
 
             job.Status = status;
-            job.UpdateTime = DateTime.UtcNow;
+            job.UpdateTime = DateTime.Now;
 
             var result = await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -494,7 +494,7 @@ public class EFCoreJobStorage : IJobStorage
     {
         try
         {
-            var cutoffDate = DateTime.UtcNow.AddDays(-daysToKeep);
+            var cutoffDate = DateTime.Now.AddDays(-daysToKeep);
 
             var expiredLogs = await _dbContext.QuartzJobLogs
                 .Where(l => l.CreateTime < cutoffDate)

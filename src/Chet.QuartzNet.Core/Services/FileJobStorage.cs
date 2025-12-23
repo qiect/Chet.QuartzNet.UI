@@ -728,11 +728,7 @@ public class FileJobStorage : IJobStorage
                 }
 
                 // 序列化作业列表为JSON
-                var json = JsonSerializer.Serialize(jobs, new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                });
+                var json = JsonSerializer.Serialize(jobs, DateTimeSerializationConfig.JsonOptions());
 
                 // 使用FileStream并设置FileShare参数，写入时允许其他进程读取
                 using (var stream = new FileStream(_jobsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
@@ -791,11 +787,7 @@ public class FileJobStorage : IJobStorage
         {
             try
             {
-                var json = JsonSerializer.Serialize(logs, new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                });
+                var json = JsonSerializer.Serialize(logs, DateTimeSerializationConfig.JsonOptions());
 
                 // 使用FileStream并设置FileShare参数，写入时允许其他进程读取
                 using (var stream = new FileStream(_logsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
@@ -1129,11 +1121,7 @@ public class FileJobStorage : IJobStorage
                     CreateBackup(_settingsFilePath);
                 }
 
-                var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                });
+                var json = JsonSerializer.Serialize(settings, DateTimeSerializationConfig.JsonOptions());
 
                 using (var stream = new FileStream(_settingsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
                 using (var writer = new StreamWriter(stream))
@@ -1209,11 +1197,7 @@ public class FileJobStorage : IJobStorage
                     CreateBackup(_notificationsFilePath);
                 }
 
-                var json = JsonSerializer.Serialize(notifications, new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                });
+                var json = JsonSerializer.Serialize(notifications, DateTimeSerializationConfig.JsonOptions());
 
                 using (var stream = new FileStream(_notificationsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
                 using (var writer = new StreamWriter(stream))

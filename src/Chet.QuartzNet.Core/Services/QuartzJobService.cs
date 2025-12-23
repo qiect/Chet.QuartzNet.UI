@@ -560,7 +560,7 @@ public class QuartzJobService : IQuartzJobService
 
                         if (nextFireTimes.Any())
                         {
-                            jobInfo.NextRunTime = nextFireTimes.First().DateTime;
+                            jobInfo.NextRunTime = nextFireTimes.First().LocalDateTime;
                         }
 
                         var previousFireTimes = triggers.Select(t => t.GetPreviousFireTimeUtc())
@@ -571,7 +571,7 @@ public class QuartzJobService : IQuartzJobService
 
                         if (previousFireTimes.Any())
                         {
-                            jobInfo.PreviousRunTime = previousFireTimes.First().DateTime;
+                            jobInfo.PreviousRunTime = previousFireTimes.First().LocalDateTime;
                         }
                     }
                 }
@@ -599,7 +599,7 @@ public class QuartzJobService : IQuartzJobService
 
                 if (nextFireTimes.Any())
                 {
-                    jobInfo.NextRunTime = nextFireTimes.First().DateTime;
+                    jobInfo.NextRunTime = nextFireTimes.First().LocalDateTime;
                 }
 
                 var previousFireTimes = updatedTriggers.Select(t => t.GetPreviousFireTimeUtc())
@@ -610,7 +610,7 @@ public class QuartzJobService : IQuartzJobService
 
                 if (previousFireTimes.Any())
                 {
-                    jobInfo.PreviousRunTime = previousFireTimes.First().DateTime;
+                    jobInfo.PreviousRunTime = previousFireTimes.First().LocalDateTime;
                 }
             }
 
@@ -817,7 +817,7 @@ public class QuartzJobService : IQuartzJobService
 
                         if (nextFireTimes.Any())
                         {
-                            jobResponse.NextRunTime = nextFireTimes.First().DateTime.ToLocalTime();
+                            jobResponse.NextRunTime = nextFireTimes.First().LocalDateTime;
                             _logger.LogInformation("作业 {JobKey} 的下次执行时间: {NextRunTime}", $"{jobInfo.JobGroup}.{jobInfo.JobName}", jobResponse.NextRunTime);
                         }
                         else
@@ -835,7 +835,7 @@ public class QuartzJobService : IQuartzJobService
                         if (previousFireTimes.Any())
                         {
                             // 将UTC时间转换为北京时间（UTC+8）
-                            jobResponse.PreviousRunTime = previousFireTimes.First().DateTime.ToLocalTime();
+                            jobResponse.PreviousRunTime = previousFireTimes.First().LocalDateTime;
                         }
                     }
                     else
@@ -896,8 +896,8 @@ public class QuartzJobService : IQuartzJobService
             {
                 var trigger = triggers.First();
                 // 将UTC时间转换为北京时间（UTC+8）
-                response.NextRunTime = trigger.GetNextFireTimeUtc()?.DateTime.AddHours(8);
-                response.PreviousRunTime = trigger.GetPreviousFireTimeUtc()?.DateTime.AddHours(8);
+                response.NextRunTime = trigger.GetNextFireTimeUtc()?.LocalDateTime;
+                response.PreviousRunTime = trigger.GetPreviousFireTimeUtc()?.LocalDateTime;
             }
 
             return ApiResponseDto<QuartzJobResponseDto>.SuccessResponse(response);
@@ -955,8 +955,8 @@ public class QuartzJobService : IQuartzJobService
             }
 
             // 更新作业执行时间
-            jobInfo.NextRunTime = trigger.GetNextFireTimeUtc()?.DateTime;
-            jobInfo.PreviousRunTime = trigger.GetPreviousFireTimeUtc()?.DateTime;
+            jobInfo.NextRunTime = trigger.GetNextFireTimeUtc()?.LocalDateTime;
+            jobInfo.PreviousRunTime = trigger.GetPreviousFireTimeUtc()?.LocalDateTime;
             jobInfo.UpdateTime = DateTime.Now;
 
             // 保存到存储
@@ -1039,7 +1039,6 @@ public class QuartzJobService : IQuartzJobService
             return false;
         }
     }
-
 
     /// <summary>
     /// 调度作业到Quartz调度器
@@ -1137,15 +1136,14 @@ public class QuartzJobService : IQuartzJobService
         await _scheduler.ScheduleJob(jobDetail, new List<ITrigger> { trigger }, true, cancellationToken);
 
         // 获取作业的下次执行时间并更新到存储
-        var nextRunTime = trigger.GetNextFireTimeUtc()?.DateTime;
-        var previousRunTime = trigger.GetPreviousFireTimeUtc()?.DateTime;
+        var nextRunTime = trigger.GetNextFireTimeUtc()?.LocalDateTime;
+        var previousRunTime = trigger.GetPreviousFireTimeUtc()?.LocalDateTime;
 
         // 更新作业信息
         jobInfo.NextRunTime = nextRunTime;
         jobInfo.PreviousRunTime = previousRunTime;
         await _jobStorage.UpdateJobAsync(jobInfo, cancellationToken);
     }
-
 
     /// <summary>
     /// 将作业信息实体映射为响应DTO
@@ -1180,27 +1178,6 @@ public class QuartzJobService : IQuartzJobService
             UpdateBy = jobInfo.UpdateBy,
             NextRunTime = null,
             PreviousRunTime = null
-        };
-    }
-
-    /// <summary>
-    /// 将通知实体映射为DTO
-    /// </summary>
-    /// <param name="notification">通知实体</param>
-    /// <returns>通知DTO</returns>
-    private QuartzNotificationDto MapToNotificationDto(QuartzNotification notification)
-    {
-        return new QuartzNotificationDto
-        {
-            NotificationId = notification.NotificationId,
-            Title = notification.Title,
-            Content = notification.Content,
-            Status = notification.Status,
-            ErrorMessage = notification.ErrorMessage,
-            TriggeredBy = notification.TriggeredBy,
-            CreateTime = notification.CreateTime,
-            SendTime = notification.SendTime,
-            Duration = notification.Duration
         };
     }
 
@@ -1610,6 +1587,29 @@ public class QuartzJobService : IQuartzJobService
             return ApiResponseDto<bool>.ErrorResponse($"清空通知消息失败: {ex.Message}");
         }
     }
+
+
+    /// <summary>
+    /// 将通知实体映射为DTO
+    /// </summary>
+    /// <param name="notification">通知实体</param>
+    /// <returns>通知DTO</returns>
+    private QuartzNotificationDto MapToNotificationDto(QuartzNotification notification)
+    {
+        return new QuartzNotificationDto
+        {
+            NotificationId = notification.NotificationId,
+            Title = notification.Title,
+            Content = notification.Content,
+            Status = notification.Status,
+            ErrorMessage = notification.ErrorMessage,
+            TriggeredBy = notification.TriggeredBy,
+            CreateTime = notification.CreateTime,
+            SendTime = notification.SendTime,
+            Duration = notification.Duration
+        };
+    }
+
     #endregion
 
 
