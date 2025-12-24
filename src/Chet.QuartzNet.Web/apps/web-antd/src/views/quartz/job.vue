@@ -649,6 +649,20 @@ const handleStopScheduler = () => {
   });
 };
 
+// JSON 格式化函数
+const formatJson = (property: keyof QuartzJobDto) => {
+  try {
+    const value = editForm[property];
+    if (value) {
+      const parsed = JSON.parse(value);
+      editForm[property] = JSON.stringify(parsed, null, 2);
+      message.success('JSON 格式化成功');
+    }
+  } catch (error) {
+    message.error('JSON 格式化失败');
+  }
+};
+
 // 生命周期
 onMounted(async () => {
   await getSchedulerStatusInfo();
@@ -810,7 +824,7 @@ onMounted(async () => {
                   placeholder="例如: 0 0/1 * * * ?"
                   style="flex: 1"
                 />
-                <Button type="default" @click="openCronHelper"> 帮助 </Button>
+                <Button type="default" @click="openCronHelper"> 🤔 </Button>
               </Space.Compact>
             </Form.Item>
           </Col>
@@ -913,53 +927,73 @@ onMounted(async () => {
             </Col>
             <Col :xs="24" :sm="24" :md="24">
               <Form.Item
-                label="API请求头"
-                name="apiHeaders"
-                :rules="[
-                  {
-                    validator: (rule, value, callback) => {
-                      if (!value) return callback();
-                      try {
-                        JSON.parse(value);
-                        callback();
-                      } catch (e) {
-                        callback(new Error('请输入有效的JSON格式'));
-                      }
-                    },
+              label="API请求头"
+              name="apiHeaders"
+              :rules="[
+                {
+                  validator: (rule, value, callback) => {
+                    if (!value) return callback();
+                    try {
+                      JSON.parse(value);
+                      callback();
+                    } catch (e) {
+                      callback(new Error('请输入有效的JSON格式'));
+                    }
                   },
-                ]"
-              >
+                },
+              ]"
+            >
+              <div class="relative">
                 <Input.TextArea
                   v-model:value="editForm.apiHeaders"
                   placeholder="JSON格式的请求头，例如: {'Content-Type': 'application/json'}"
                   :rows="3"
                 />
-              </Form.Item>
+                <Button
+                  type="link"
+                  size="small"
+                  style="position: absolute; right: 8px; bottom: 8px;"
+                  @click="formatJson('apiHeaders')"
+                >
+                  😄
+                </Button>
+              </div>
+            </Form.Item>
             </Col>
             <Col :xs="24" :sm="24" :md="24">
               <Form.Item
-                label="API请求体"
-                name="apiBody"
-                :rules="[
-                  {
-                    validator: (rule, value, callback) => {
-                      if (!value) return callback();
-                      try {
-                        JSON.parse(value);
-                        callback();
-                      } catch (e) {
-                        callback(new Error('请输入有效的JSON格式'));
-                      }
-                    },
+              label="API请求体"
+              name="apiBody"
+              :rules="[
+                {
+                  validator: (rule, value, callback) => {
+                    if (!value) return callback();
+                    try {
+                      JSON.parse(value);
+                      callback();
+                    } catch (e) {
+                      callback(new Error('请输入有效的JSON格式'));
+                    }
                   },
-                ]"
-              >
+                },
+              ]"
+            >
+              <div class="relative">
                 <Input.TextArea
                   v-model:value="editForm.apiBody"
                   placeholder="JSON格式的请求体"
                   :rows="4"
                 />
-              </Form.Item>
+                <Button
+                  type="link"
+                  size="small"
+                  style="position: absolute; right: 8px; bottom: 8px;"
+                  @click="formatJson('apiBody')"
+                >
+                  😄
+                </Button>
+              </div>
+            </Form.Item>
             </Col>
           </Col>
 
@@ -981,11 +1015,21 @@ onMounted(async () => {
                 },
               ]"
             >
-              <Input.TextArea
-                v-model:value="editForm.jobData"
-                placeholder="JSON格式的作业数据"
-                :rows="4"
-              />
+              <div class="relative">
+                <Input.TextArea
+                  v-model:value="editForm.jobData"
+                  placeholder="JSON格式的作业数据"
+                  :rows="4"
+                />
+                <Button
+                  type="link"
+                  size="small"
+                  style="position: absolute; right: 8px; bottom: 8px;"
+                  @click="formatJson('jobData')"
+                >
+                  😄
+                </Button>
+              </div>
             </Form.Item>
           </Col>
           <Col :xs="24" :sm="24" :md="24">

@@ -1,7 +1,7 @@
 <template>
   <Modal
     :open="visible"
-    title="帮助？"
+    title="帮助 🤔"
     @cancel="handleCancel"
     width="800px"
     :footer="null"
