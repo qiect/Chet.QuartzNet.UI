@@ -23,10 +23,10 @@
 				<dependency id="Microsoft.Extensions.FileProviders.Embedded" version="8.0.0" />
 				<dependency id="Microsoft.Extensions.Logging.Abstractions" version="8.0.0" />
 				<dependency id="Microsoft.Extensions.Options.ConfigurationExtensions" version="8.0.0" />
-				<dependency id="Quartz" version="3.8.0" />
-				<dependency id="Quartz.AspNetCore" version="3.8.0" />
-				<dependency id="Quartz.Extensions.DependencyInjection" version="3.8.0" />
-				<dependency id="Quartz.Extensions.Hosting" version="3.8.0" />
+				<dependency id="Quartz" version="3.15.1" />
+				<dependency id="Quartz.AspNetCore" version="3.15.1" />
+				<dependency id="Quartz.Extensions.DependencyInjection" version="3.15.1" />
+				<dependency id="Quartz.Extensions.Hosting" version="3.15.1" />
 			</group>
 		</dependencies>
 	</metadata>
