@@ -96,7 +96,9 @@ const columns = computed<ColumnsType<LogResponseDto>[]>(() => [
     dataIndex: 'status',
     customRender: ({ record }) => {
       const status = logStatusMap[record.status];
-      return h(Tag, { color: status.status }, status.text);
+      return h(Tag, { color: status.status }, {
+        default: () => status?.text || '未知'
+      });
     },
   },
   {
@@ -151,9 +153,6 @@ const columns = computed<ColumnsType<LogResponseDto>[]>(() => [
     title: '操作',
     width: 80,
     key: 'action',
-    slots: {
-      customRender: 'action',
-    },
   },
 ]);
 
@@ -180,7 +179,6 @@ const loadLogList = async () => {
       sortOrder: sortOrder.value,
     });
 
-    console.log('API响应:', response);
 
     if (response.success) {
       // 根据API定义，响应数据应该包含data字段，其中包含items和totalCount，现在还包含totalPages
@@ -191,12 +189,7 @@ const loadLogList = async () => {
       ) {
         dataSource.value = response.data.items;
         total.value = response.data.totalCount || 0;
-        // 可以使用totalPages做额外处理
-        console.log(
-          `成功加载日志列表: ${dataSource.value.length} 条记录，共 ${total.value} 条，总页数：${response.data.totalPages}`,
-        );
       } else {
-        console.warn('API响应数据格式不符合预期', response.data);
         dataSource.value = [];
         total.value = 0;
       }
@@ -321,7 +314,8 @@ initData();
 
 <template>
   <Page>
-    <Card class="mb-4">
+    <template #default>
+      <Card class="mb-4">
       <Form
         ref="searchFormRef"
         :model="searchForm"
@@ -417,9 +411,7 @@ initData();
         :rowKey="(record) => record.logId"
         size="middle"
         @change="handleTableChange"
-        :scroll="{ x: 'max-content' }"
-        )
-        >}">
+        :scroll="{ x: 'max-content' }">
         <template #action="{ record }">
           <Space size="middle">
             <Button
@@ -481,14 +473,7 @@ initData();
               >执行信息</Typography.Title
             >
             <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-              <pre
-                class="word-break-break-word m-0 whitespace-pre-wrap text-sm"
-              >
-                {{
-                  logDetail.message ||
-                  '暂无执行信息'
-                }}
-              </pre>
+              <pre class="word-break-break-word m-0 whitespace-pre-wrap text-sm">{{ logDetail.message || '暂无执行信息' }}</pre>
             </div>
           </div>
 
@@ -501,11 +486,7 @@ initData();
               >错误信息</Typography.Title
             >
             <div class="rounded-lg border border-red-200 bg-red-50 p-4">
-              <pre
-                class="word-break-break-word m-0 whitespace-pre-wrap text-sm text-red-800"
-              >
-                {{ logDetail.errorMessage}}
-              </pre>
+              <pre class="word-break-break-word m-0 whitespace-pre-wrap text-sm text-red-800">{{ logDetail.errorMessage }}</pre>
             </div>
           </div>
 
@@ -518,11 +499,7 @@ initData();
               >异常</Typography.Title
             >
             <div class="rounded-lg border border-red-200 bg-red-50 p-4">
-              <pre
-                class="word-break-break-word m-0 whitespace-pre-wrap text-sm text-red-800"
-              >
-                {{logDetail.exception }}
-              </pre>
+              <pre class="word-break-break-word m-0 whitespace-pre-wrap text-sm text-red-800">{{ logDetail.exception }}</pre>
             </div>
           </div>
 
@@ -532,15 +509,7 @@ initData();
               >执行结果</Typography.Title
             >
             <div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
-              <pre
-                class="word-break-break-word m-0 whitespace-pre-wrap text-sm"
-              >
-                {{
-                  typeof logDetail.result === 'string'
-                    ? logDetail.result
-                    : JSON.stringify(logDetail.result, null, 2)
-                }}
-              </pre>
+              <pre class="word-break-break-word m-0 whitespace-pre-wrap text-sm">{{ typeof logDetail.result === 'string' ? logDetail.result : JSON.stringify(logDetail.result, null, 2) }}</pre>
             </div>
           </div>
 
@@ -550,15 +519,7 @@ initData();
               >作业数据</Typography.Title
             >
             <div class="rounded-lg border border-green-200 bg-green-50 p-4">
-              <pre
-                class="word-break-break-word m-0 whitespace-pre-wrap text-sm"
-              >
-                {{
-                  typeof logDetail.jobData === 'string'
-                    ? logDetail.jobData
-                    : JSON.stringify(logDetail.jobData, null, 2)
-                }}
-              </pre>
+              <pre class="word-break-break-word m-0 whitespace-pre-wrap text-sm">{{ typeof logDetail.jobData === 'string' ? logDetail.jobData : JSON.stringify(logDetail.jobData, null, 2) }}</pre>
             </div>
           </div>
         </div>
@@ -569,5 +530,6 @@ initData();
         <Button @click="detailModalVisible = false" type="primary">关闭</Button>
       </div>
     </Modal>
+    </template>
   </Page>
 </template>

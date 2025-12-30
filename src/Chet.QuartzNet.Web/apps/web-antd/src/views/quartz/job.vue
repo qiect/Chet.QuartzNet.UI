@@ -612,7 +612,6 @@ const handleSave = async () => {
       error.message ||
       (editModalTitle.value === '编辑作业' ? '作业更新失败' : '作业创建失败');
     message.error(errorMessage);
-    console.error('保存作业失败:', error);
   } finally {
     loading.value = false;
   }
@@ -701,8 +700,6 @@ const handleBatchDelete = () => {
             JobGroup: job.jobGroup
           };
         });
-        
-        console.log('批量删除作业参数:', jobList);
         
         const result = await batchDeleteJob(jobList);
         
@@ -799,7 +796,8 @@ onMounted(async () => {
 
 <template>
   <Page>
-    <Card class="mb-4">
+    <template #default>
+      <Card class="mb-4">
       <Form ref="searchFormRef" :model="searchForm" layout="horizontal" :label-col="{ span: 6 }"
         :wrapper-col="{ span: 18 }" :label-align="'right'">
         <Row :gutter="16">
@@ -1044,7 +1042,8 @@ onMounted(async () => {
     </Modal>
 
     <!-- Cron帮助模态框 -->
-    <CronHelperModal v-model:open="cronHelperVisible" @cancel="closeCronHelper" @select="selectCronExpression" />
+    <CronHelperModal v-model:visible="cronHelperVisible" @cancel="closeCronHelper" @select="selectCronExpression" />
+    </template>
   </Page>
 </template>
 

@@ -410,7 +410,8 @@ onMounted(() => {
 
 <template>
   <Page>
-    <Card class="mb-4">
+    <template #default>
+      <Card class="mb-4">
       <Form
         ref="searchFormRef"
         :model="searchForm"
@@ -483,7 +484,7 @@ onMounted(() => {
 
     <!-- 配置对话框 -->
     <Modal
-      v-model:visible="configModalVisible"
+      v-model:open="configModalVisible"
       :title="configModalTitle"
       width="800px"
       :body-style="{ padding: '24px' }"
@@ -664,11 +665,7 @@ onMounted(() => {
               >错误信息</Typography.Title
             >
             <div class="rounded-lg border border-red-200 bg-red-50 p-4">
-              <pre
-                class="word-break-break-word m-0 whitespace-pre-wrap text-sm text-red-800"
-              >
-                {{ currentNotification.errorMessage }}
-              </pre>
+              <pre class="word-break-break-word m-0 whitespace-pre-wrap text-sm text-red-800">{{ currentNotification.errorMessage }}</pre>
             </div>
           </div>
         </div>
@@ -679,6 +676,7 @@ onMounted(() => {
         <Button @click="detailModalVisible = false" type="primary">关闭</Button>
       </div>
     </Modal>
+    </template>
   </Page>
 </template>
 
