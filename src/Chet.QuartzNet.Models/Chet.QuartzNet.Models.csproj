@@ -5,13 +5,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>Chet.QuartzNet.Models</PackageId>
-    <Version>1.5.0</Version>
+    <Version>1.6.0</Version>
     <Authors>Chet</Authors>
     <Description>Quartz.Net UI 数据模型库</Description>
     <PackageTags>Quartz;Scheduler;UI;Models</PackageTags>
   </PropertyGroup>
 
 </Project>
+
+
 
 
 

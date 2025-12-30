@@ -30,6 +30,14 @@ export default defineConfig(async () => {
         outDir: '../../../Chet.QuartzNet.UI/wwwroot/quartz-ui',
         // 构建前清空输出目录
         emptyOutDir: true,
+        // 配置terser移除console日志
+        minify: 'terser',
+        terserOptions: {
+          compress: {
+            drop_console: true,
+            drop_debugger: true,
+          },
+        },
       },
     },
   };

@@ -131,7 +131,6 @@ const fetchStatsData = async () => {
     const statusDistributionResponse = await getJobStatusDistribution(query);
     if (statusDistributionResponse && statusDistributionResponse.success && statusDistributionResponse.data) {
       jobStatusDistribution.value = statusDistributionResponse.data as JobStatusDistribution[];
-      console.log('jobStatusDistribution:', JSON.stringify(jobStatusDistribution.value));
     } else {
       jobStatusDistribution.value = [];
     }

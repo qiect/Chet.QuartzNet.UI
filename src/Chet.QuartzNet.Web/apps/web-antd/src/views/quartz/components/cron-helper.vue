@@ -1,23 +1,9 @@
 <template>
-  <Modal
-    :open="visible"
-    title="帮助 🤔"
-    @cancel="handleCancel"
-    width="800px"
-    :footer="null"
-    :z-index="10000"
-  >
+  <Modal :open="visible" title="帮助 🤔" @cancel="handleCancel" width="800px" :footer="null" :z-index="10000">
     <div class="cron-helper">
       <Card class="mb-4" title="常用Cron表达式">
-        <Table
-          :columns="cronColumns"
-          :data-source="cronExamples"
-          :pagination="false"
-          :row-key="'id'"
-          @row-click="handleSelectCron"
-          :row-hover="true"
-          size="small"
-        >
+        <Table :columns="cronColumns" :data-source="cronExamples" :pagination="false" :row-key="'id'"
+          @row-click="handleSelectCron" :row-hover="true" size="small">
           <template #action="{ record }">
             <Button type="default" @click.stop="handleSelectCron(record)">
               选择
@@ -198,6 +184,7 @@ const handleCancel = () => {
 
     ul {
       padding-left: 20px;
+
       li {
         margin-bottom: 8px;
         line-height: 1.5;

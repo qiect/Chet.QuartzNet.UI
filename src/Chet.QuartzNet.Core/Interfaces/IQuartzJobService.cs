@@ -34,6 +34,14 @@ public interface IQuartzJobService
     Task<ApiResponseDto<bool>> DeleteJobAsync(string jobName, string jobGroup, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 批量删除作业
+    /// </summary>
+    /// <param name="jobs">作业列表（包含jobName和jobGroup）</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>操作结果</returns>
+    Task<ApiResponseDto<bool>> BatchDeleteJobsAsync(List<(string JobName, string JobGroup)> jobs, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 暂停作业
     /// </summary>
     /// <param name="jobName">作业名称</param>

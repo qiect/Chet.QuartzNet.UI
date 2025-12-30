@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
   <metadata>
     <id>Chet.QuartzNet.EFCore.PostgreSQL</id>
-    <version>1.5.0</version>
+    <version>1.6.0</version>
     <authors>Chet</authors>
     <description>Chet.QuartzNet.UI PostgreSQL 数据库支持</description>
     <tags>Quartz;Scheduler;EFCore;PostgreSQL</tags>
@@ -10,7 +10,7 @@
     <repository type="git" url="https://github.com/qiect/Chet.QuartzNet.UI" />
     <icon>icon.png</icon>
     <readme>README.md</readme>
-    <releaseNotes>v1.5.0: Please refer to README.md</releaseNotes>
+    <releaseNotes>https://github.com/qiect/Chet.QuartzNet.UI/releases/tag/1.6.0</releaseNotes>
     <dependencies>
       <group targetFramework=".NETCoreApp8.0">
         <dependency id="Npgsql.EntityFrameworkCore.PostgreSQL" version="8.0.0" exclude="Build,Analyzers" />
@@ -33,6 +33,8 @@
     <file src="..\..\docs\nuget\README.md" target="" />
   </files>
 </package>
+
+
 
 
 

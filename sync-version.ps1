@@ -40,7 +40,7 @@ foreach ($nuspecFile in $nuspecFiles) {
     if (Test-Path -Path $nuspecFile) {
         $content = Get-Content -Path $nuspecFile -Raw -Encoding UTF8
         $content = $content -replace '<version>(.*?)</version>', "<version>$version</version>"
-        $content = $content -replace '<releaseNotes>(.*?)</releaseNotes>', "<releaseNotes>v${version}: Please refer to README.md</releaseNotes>"
+        $content = $content -replace '<releaseNotes>(.*?)</releaseNotes>', "<releaseNotes>https://github.com/qiect/Chet.QuartzNet.UI/releases/tag/${version}</releaseNotes>"
         Set-Content -Path $nuspecFile -Value $content -Encoding UTF8
         Write-Host "Updated: $nuspecFile"
     } else {

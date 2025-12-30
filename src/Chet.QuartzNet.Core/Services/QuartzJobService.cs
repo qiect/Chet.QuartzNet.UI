@@ -479,6 +479,63 @@ public class QuartzJobService : IQuartzJobService
     }
 
     /// <summary>
+    /// 批量删除指定作业
+    /// </summary>
+    /// <param name="jobs">作业名称和分组的列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>操作结果</returns>
+    public async Task<ApiResponseDto<bool>> BatchDeleteJobsAsync(List<(string JobName, string JobGroup)> jobs, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            int successCount = 0;
+            int failureCount = 0;
+
+            foreach (var (jobName, jobGroup) in jobs)
+            {
+                try
+                {
+                    var jobKey = new JobKey(jobName, jobGroup);
+
+                    // 删除调度器中的作业
+                    var deleteResult = await _scheduler.DeleteJob(jobKey, cancellationToken);
+                    if (!deleteResult)
+                    {
+                        _logger.LogWarn("BatchDeleteJobs", $"从调度器删除作业失败: {jobGroup}.{jobName}");
+                    }
+
+                    // 删除存储中的作业信息
+                    var storageResult = await _jobStorage.DeleteJobAsync(jobName, jobGroup, cancellationToken);
+
+                    if (storageResult)
+                    {
+                        successCount++;
+                        _logger.LogSuccess("BatchDeleteJobs", $"{jobGroup}.{jobName}");
+                    }
+                    else
+                    {
+                        failureCount++;
+                        _logger.LogWarn("BatchDeleteJobs", $"从存储删除作业失败: {jobGroup}.{jobName}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    failureCount++;
+                    _logger.LogFailure("BatchDeleteJobs", ex);
+                }
+            }
+
+            string message = $"批量删除作业完成，成功删除 {successCount} 个作业，失败 {failureCount} 个作业";
+            return ApiResponseDto<bool>.SuccessResponse(true, message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("BatchDeleteJobs", ex);
+            return ApiResponseDto<bool>.ErrorResponse($"批量删除作业失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// 暂停指定作业
     /// </summary>
     /// <param name="jobName">作业名称</param>

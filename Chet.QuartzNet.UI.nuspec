@@ -2,7 +2,7 @@
 <package >
 	<metadata>
 		<id>Chet.QuartzNet.UI</id>
-		<version>1.5.0</version>
+		<version>1.6.0</version>
 		<title>Chet.QuartzNet.UI</title>
 		<authors>Chet</authors>
 		<owners>Chet</owners>
@@ -15,7 +15,7 @@
 		<repository type="git" url="https://github.com/qiect/Chet.QuartzNet.UI" />
 		<icon>icon.png</icon>
 		<readme>README.md</readme>
-		<releaseNotes>v1.5.0: Please refer to README.md</releaseNotes>
+		<releaseNotes>https://github.com/qiect/Chet.QuartzNet.UI/releases/tag/1.6.0</releaseNotes>
 		<dependencies>
 			<group targetFramework="net8.0">
 				<dependency id="Microsoft.AspNetCore.Authentication.JwtBearer" version="8.0.0" />
@@ -52,6 +52,8 @@
     <file src="docs\nuget\README.md" target="" />
   </files>
 </package>
+
+
 
 
 

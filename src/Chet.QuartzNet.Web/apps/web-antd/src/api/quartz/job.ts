@@ -267,6 +267,16 @@ export async function deleteJob(jobName: string, jobGroup: string): Promise<ApiR
 }
 
 /**
+ * 批量删除作业
+ * @param jobs 作业列表，包含JobName和JobGroup字段
+ * @returns 删除结果
+ */
+export async function batchDeleteJob(jobs: Array<{JobName: string; JobGroup: string}>): Promise<ApiResponse<boolean>> {
+  const response = await requestClient.post('/api/quartz/BatchDeleteJobs', jobs);
+  return response;
+}
+
+/**
  * 暂停作业
  * @param jobName 作业名称
  * @param jobGroup 作业分组

@@ -226,6 +226,34 @@ public class QuartzUIController : ControllerBase
     }
 
     /// <summary>
+    /// 批量删除作业
+    /// </summary>
+    [HttpPost("BatchDeleteJobs")]
+    public async Task<ActionResult<ApiResponseDto<bool>>> BatchDeleteJobs([FromBody] List<BatchDeleteRequest> jobs)
+    {
+        try
+        {
+            // 转换为服务需要的格式
+            var jobTuples = jobs.Select(j => (j.JobName, j.JobGroup)).ToList();
+            var result = await _jobService.BatchDeleteJobsAsync(jobTuples);
+            if (result.Success)
+            {
+                _logger.LogSuccess("批量删除作业", $"批量删除作业成功，共删除 {jobs.Count} 个作业");
+            }
+            else
+            {
+                _logger.LogWarn("批量删除作业", $"批量删除作业失败: {result.Message}");
+            }
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("批量删除作业", ex);
+            return Ok(ApiResponseDto<bool>.ErrorResponse("批量删除作业失败: " + ex.Message));
+        }
+    }
+    
+    /// <summary>
     /// 暂停作业
     /// </summary>
     [HttpPost("PauseJob")]

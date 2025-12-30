@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>Chet.QuartzNet.EFCore.SqlServer</PackageId>
-    <Version>1.5.0</Version>
+    <Version>1.6.0</Version>
     <Authors>Chet</Authors>
     <Description>Chet.QuartzNet.UI SQL Server 数据库支持</Description>
     <PackageTags>Quartz;Scheduler;EFCore;SqlServer</PackageTags>
@@ -26,6 +26,8 @@
   </ItemGroup>
 
 </Project>
+
+
 
 
 
