@@ -153,6 +153,9 @@ const columns = computed<ColumnsType<LogResponseDto>[]>(() => [
     title: '操作',
     width: 80,
     key: 'action',
+    slots: {
+      customRender: 'action',
+    },
   },
 ]);
 

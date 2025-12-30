@@ -617,30 +617,32 @@ onMounted(() => {
           </div>
 
           <!-- 基本信息行 -->
-          <div class="mt-2 grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div class="mt-2 grid grid-cols-1 gap-4">
             <div class="flex items-center">
               <span class="mr-2 font-bold">触发来源:</span>
               <span>{{ currentNotification.triggeredBy || '-' }}</span>
             </div>
-            <div class="flex items-center">
-              <span class="mr-2 font-bold">发送时间:</span>
-              <span>{{
-                currentNotification.sendTime
-                  ? formatDateTime(currentNotification.sendTime)
-                  : '-'
-              }}</span>
-            </div>
-            <div class="flex items-center">
-              <span class="mr-2 font-bold">发送耗时:</span>
-              <span>{{
-                currentNotification.duration
-                  ? `${currentNotification.duration} ms`
-                  : '0 ms'
-              }}</span>
-            </div>
-            <div class="flex items-center">
-              <span class="mr-2 font-bold">创建时间:</span>
-              <span>{{ formatDateTime(currentNotification.createTime) }}</span>
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div class="flex items-center">
+                <span class="mr-2 font-bold">发送时间:</span>
+                <span>{{
+                  currentNotification.sendTime
+                    ? formatDateTime(currentNotification.sendTime)
+                    : '-'
+                }}</span>
+              </div>
+              <div class="flex items-center">
+                <span class="mr-2 font-bold">发送耗时:</span>
+                <span>{{
+                  currentNotification.duration
+                    ? `${currentNotification.duration} ms`
+                    : '0 ms'
+                }}</span>
+              </div>
+              <div class="flex items-center">
+                <span class="mr-2 font-bold">创建时间:</span>
+                <span>{{ formatDateTime(currentNotification.createTime) }}</span>
+              </div>
             </div>
           </div>
         </div>
