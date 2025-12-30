@@ -264,41 +264,54 @@ const columns = computed(() => [
     key: 'action',
     width: 80,
     customRender: ({ record }: { record: QuartzJobResponseDto }) => {
-      // 创建下拉菜单
-      const menu = h(Menu, {}, [
-        h(
-          Menu.Item,
-          {
-            onClick: () => handleEdit(record),
-          },
-          '编辑',
-        ),
-        h(
-          Menu.Item,
-          {
-            onClick: () => handleDelete(record),
-            danger: true,
-          },
-          '删除',
-        ),
-        h(
-          Menu.Item,
-          {
-            onClick: () =>
-              record.status === JobStatusEnum.Normal
-                ? handleStop(record)
-                : handleResume(record),
-          },
-          record.status === JobStatusEnum.Normal ? '停止' : '恢复',
-        ),
-        h(
-          Menu.Item,
-          {
-            onClick: () => handleExecute(record),
-          },
-          '立即执行',
-        ),
-      ]);
+        // 创建下拉菜单
+        const menu = h(Menu, {}, [
+          h(
+            Menu.Item,
+            {
+              onClick: () => handleEdit(record),
+            },
+            '编辑',
+          ),
+          h(
+            Menu.Item,
+            {
+              onClick: () => handleCopyJob(record),
+            },
+            '复制',
+          ),
+          h(
+            Menu.Item,
+            {
+              onClick: () => handleDelete(record),
+              danger: true,
+            },
+            '删除',
+          ),
+          h(
+            Menu.Item,
+            {
+              onClick: () =>
+                record.status === JobStatusEnum.Normal
+                  ? handleStop(record)
+                  : handleResume(record),
+              style: {
+                color: record.status === JobStatusEnum.Normal ? '#faad14' : '#52c41a', // 停止-黄色，恢复-绿色
+              },
+            },
+            record.status === JobStatusEnum.Normal ? '停止' : '恢复',
+          ),
+          h(
+            Menu.Item,
+            {
+              onClick: () => handleExecute(record),
+              style: {
+                color: '#1890ff', // 立即执行-蓝色
+              },
+            },
+            '立即执行',
+          ),
+        ]);
 
       return h(
         Dropdown,
@@ -425,6 +438,54 @@ const handleAdd = async () => {
   await loadJobClasses();
   editModalVisible.value = true;
 };
+
+// 复制作业功能
+const handleCopyJob = async (job: QuartzJobResponseDto) => {
+  editModalTitle.value = '复制作业';
+  try {
+    const response = await getJob(job.jobName, job.jobGroup);
+    // 转换响应数据到表单格式
+    // 处理jobType：后端返回字符串，前端使用枚举数字
+    let jobTypeValue = JobTypeEnum.DLL;
+    if (response.data?.jobType === 'API') {
+      jobTypeValue = JobTypeEnum.API;
+    } else if (response.data?.jobType === 'DLL') {
+      jobTypeValue = JobTypeEnum.DLL;
+    } else if (typeof response.data?.jobType === 'number') {
+      jobTypeValue = response.data.jobType;
+    }
+
+    const jobDetail = {
+      jobName: `${response.data?.jobName}_Copy`,
+      jobGroup: `${response.data?.jobGroup || ''}_Copy`,
+      jobType: jobTypeValue,
+      jobClassOrApi: response.data?.jobClassOrApi || '',
+      cronExpression: response.data?.cronExpression || '',
+      description: response.data?.description || '',
+      jobData: response.data?.jobData || '',
+      apiMethod: response.data?.apiMethod || 'GET',
+      apiHeaders: response.data?.apiHeaders || '',
+      apiBody: response.data?.apiBody || '',
+      apiTimeout: response.data?.apiTimeout || 60,
+      skipSslValidation: response.data?.skipSslValidation || false,
+      startTime: response.data?.startTime || undefined,
+      endTime: response.data?.endTime || undefined,
+      isEnabled: response.data?.isEnabled !== false,
+    };
+    Object.assign(editForm, jobDetail);
+
+    // 如果作业类型是DLL，加载作业类列表
+    if (editForm.jobType === JobTypeEnum.DLL) {
+      await loadJobClasses();
+    }
+
+    editModalVisible.value = true;
+  } catch (error) {
+    message.error('获取作业详情失败');
+    console.error('获取作业详情失败:', error);
+  }
+};
+
 
 // 打开编辑对话框
 const handleEdit = async (job: QuartzJobResponseDto) => {
@@ -723,7 +784,9 @@ onMounted(async () => {
             {{ schedulerStatus.status }}
           </Tag>
         </Space>
-        <Button type="primary" @click="handleAdd"> 新增作业 </Button>
+        <Space>
+          <Button type="primary" @click="handleAdd"> 新增作业 </Button>
+        </Space>
       </div>
       <!-- 作业列表 -->
       <Table :columns="columns" :data-source="dataSource" :pagination="pagination" :loading="loading"
