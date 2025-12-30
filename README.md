@@ -1,6 +1,6 @@
 # Chet.QuartzNet.UI 可视化作业调度管理系统
 
-Chet.QuartzNet.UI 是一个基于 .NET 8.0 和VbenAdmin 框架开发的可视化作业调度管理系统，提供了完整的任务调度管理功能，支持文件存储和数据库存储两种模式。该组件库旨在简化 Quartz.Net 的使用门槛，提供直观、易用的可视化管理界面，使开发人员能够轻松地创建、管理、监控和调试定时作业，无需深入了解 Quartz.Net 的复杂 API。
+Chet.QuartzNet.UI 是一个基于 .NET 8.0 和 VbenAdmin 框架开发的可视化作业调度管理系统，提供了完整的任务调度管理功能，支持文件存储和数据库存储两种模式。该组件库旨在简化 Quartz.Net 的使用门槛，提供直观、易用的可视化管理界面，使开发人员能够轻松地创建、管理、监控和调试定时作业，无需深入了解 Quartz.Net 的复杂 API。
 
 通过 Chet.QuartzNet.UI，您可以快速集成任务调度功能到现有项目中，实现作业的可视化配置、实时监控和历史记录查询，大大提高开发效率和运维便利性。
 
@@ -81,6 +81,7 @@ builder.Services.AddQuartzClassJobs();
 // 启用中间件
 app.UseQuartz();
 ```
+
 **配置说明**：
 需要在 `appsettings.json` 中添加以下配置：
 
@@ -97,6 +98,7 @@ app.UseQuartz();
 ```
 
 **配置说明**：
+
 - 文件存储模式无需额外配置，系统会自动使用文件存储
 - 自动读取 `QuartzUI` 节中的 JWT 认证配置
 - 作业数据存储在应用目录下的 `App_Data/QuartzJobs/` 文件夹下
@@ -138,11 +140,11 @@ app.UseQuartz();
 ```
 
 **数据库支持**：
+
 - ✅ MySQL
 - ✅ PostgreSQL
 - ✅ SQL Server
 - ✅ SQLite
-
 
 ### 2. 访问管理界面
 
@@ -206,6 +208,7 @@ builder.Services.AddQuartzClassJobs();
 ## 🎯 界面功能
 
 ### 分析页
+
 - 📊 **作业统计概览**：总作业数、启用/禁用作业数、正在执行作业数、成功/失败执行次数
 - 📈 **作业状态分布**：各状态作业数量和百分比的饼图展示
 - 📋 **作业类型分布**：各类型作业数量和百分比的饼图展示
@@ -213,8 +216,9 @@ builder.Services.AddQuartzClassJobs();
 - ⏱️ **作业执行耗时**：作业执行耗时的柱状图展示
 
 ### 作业管理
+
 - 📋 作业列表展示（支持分页、搜索、筛选）
-- ➕ 添加新作业（支持Cron表达式验证）
+- ➕ 添加新作业（支持 Cron 表达式验证）
 - ✏️ 编辑现有作业
 - 🔄 触发作业（立即执行）
 - ⏸️ 暂停/恢复作业
@@ -222,6 +226,7 @@ builder.Services.AddQuartzClassJobs();
 - 📊 查看作业状态（正常、暂停、完成、错误、阻塞）
 
 ### 日志管理
+
 - 📜 查看作业执行历史
 - 🔍 按状态筛选日志（运行中、成功、失败）
 - ⏱️ 查看执行耗时
@@ -230,6 +235,7 @@ builder.Services.AddQuartzClassJobs();
 - 🗑️ 删除日志记录
 
 ### 通知管理
+
 - 🔔 **通知配置**：配置 PushPlus Token、推送渠道、消息模板等
 - 🎛️ **通知策略**：设置作业成功/失败、调度器异常时的通知规则
 - 📋 **通知历史**：查看所有通知发送记录
@@ -238,11 +244,13 @@ builder.Services.AddQuartzClassJobs();
 - 📤 **测试通知**：发送测试通知验证配置是否正确
 
 ### 调度器状态
+
 - 🟢 实时显示调度器运行状态
 - 📈 自动刷新状态信息
 - 📊 显示当前活跃作业数量
 
 ### 作业类型支持
+
 - 🎯 DLL 模式：基于类的作业定义
 - ⚙️ API 模式：基于 API 调用的作业定义
 
@@ -250,13 +258,12 @@ builder.Services.AddQuartzClassJobs();
 
 系统支持通过不同的扩展包来支持多种数据库。您需要根据实际使用的数据库安装对应的扩展包：
 
-| 数据库类型 | 扩展包名称 | 安装命令 |
-|-----------|-----------|----------|
-| MySQL | Chet.QuartzNet.EFCore.MySql | `Install-Package Chet.QuartzNet.EFCore.MySql` 或 `dotnet add package Chet.QuartzNet.EFCore.MySql` |
+| 数据库类型 | 扩展包名称                       | 安装命令                                                                                                    |
+| ---------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| MySQL      | Chet.QuartzNet.EFCore.MySql      | `Install-Package Chet.QuartzNet.EFCore.MySql` 或 `dotnet add package Chet.QuartzNet.EFCore.MySql`           |
 | PostgreSQL | Chet.QuartzNet.EFCore.PostgreSQL | `Install-Package Chet.QuartzNet.EFCore.PostgreSQL` 或 `dotnet add package Chet.QuartzNet.EFCore.PostgreSQL` |
-| SQL Server | Chet.QuartzNet.EFCore.SqlServer | `Install-Package Chet.QuartzNet.EFCore.SqlServer` 或 `dotnet add package Chet.QuartzNet.EFCore.SqlServer` |
-| SQLite | Chet.QuartzNet.EFCore.SQLite | `Install-Package Chet.QuartzNet.EFCore.SQLite` 或 `dotnet add package Chet.QuartzNet.EFCore.SQLite` |
-
+| SQL Server | Chet.QuartzNet.EFCore.SqlServer  | `Install-Package Chet.QuartzNet.EFCore.SqlServer` 或 `dotnet add package Chet.QuartzNet.EFCore.SqlServer`   |
+| SQLite     | Chet.QuartzNet.EFCore.SQLite     | `Install-Package Chet.QuartzNet.EFCore.SQLite` 或 `dotnet add package Chet.QuartzNet.EFCore.SQLite`         |
 
 ## 📁 项目结构
 
@@ -290,93 +297,126 @@ Chet.QuartzNet.UI/
 
 ## 📝 更新说明
 
+### [1.6.0] - 2025-12-30
+
+#### 新增
+
+- 实现批量删除作业功能
+- 添加作业复制功能
+
+#### 优化
+
+- 优化操作菜单样式
+- 优化日志详情和通知详情信息 UI
+
+#### 兼容性
+
+- 与现有版本完全兼容
+
 ### [1.5.0] - 2025-12-27
 
 #### 优化
-- 为了提升作业数据访问的便利性，现已对JobDataMap封装了两个扩展方法：
-GetJobDataJson —— 用于直接获取JSON字符串；
-GetJobData —— 可将数据反序列化为指定类型的对象
+
+- 为了提升作业数据访问的便利性，现已对 JobDataMap 封装了两个扩展方法：
+  GetJobDataJson —— 用于直接获取 JSON 字符串；
+  GetJobData —— 可将数据反序列化为指定类型的对象
 
 由
+
 ```csharp
 var jobDataMap = context.JobDetail.JobDataMap;
 var json = JsonSerializer.Serialize(jobDataMap.WrappedMap);
 ```
+
 调整为
 
 ```csharp
 var jobDataJson = context.JobDetail.JobDataMap.GetJobDataJson();
 var jobData = context.JobDetail.JobDataMap.GetJobData<SampleParam>();
 ```
-原来的方式仍然可用，但只能通过JobDataMap的JobData键值对进行访问。建议优先使用新的扩展方法来简化操作。
 
-- 选择API方式时去掉了多余的作业数据输入框，对现有功能无任何影响
+原来的方式仍然可用，但只能通过 JobDataMap 的 JobData 键值对进行访问。建议优先使用新的扩展方法来简化操作。
+
+- 选择 API 方式时去掉了多余的作业数据输入框，对现有功能无任何影响
 
 #### 兼容性
+
 - 获取作业数据方式会受影响，建议使用新的扩展方法调整
 - 无需数据库迁移或配置更改
 
 ### [1.4.0] - 2025-12-25
 
 #### 修复
-- 实现作业初始化后立即调度，解决新增ClassJob未及时调度问题
-- 修复API超时问题，确保按配置时间执行
+
+- 实现作业初始化后立即调度，解决新增 ClassJob 未及时调度问题
+- 修复 API 超时问题，确保按配置时间执行
 
 #### 优化
+
 - 全面重构各模块日志记录，统一格式与逻辑
-- 升级Quartz依赖至3.15.1
-- 更新前端UI组件与样式
+- 升级 Quartz 依赖至 3.15.1
+- 更新前端 UI 组件与样式
 - 优化作业执行结果处理与日志详情
 
 #### 兼容性
+
 - 与现有版本完全兼容
 - 无需数据库迁移或配置更改
 
 ### [1.3.2] - 2025-12-23
 
 #### 修复
+
 - 修复时间处理问题
 - 修复认证过期未跳转重新登录的问题
 
 #### 优化
+
 - 修改文档
-- 添加JSON格式化功能
+- 添加 JSON 格式化功能
 
 #### 兼容性
+
 - 与现有版本完全兼容
 - 无需数据库迁移或配置更改
 
 ### [1.3.0] - 2025-12-17
 
 #### 修复
+
 - 修复使用数据库存储方式时 Nuget 包源的问题
 
 #### 兼容性
+
 - 与现有版本完全兼容
 - 无需数据库迁移或配置更改
 
 ### [1.2.4] - 2025-12-16
 
 #### 优化
+
 - 更换 Logo
 - 打包时添加 README.md 文件
 
 #### 兼容性
+
 - 与现有版本完全兼容
 - 无需数据库迁移或配置更改
 
 ### [1.1.4] - 2025-12-14
 
 #### 修复
+
 - 修复使用数据库存储方式时迁移失败的问题
 
 #### 优化
+
 - 操作时添加提醒
 
 #### 兼容性
+
 - 与现有版本完全兼容
 - 无需数据库迁移或配置更改
-
 
 ## 🤝 贡献指南
 
@@ -403,7 +443,7 @@ var jobData = context.JobDetail.JobDataMap.GetJobData<SampleParam>();
 ## 🙏 致谢
 
 - [Quartz.Net](https://www.quartz-scheduler.net/) - 优秀的任务调度框架
-- [VbenAdmin](https://www.vben.pro/) - 美观的UI组件库
+- [VbenAdmin](https://www.vben.pro/) - 美观的 UI 组件库
 - [.NET](https://dotnet.microsoft.com/) - 强大的开发平台
 
 ---
