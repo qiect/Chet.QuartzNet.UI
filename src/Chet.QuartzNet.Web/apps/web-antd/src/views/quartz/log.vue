@@ -319,21 +319,20 @@ initData();
   <Page>
     <template #default>
       <Card class="mb-4">
-        <Form ref="searchFormRef" :model="searchForm" layout="horizontal" :label-col="{ span: 6 }"
-          :wrapper-col="{ span: 18 }" :label-align="'right'">
+        <Form ref="searchFormRef" :model="searchForm" layout="horizontal" :label-align="'right'">
           <Row :gutter="16">
             <!-- 默认显示的3个搜索条件 -->
-            <Col :xs="24" :sm="12" :lg="8" :xxl="4">
+            <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="4">
               <Form.Item label="作业名称" name="jobName">
                 <Input v-model:value="searchForm.jobName" placeholder="请输入作业名称" />
               </Form.Item>
             </Col>
-            <Col :xs="24" :sm="12" :lg="8" :xxl="4">
+            <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="4">
               <Form.Item label="作业分组" name="jobGroup">
                 <Input v-model:value="searchForm.jobGroup" placeholder="请输入作业分组" />
               </Form.Item>
             </Col>
-            <Col :xs="24" :sm="12" :lg="8" :xxl="4">
+            <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="4">
               <Form.Item label="执行状态" name="status">
                 <Select v-model:value="searchForm.status" placeholder="请选择状态" allowClear>
                   <Select.Option :value="LogStatusEnum.SUCCESS">成功</Select.Option>
@@ -342,12 +341,12 @@ initData();
                 </Select>
               </Form.Item>
             </Col>
-            <Col :xs="24" :sm="12" :lg="8" :xxl="4">
+            <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="4">
               <Form.Item label="开始时间" name="startTime">
                 <DatePicker v-model:value="searchForm.startTime" showTime placeholder="选择开始时间" />
               </Form.Item>
             </Col>
-            <Col :xs="24" :sm="12" :lg="8" :xxl="4">
+            <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="4">
               <Form.Item label="结束时间" name="endTime">
                 <DatePicker v-model:value="searchForm.endTime" showTime placeholder="选择结束时间" />
               </Form.Item>
@@ -358,7 +357,7 @@ initData();
             </template>
 
             <!-- 搜索按钮和展开/收起按钮 -->
-            <Col :xs="24" :sm="12" :md="8" :lg="8" :xxl="4" class="text-right">
+            <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="4" class="text-right">
               <Space>
                 <Button type="primary" @click="handleSearch"> 搜索 </Button>
                 <Button @click="handleReset"> 重置 </Button>

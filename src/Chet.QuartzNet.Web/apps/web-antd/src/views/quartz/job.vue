@@ -808,20 +808,19 @@ onMounted(async () => {
   <Page>
     <template #default>
       <Card class="mb-4">
-        <Form ref="searchFormRef" :model="searchForm" layout="horizontal" :label-col="{ span: 6 }"
-          :wrapper-col="{ span: 18 }" :label-align="'right'">
+        <Form ref="searchFormRef" :model="searchForm" layout="horizontal" :label-align="'right'">
           <Row :gutter="16">
-            <Col :xs="24" :sm="12" :lg="8" :xl="6" :xxl="4">
+            <Col :xs="24" :sm="12" :md="8" :lg="8" :xl="6">
               <Form.Item label="作业名称" name="jobName">
                 <Input v-model:value="searchForm.jobName" placeholder="请输入作业名称" />
               </Form.Item>
             </Col>
-            <Col :xs="24" :sm="12" :lg="8" :xl="6" :xxl="4">
+            <Col :xs="24" :sm="12" :md="8" :lg="8" :xl="6">
               <Form.Item label="作业分组" name="jobGroup">
                 <Input v-model:value="searchForm.jobGroup" placeholder="请输入作业分组" />
               </Form.Item>
             </Col>
-            <Col :xs="24" :sm="12" :lg="8" :xl="6" :xxl="4">
+            <Col :xs="24" :sm="12" :md="8" :lg="8" :xl="6">
               <Form.Item label="作业状态" name="status">
                 <Select v-model:value="searchForm.status" placeholder="请选择状态" allowClear>
                   <Select.Option :value="JobStatusEnum.Normal">正常</Select.Option>
@@ -832,7 +831,7 @@ onMounted(async () => {
                 </Select>
               </Form.Item>
             </Col>
-            <Col :xs="24" :sm="12" :lg="24" :xl="6" :xxl="12" class="text-right">
+            <Col :xs="24" :sm="24" :md="24" :lg="24" :xl="6" class="text-right">
               <Space>
                 <Button type="primary" @click="handleSearch"> 搜索 </Button>
                 <Button @click="handleReset"> 重置 </Button>

@@ -412,10 +412,9 @@ onMounted(() => {
   <Page>
     <template #default>
       <Card class="mb-4">
-        <Form ref="searchFormRef" :model="searchForm" layout="horizontal" :label-col="{ span: 6 }"
-          :wrapper-col="{ span: 18 }" :label-align="'right'">
+        <Form ref="searchFormRef" :model="searchForm" layout="horizontal" :label-align="'right'">
           <Row :gutter="16">
-            <Col :xs="24" :sm="12" :lg="8" :xl="6" :xxl="4">
+            <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="6" :xxl="4">
               <Form.Item label="通知状态" name="status">
                 <Select v-model:value="searchForm.status" placeholder="请选择状态" allowClear>
                   <Select.Option :value="NotificationStatusEnum.Pending">待发送</Select.Option>
@@ -424,7 +423,7 @@ onMounted(() => {
                 </Select>
               </Form.Item>
             </Col>
-            <Col :xs="24" :sm="12" :lg="8" :xl="6" :xxl="4">
+            <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="6" :xxl="4">
               <Form.Item label="触发来源" name="triggeredBy">
                 <Input v-model:value="searchForm.triggeredBy" placeholder="请输入触发来源" />
               </Form.Item>
