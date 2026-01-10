@@ -179,8 +179,8 @@ const columns = computed(() => [
     dataIndex: 'jobName',
     ellipsis: true,
     sorter: true,
-    fixed: 'left',
-    width: 300,
+    // fixed: 'left',
+    // width: 300,
     sortOrder: sortBy.value === 'jobName' ? (sortOrder.value === 'asc' ? 'ascend' : sortOrder.value === 'desc' ? 'descend' : undefined) : undefined,
   },
   {
@@ -188,8 +188,8 @@ const columns = computed(() => [
     dataIndex: 'jobGroup',
     ellipsis: true,
     sorter: true,
-    fixed: 'left',
-    width: 300,
+    // fixed: 'left',
+    // width: 300,
     sortOrder: sortBy.value === 'jobGroup' ? (sortOrder.value === 'asc' ? 'ascend' : sortOrder.value === 'desc' ? 'descend' : undefined) : undefined,
   },
   {
@@ -271,6 +271,7 @@ const columns = computed(() => [
     title: '操作',
     key: 'action',
     width: 80,
+    fixed: 'right',
     customRender: ({ record }: { record: QuartzJobResponseDto }) => {
       // 创建下拉菜单
       const menu = h(Menu, {}, [

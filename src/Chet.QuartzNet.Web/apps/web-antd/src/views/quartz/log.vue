@@ -81,15 +81,15 @@ const columns = computed<ColumnsType<LogResponseDto>[]>(() => [
     title: '作业名称',
     dataIndex: 'jobName',
     ellipsis: true,
-    fixed: 'left',
-    width: 300,
+    // fixed: 'left',
+    // width: 300,
   },
   {
     title: '作业分组',
     dataIndex: 'jobGroup',
     ellipsis: true,
-    fixed: 'left',
-    width: 300,
+    // fixed: 'left',
+    // width: 300,
   },
   {
     title: '状态',
@@ -153,6 +153,7 @@ const columns = computed<ColumnsType<LogResponseDto>[]>(() => [
     title: '操作',
     width: 80,
     key: 'action',
+    fixed: 'right',
     slots: {
       customRender: 'action',
     },

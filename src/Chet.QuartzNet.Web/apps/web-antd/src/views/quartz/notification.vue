@@ -152,6 +152,7 @@ const columns = computed(() => [
     title: '操作',
     key: 'action',
     width: 80,
+    fixed: 'right',
     customRender: ({ record }: { record: QuartzNotificationDto }) => {
       // 创建详情菜单项
       const detailMenuItem = h(
