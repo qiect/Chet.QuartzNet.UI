@@ -179,8 +179,8 @@ const columns = computed(() => [
     dataIndex: 'jobName',
     ellipsis: true,
     sorter: true,
-    fixed: 'left',
-    width: 300,
+    // fixed: 'left',
+    // width: 300,
     sortOrder: sortBy.value === 'jobName' ? (sortOrder.value === 'asc' ? 'ascend' : sortOrder.value === 'desc' ? 'descend' : undefined) : undefined,
   },
   {
@@ -188,8 +188,8 @@ const columns = computed(() => [
     dataIndex: 'jobGroup',
     ellipsis: true,
     sorter: true,
-    fixed: 'left',
-    width: 300,
+    // fixed: 'left',
+    // width: 300,
     sortOrder: sortBy.value === 'jobGroup' ? (sortOrder.value === 'asc' ? 'ascend' : sortOrder.value === 'desc' ? 'descend' : undefined) : undefined,
   },
   {
@@ -271,6 +271,7 @@ const columns = computed(() => [
     title: '操作',
     key: 'action',
     width: 80,
+    fixed: 'right',
     customRender: ({ record }: { record: QuartzJobResponseDto }) => {
       // 创建下拉菜单
       const menu = h(Menu, {}, [
@@ -588,7 +589,7 @@ const handleSave = async () => {
 
     let response;
     let successMessage;
-    
+
     if (
       editForm.jobName &&
       editForm.jobGroup &&
@@ -602,7 +603,7 @@ const handleSave = async () => {
       response = await addJob(submitData);
       successMessage = '作业创建成功';
     }
-    
+
     // 检查API响应
     if (response.success) {
       message.success(successMessage);
@@ -808,20 +809,19 @@ onMounted(async () => {
   <Page>
     <template #default>
       <Card class="mb-4">
-        <Form ref="searchFormRef" :model="searchForm" layout="horizontal" :label-col="{ span: 6 }"
-          :wrapper-col="{ span: 18 }" :label-align="'right'">
+        <Form ref="searchFormRef" :model="searchForm" layout="horizontal" :label-align="'right'">
           <Row :gutter="16">
-            <Col :xs="24" :sm="12" :md="8" :lg="8">
+            <Col :xs="24" :sm="12" :md="8" :lg="8" :xl="6">
               <Form.Item label="作业名称" name="jobName">
                 <Input v-model:value="searchForm.jobName" placeholder="请输入作业名称" />
               </Form.Item>
             </Col>
-            <Col :xs="24" :sm="12" :md="8" :lg="8">
+            <Col :xs="24" :sm="12" :md="8" :lg="8" :xl="6">
               <Form.Item label="作业分组" name="jobGroup">
                 <Input v-model:value="searchForm.jobGroup" placeholder="请输入作业分组" />
               </Form.Item>
             </Col>
-            <Col :xs="24" :sm="12" :md="8" :lg="8">
+            <Col :xs="24" :sm="12" :md="8" :lg="8" :xl="6">
               <Form.Item label="作业状态" name="status">
                 <Select v-model:value="searchForm.status" placeholder="请选择状态" allowClear>
                   <Select.Option :value="JobStatusEnum.Normal">正常</Select.Option>
@@ -832,7 +832,7 @@ onMounted(async () => {
                 </Select>
               </Form.Item>
             </Col>
-            <Col :xs="24" :sm="24" :md="24" :lg="24" class="text-right">
+            <Col :xs="24" :sm="24" :md="24" :lg="24" :xl="6" class="text-right">
               <Space>
                 <Button type="primary" @click="handleSearch"> 搜索 </Button>
                 <Button @click="handleReset"> 重置 </Button>

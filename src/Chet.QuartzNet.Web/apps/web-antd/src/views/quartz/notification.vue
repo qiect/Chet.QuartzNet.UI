@@ -152,6 +152,7 @@ const columns = computed(() => [
     title: '操作',
     key: 'action',
     width: 80,
+    fixed: 'right',
     customRender: ({ record }: { record: QuartzNotificationDto }) => {
       // 创建详情菜单项
       const detailMenuItem = h(
@@ -412,272 +413,192 @@ onMounted(() => {
   <Page>
     <template #default>
       <Card class="mb-4">
-      <Form
-        ref="searchFormRef"
-        :model="searchForm"
-        layout="horizontal"
-        :label-col="{ span: 6 }"
-        :wrapper-col="{ span: 18 }"
-        :label-align="'right'"
-      >
-        <Row :gutter="16">
-          <Col :xs="24" :sm="12" :md="8" :lg="8">
-            <Form.Item label="通知状态" name="status">
-              <Select
-                v-model:value="searchForm.status"
-                placeholder="请选择状态"
-                allowClear
-              >
-                <Select.Option :value="NotificationStatusEnum.Pending"
-                  >待发送</Select.Option
-                >
-                <Select.Option :value="NotificationStatusEnum.Sent"
-                  >发送成功</Select.Option
-                >
-                <Select.Option :value="NotificationStatusEnum.Failed"
-                  >发送失败</Select.Option
-                >
-              </Select>
-            </Form.Item>
-          </Col>
-          <Col :xs="24" :sm="12" :md="8" :lg="8">
-            <Form.Item label="触发来源" name="triggeredBy">
-              <Input
-                v-model:value="searchForm.triggeredBy"
-                placeholder="请输入触发来源"
-              />
-            </Form.Item>
-          </Col>
-          <Col :xs="24" :sm="24" :md="24" :lg="8" class="text-right">
-            <Space>
-              <Button type="primary" @click="handleSearch">搜索</Button>
-              <Button @click="handleReset">重置</Button>
-              <Button danger @click="handleClearNotifications">清空</Button>
-            </Space>
-          </Col>
-        </Row>
-      </Form>
-    </Card>
+        <Form ref="searchFormRef" :model="searchForm" layout="horizontal" :label-align="'right'">
+          <Row :gutter="16">
+            <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="6" :xxl="4">
+              <Form.Item label="通知状态" name="status">
+                <Select v-model:value="searchForm.status" placeholder="请选择状态" allowClear>
+                  <Select.Option :value="NotificationStatusEnum.Pending">待发送</Select.Option>
+                  <Select.Option :value="NotificationStatusEnum.Sent">发送成功</Select.Option>
+                  <Select.Option :value="NotificationStatusEnum.Failed">发送失败</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="6" :xxl="4">
+              <Form.Item label="触发来源" name="triggeredBy">
+                <Input v-model:value="searchForm.triggeredBy" placeholder="请输入触发来源" />
+              </Form.Item>
+            </Col>
+            <Col :xs="24" :sm="24" :md="24" :lg="8" :xl="12" :xxl="16" class="text-right">
+              <Space>
+                <Button type="primary" @click="handleSearch">搜索</Button>
+                <Button @click="handleReset">重置</Button>
+              </Space>
+            </Col>
+          </Row>
+        </Form>
+      </Card>
 
-    <!-- 通知管理卡片 -->
-    <Card>
-      <div class="mb-4 flex items-center justify-between">
-        <Space>
-          <Button type="primary" @click="handleOpenConfigModal"
-            >通知配置</Button
-          >
-          <Button type="default" @click="handleSendTest">发送测试通知</Button>
-        </Space>
-      </div>
-      <!-- 通知列表 -->
-      <Table
-        :columns="columns"
-        :data-source="dataSource"
-        :pagination="pagination"
-        :loading="loading"
-        :rowKey="(record) => record.notificationId"
-        @change="handleTableChange"
-        size="middle"
-        :scroll="{ x: 'max-content' }"
-      />
-    </Card>
+      <!-- 通知管理卡片 -->
+      <Card>
+        <div class="mb-4 flex items-center justify-between">
+          <Space>
+            <Button type="primary" @click="handleOpenConfigModal">通知配置</Button>
+            <Button type="default" @click="handleSendTest">发送测试通知</Button>
+          </Space>
+          <Space>
+            <Button danger @click="handleClearNotifications">清空</Button>
+          </Space>
+        </div>
+        <!-- 通知列表 -->
+        <Table :columns="columns" :data-source="dataSource" :pagination="pagination" :loading="loading"
+          :rowKey="(record) => record.notificationId" @change="handleTableChange" size="middle"
+          :scroll="{ x: 'max-content' }" />
+      </Card>
 
-    <!-- 配置对话框 -->
-    <Modal
-      v-model:open="configModalVisible"
-      :title="configModalTitle"
-      width="800px"
-      :body-style="{ padding: '24px' }"
-      destroyOnClose
-      @cancel="configModalVisible = false"
-    >
-      <Form
-        ref="formRef"
-        :model="configForm"
-        layout="horizontal"
-        :label-col="{ span: 6 }"
-        :wrapper-col="{ span: 18 }"
-        :label-align="'right'"
-      >
-        <Row :gutter="16">
-          <Col :xs="24" :sm="24" :md="24">
-            <Form.Item label="是否启用" name="enable" valuePropName="checked">
-              <Switch v-model:checked="configForm.enable" />
-            </Form.Item>
-          </Col>
-          <Col :xs="24" :sm="24" :md="24">
-            <Form.Item
-              label="Token"
-              name="token"
-              :rules="[
+      <!-- 配置对话框 -->
+      <Modal v-model:open="configModalVisible" :title="configModalTitle" width="800px" :body-style="{ padding: '24px' }"
+        destroyOnClose @cancel="configModalVisible = false">
+        <Form ref="formRef" :model="configForm" layout="horizontal" :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }"
+          :label-align="'right'">
+          <Row :gutter="16">
+            <Col :xs="24" :sm="24" :md="24">
+              <Form.Item label="是否启用" name="enable" valuePropName="checked">
+                <Switch v-model:checked="configForm.enable" />
+              </Form.Item>
+            </Col>
+            <Col :xs="24" :sm="24" :md="24">
+              <Form.Item label="Token" name="token" :rules="[
                 {
                   required: configForm.enable,
                   message: '请输入PushPlus Token',
                 },
-              ]"
-            >
-              <Input
-                v-model:value="configForm.token"
-                placeholder="请输入PushPlus Token"
-              />
-            </Form.Item>
-          </Col>
-          <Col :xs="24" :sm="24" :md="24">
-            <Form.Item label="推送渠道" name="channel">
-              <Select v-model:value="configForm.channel">
-                <Select.Option value="wechat">微信</Select.Option>
-                <Select.Option value="cp">企业微信</Select.Option>
-                <Select.Option value="webhook">钉钉</Select.Option>
-                <Select.Option value="mail">邮件</Select.Option>
-                <Select.Option value="sms">短信</Select.Option>
-              </Select>
-            </Form.Item>
-          </Col>
-          <Col :xs="24" :sm="24" :md="24">
-            <Form.Item label="消息模板" name="template">
-              <Select v-model:value="configForm.template">
-                <Select.Option value="html">HTML</Select.Option>
-                <Select.Option value="text">TEXT</Select.Option>
-                <Select.Option value="markdown">Markdown</Select.Option>
-              </Select>
-            </Form.Item>
-          </Col>
-          <Col :xs="24" :sm="24" :md="24">
-            <Form.Item label="主题" name="topic">
-              <Input
-                v-model:value="configForm.topic"
-                placeholder="请输入主题（可选）"
-              />
-            </Form.Item>
-          </Col>
-
-          <Col :xs="24" :sm="24" :md="24">
-            <Form.Item label="通知策略" class="mt-4">
-              <Form.Item
-                label="作业成功时发送"
-                name="strategy.notifyOnJobSuccess"
-                valuePropName="checked"
-              >
-                <Switch
-                  v-model:checked="configForm.strategy.notifyOnJobSuccess"
-                />
+              ]">
+                <Input v-model:value="configForm.token" placeholder="请输入PushPlus Token" />
               </Form.Item>
-              <Form.Item
-                label="作业失败时发送"
-                name="strategy.notifyOnJobFailure"
-                valuePropName="checked"
-              >
-                <Switch
-                  v-model:checked="configForm.strategy.notifyOnJobFailure"
-                />
+            </Col>
+            <Col :xs="24" :sm="24" :md="24">
+              <Form.Item label="推送渠道" name="channel">
+                <Select v-model:value="configForm.channel">
+                  <Select.Option value="wechat">微信</Select.Option>
+                  <Select.Option value="cp">企业微信</Select.Option>
+                  <Select.Option value="webhook">钉钉</Select.Option>
+                  <Select.Option value="mail">邮件</Select.Option>
+                  <Select.Option value="sms">短信</Select.Option>
+                </Select>
               </Form.Item>
-              <Form.Item
-                label="调度器异常时发送"
-                name="strategy.notifyOnSchedulerError"
-                valuePropName="checked"
-              >
-                <Switch
-                  v-model:checked="configForm.strategy.notifyOnSchedulerError"
-                />
+            </Col>
+            <Col :xs="24" :sm="24" :md="24">
+              <Form.Item label="消息模板" name="template">
+                <Select v-model:value="configForm.template">
+                  <Select.Option value="html">HTML</Select.Option>
+                  <Select.Option value="text">TEXT</Select.Option>
+                  <Select.Option value="markdown">Markdown</Select.Option>
+                </Select>
               </Form.Item>
-            </Form.Item>
-          </Col>
-        </Row>
-      </Form>
+            </Col>
+            <Col :xs="24" :sm="24" :md="24">
+              <Form.Item label="主题" name="topic">
+                <Input v-model:value="configForm.topic" placeholder="请输入主题（可选）" />
+              </Form.Item>
+            </Col>
 
-      <template #footer>
-        <Space>
-          <Button @click="configModalVisible = false">取消</Button>
-          <Button type="primary" @click="handleSaveConfig">保存</Button>
-        </Space>
-      </template>
-    </Modal>
+            <Col :xs="24" :sm="24" :md="24">
+              <Form.Item label="通知策略" class="mt-4">
+                <Form.Item label="作业成功时发送" name="strategy.notifyOnJobSuccess" valuePropName="checked">
+                  <Switch v-model:checked="configForm.strategy.notifyOnJobSuccess" />
+                </Form.Item>
+                <Form.Item label="作业失败时发送" name="strategy.notifyOnJobFailure" valuePropName="checked">
+                  <Switch v-model:checked="configForm.strategy.notifyOnJobFailure" />
+                </Form.Item>
+                <Form.Item label="调度器异常时发送" name="strategy.notifyOnSchedulerError" valuePropName="checked">
+                  <Switch v-model:checked="configForm.strategy.notifyOnSchedulerError" />
+                </Form.Item>
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
 
-    <!-- 详情对话框 -->
-    <Modal
-      v-model:open="detailModalVisible"
-      :title="detailModalTitle"
-      width="1000px"
-      :footer="null"
-      :destroyOnClose="true"
-    >
-      <div v-if="currentNotification" class="notification-detail">
-        <!-- 头部信息 -->
-        <div class="detail-header mb-4 rounded-lg bg-gray-50 p-4">
-          <div class="mb-3 flex items-center justify-between">
-            <Typography.Title :level="4" class="m-0">
-              {{ currentNotification.title }}
-            </Typography.Title>
-            <Tag
-              :color="notificationStatusMap[currentNotification.status].status"
-              class="text-lg"
-            >
-              {{ notificationStatusMap[currentNotification.status].text }}
-            </Tag>
+        <template #footer>
+          <Space>
+            <Button @click="configModalVisible = false">取消</Button>
+            <Button type="primary" @click="handleSaveConfig">保存</Button>
+          </Space>
+        </template>
+      </Modal>
+
+      <!-- 详情对话框 -->
+      <Modal v-model:open="detailModalVisible" :title="detailModalTitle" width="1000px" :footer="null"
+        :destroyOnClose="true">
+        <div v-if="currentNotification" class="notification-detail">
+          <!-- 头部信息 -->
+          <div class="detail-header mb-4 rounded-lg bg-gray-50 p-4">
+            <div class="mb-3 flex items-center justify-between">
+              <Typography.Title :level="4" class="m-0">
+                {{ currentNotification.title }}
+              </Typography.Title>
+              <Tag :color="notificationStatusMap[currentNotification.status].status" class="text-lg">
+                {{ notificationStatusMap[currentNotification.status].text }}
+              </Tag>
+            </div>
+
+            <!-- 基本信息行 -->
+            <div class="mt-2 grid grid-cols-1 gap-4">
+              <div class="flex items-center">
+                <span class="mr-2 font-bold">触发来源:</span>
+                <span>{{ currentNotification.triggeredBy || '-' }}</span>
+              </div>
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div class="flex items-center">
+                  <span class="mr-2 font-bold">发送时间:</span>
+                  <span>{{
+                    currentNotification.sendTime
+                      ? formatDateTime(currentNotification.sendTime)
+                      : '-'
+                  }}</span>
+                </div>
+                <div class="flex items-center">
+                  <span class="mr-2 font-bold">发送耗时:</span>
+                  <span>{{
+                    currentNotification.duration
+                      ? `${currentNotification.duration} ms`
+                      : '0 ms'
+                  }}</span>
+                </div>
+                <div class="flex items-center">
+                  <span class="mr-2 font-bold">创建时间:</span>
+                  <span>{{ formatDateTime(currentNotification.createTime) }}</span>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <!-- 基本信息行 -->
-          <div class="mt-2 grid grid-cols-1 gap-4">
-            <div class="flex items-center">
-              <span class="mr-2 font-bold">触发来源:</span>
-              <span>{{ currentNotification.triggeredBy || '-' }}</span>
+          <!-- 内容区域 -->
+          <div class="detail-content">
+            <!-- 通知内容 -->
+            <div class="mb-6">
+              <Typography.Title :level="5" class="mb-2">通知内容</Typography.Title>
+              <div class="content-box rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div v-html="currentNotification.content"></div>
+              </div>
             </div>
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div class="flex items-center">
-                <span class="mr-2 font-bold">发送时间:</span>
-                <span>{{
-                  currentNotification.sendTime
-                    ? formatDateTime(currentNotification.sendTime)
-                    : '-'
-                }}</span>
-              </div>
-              <div class="flex items-center">
-                <span class="mr-2 font-bold">发送耗时:</span>
-                <span>{{
-                  currentNotification.duration
-                    ? `${currentNotification.duration} ms`
-                    : '0 ms'
-                }}</span>
-              </div>
-              <div class="flex items-center">
-                <span class="mr-2 font-bold">创建时间:</span>
-                <span>{{ formatDateTime(currentNotification.createTime) }}</span>
+
+            <!-- 错误信息 -->
+            <div v-if="currentNotification.errorMessage" class="mb-6">
+              <Typography.Title :level="5" class="mb-2">错误信息</Typography.Title>
+              <div class="rounded-lg border border-red-200 bg-red-50 p-4">
+                <pre class="word-break-break-word m-0 whitespace-pre-wrap text-sm text-red-800">{{
+                  currentNotification.errorMessage }}</pre>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 内容区域 -->
-        <div class="detail-content">
-          <!-- 通知内容 -->
-          <div class="mb-6">
-            <Typography.Title :level="5" class="mb-2"
-              >通知内容</Typography.Title
-            >
-            <div
-              class="content-box rounded-lg border border-gray-200 bg-gray-50 p-4"
-            >
-              <div v-html="currentNotification.content"></div>
-            </div>
-          </div>
-
-          <!-- 错误信息 -->
-          <div v-if="currentNotification.errorMessage" class="mb-6">
-            <Typography.Title :level="5" class="mb-2"
-              >错误信息</Typography.Title
-            >
-            <div class="rounded-lg border border-red-200 bg-red-50 p-4">
-              <pre class="word-break-break-word m-0 whitespace-pre-wrap text-sm text-red-800">{{ currentNotification.errorMessage }}</pre>
-            </div>
-          </div>
+        <!-- 底部按钮 -->
+        <div class="mt-4 flex justify-end">
+          <Button @click="detailModalVisible = false" type="primary">关闭</Button>
         </div>
-      </div>
-
-      <!-- 底部按钮 -->
-      <div class="mt-4 flex justify-end">
-        <Button @click="detailModalVisible = false" type="primary">关闭</Button>
-      </div>
-    </Modal>
+      </Modal>
     </template>
   </Page>
 </template>

@@ -12,6 +12,8 @@ import {
   Space,
   DatePicker,
   Statistic,
+  // SyncOutlined,
+  Skeleton,
 } from 'ant-design-vue';
 import type { EChartsOption } from 'echarts';
 
@@ -87,7 +89,7 @@ const timeRangeOptions = [
   { label: '自定义', value: 'custom' },
 ];
 
-const selectedTimeRange = ref('thisMonth');
+const selectedTimeRange = ref('custom');
 const customDateRange = ref<[Date | null, Date | null]>([null, null]);
 
 // Vben ECharts组件引用
@@ -116,8 +118,13 @@ const fetchStatsData = async () => {
 
     // 如果是自定义时间范围，添加开始时间和结束时间
     if (selectedTimeRange.value === 'custom' && customDateRange.value[0] && customDateRange.value[1]) {
-      query.startTime = customDateRange.value[0].toISOString();
-      query.endTime = customDateRange.value[1].toISOString();
+      // query.startTime = customDateRange.value[0].toISOString();
+      // query.endTime = customDateRange.value[1].toISOString();
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(endDate.getDate() - 30);
+      query.startTime = startDate.toISOString();
+      query.endTime = endDate.toISOString();
     }
 
     // 获取作业统计数据
@@ -212,19 +219,23 @@ const getExecutionStatsChartOption = (): EChartsOption => {
         color: '#262626',
         fontSize: 14,
       },
-      formatter: '{b}: {c} 次',
-      padding: 12,
-    },
-    legend: {
-      data: ['作业数量'],
-      bottom: 0,
-      textStyle: {
-        color: '#595959',
-        fontSize: 14,
+      formatter: function(params) {
+        const param = params[0];
+        const statusLabels = ['成功', '失败', '暂停', '阻塞'];
+        const statusColors = ['#52c41a', '#ff4d4f', '#faad14', '#1890ff'];
+        
+        let tooltipHtml = `<div style="padding: 8px;">
+          <div style="font-weight: bold; margin-bottom: 4px;">${statusLabels[param.dataIndex]}</div>
+          <div style="display: flex; align-items: center;">
+            <div style="width: 10px; height: 10px; background-color: ${statusColors[param.dataIndex]}; border-radius: 50%; margin-right: 8px;"></div>
+            <span>执行次数: ${param.value}</span>
+          </div>
+        </div>`;
+        
+        return tooltipHtml;
       },
-      itemWidth: 12,
-      itemHeight: 12,
-      itemGap: 20,
+      padding: 0,
+      extraCssText: 'box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);',
     },
     grid: {
       left: '3%',
@@ -281,7 +292,7 @@ const getExecutionStatsChartOption = (): EChartsOption => {
         name: '作业数量',
         type: 'bar',
         data: seriesData,
-        barWidth: '60%',
+        barWidth: '50%',
         itemStyle: {
           color: function (params) {
             // 使用更协调的配色方案
@@ -292,9 +303,9 @@ const getExecutionStatsChartOption = (): EChartsOption => {
         },
         emphasis: {
           itemStyle: {
-            shadowBlur: 10,
+            shadowBlur: 15,
             shadowOffsetX: 0,
-            shadowColor: 'rgba(0, 0, 0, 0.15)',
+            shadowColor: 'rgba(0, 0, 0, 0.2)',
           },
         },
         animation: true,
@@ -342,7 +353,6 @@ const getStatusDistributionChartOption = (): EChartsOption => {
     },
     tooltip: {
       trigger: 'item',
-      formatter: '{b}: {c} ({d}%)',
       backgroundColor: 'rgba(255, 255, 255, 0.95)',
       borderColor: '#e8e8e8',
       borderWidth: 1,
@@ -351,7 +361,30 @@ const getStatusDistributionChartOption = (): EChartsOption => {
         color: '#262626',
         fontSize: 14,
       },
-      padding: 12,
+      formatter: function(params) {
+        const statusColors = {
+          '正常': '#52c41a',
+          '已暂停': '#faad14', 
+          '已完成': '#1890ff',
+          '错误': '#ff4d4f',
+          '阻塞': '#722ed1'
+        };
+        
+        const color = statusColors[params.name] || '#faad14';
+        
+        let tooltipHtml = `<div style="padding: 8px;">
+          <div style="display: flex; align-items: center; margin-bottom: 4px;">
+            <div style="width: 10px; height: 10px; background-color: ${color}; border-radius: 50%; margin-right: 8px;"></div>
+            <div style="font-weight: bold;">${params.name}</div>
+          </div>
+          <div>数量: ${params.value}</div>
+          <div>占比: ${params.percent}%</div>
+        </div>`;
+        
+        return tooltipHtml;
+      },
+      padding: 0,
+      extraCssText: 'box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);',
     },
     legend: {
       orient: 'vertical',
@@ -445,7 +478,6 @@ const getTypeDistributionChartOption = (): EChartsOption => {
       },
       tooltip: {
         trigger: 'item',
-        formatter: '{b}: {c} ({d}%)',
         backgroundColor: 'rgba(255, 255, 255, 0.95)',
         borderColor: '#e8e8e8',
         borderWidth: 1,
@@ -454,7 +486,23 @@ const getTypeDistributionChartOption = (): EChartsOption => {
           color: '#262626',
           fontSize: 14,
         },
-        padding: 12,
+        formatter: function(params) {
+          const colorList = ['#1890ff', '#52c41a', '#ff4d4f', '#faad14', '#722ed1', '#eb2f96', '#fa8c16', '#a0d911'];
+          const color = colorList[params.dataIndex % colorList.length];
+          
+          let tooltipHtml = `<div style="padding: 8px;">
+            <div style="display: flex; align-items: center; margin-bottom: 4px;">
+              <div style="width: 10px; height: 10px; background-color: ${color}; border-radius: 50%; margin-right: 8px;"></div>
+              <div style="font-weight: bold;">${params.name}</div>
+            </div>
+            <div>数量: ${params.value}</div>
+            <div>占比: ${params.percent}%</div>
+          </div>`;
+          
+          return tooltipHtml;
+        },
+        padding: 0,
+        extraCssText: 'box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);',
       },
       legend: {
         orient: 'vertical',
@@ -512,7 +560,6 @@ const getTypeDistributionChartOption = (): EChartsOption => {
     },
     tooltip: {
       trigger: 'item',
-      formatter: '{b}: {c} ({d}%)',
       backgroundColor: 'rgba(255, 255, 255, 0.95)',
       borderColor: '#e8e8e8',
       borderWidth: 1,
@@ -521,7 +568,23 @@ const getTypeDistributionChartOption = (): EChartsOption => {
         color: '#262626',
         fontSize: 14,
       },
-      padding: 12,
+      formatter: function(params) {
+        const colorList = ['#1890ff', '#52c41a', '#ff4d4f', '#faad14', '#722ed1', '#eb2f96', '#fa8c16', '#a0d911'];
+        const color = colorList[params.dataIndex % colorList.length];
+        
+        let tooltipHtml = `<div style="padding: 8px;">
+          <div style="display: flex; align-items: center; margin-bottom: 4px;">
+            <div style="width: 10px; height: 10px; background-color: ${color}; border-radius: 50%; margin-right: 8px;"></div>
+            <div style="font-weight: bold;">${params.name}</div>
+          </div>
+          <div>数量: ${params.value}</div>
+          <div>占比: ${params.percent}%</div>
+        </div>`;
+        
+        return tooltipHtml;
+      },
+      padding: 0,
+      extraCssText: 'box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);',
     },
     legend: {
       orient: 'vertical',
@@ -622,14 +685,30 @@ const getExecutionTrendChartOption = (): EChartsOption => {
         color: '#262626',
         fontSize: 14,
       },
-      padding: 12,
-      formatter: function (params: any) {
-        let result = `${params[0].name}<br/>`;
-        params.forEach((item: any) => {
-          result += `${item.marker} ${item.seriesName}: ${item.value} 次<br/>`;
+      formatter: function (params) {
+        let result = `<div style="padding: 8px;">
+          <div style="font-weight: bold; margin-bottom: 8px;">${params[0].axisValueLabel}</div>`;
+        
+        params.forEach((item) => {
+          const colors = {
+            '成功': '#52c41a',
+            '失败': '#ff4d4f',
+            '总数': '#1890ff'
+          };
+          
+          const color = colors[item.seriesName] || '#1890ff';
+          
+          result += `<div style="display: flex; align-items: center; margin-bottom: 4px;">
+            <div style="width: 10px; height: 10px; background-color: ${color}; border-radius: 50%; margin-right: 8px;"></div>
+            <span>${item.seriesName}: ${item.value} 次</span>
+          </div>`;
         });
+        
+        result += '</div>';
         return result;
       },
+      padding: 0,
+      extraCssText: 'box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);',
     },
     legend: {
       data: ['成功', '失败', '总数'],
@@ -712,7 +791,7 @@ const getExecutionTrendChartOption = (): EChartsOption => {
         emphasis: {
           symbolSize: 10,
           itemStyle: {
-            shadowBlur: 10,
+            shadowBlur: 15,
             shadowColor: 'rgba(82, 196, 26, 0.5)',
           },
         },
@@ -752,7 +831,7 @@ const getExecutionTrendChartOption = (): EChartsOption => {
         emphasis: {
           symbolSize: 10,
           itemStyle: {
-            shadowBlur: 10,
+            shadowBlur: 15,
             shadowColor: 'rgba(255, 77, 79, 0.5)',
           },
         },
@@ -793,7 +872,7 @@ const getExecutionTrendChartOption = (): EChartsOption => {
         emphasis: {
           symbolSize: 10,
           itemStyle: {
-            shadowBlur: 10,
+            shadowBlur: 15,
             shadowColor: 'rgba(24, 144, 255, 0.5)',
           },
         },
@@ -830,7 +909,7 @@ const getExecutionTimeChartOption = (): EChartsOption => {
   if (chartData.length === 0) {
     return {
       title: {
-
+      
         left: 'center',
         textStyle: {
           fontSize: 18,
@@ -856,7 +935,23 @@ const getExecutionTimeChartOption = (): EChartsOption => {
           color: '#262626',
           fontSize: 14,
         },
-        padding: 12,
+        formatter: function(params) {
+          const param = params[0];
+          const colorList = ['#1890ff', '#52c41a', '#ff4d4f', '#faad14', '#722ed1', '#eb2f96', '#fa8c16', '#a0d911'];
+          const color = colorList[param.dataIndex % colorList.length];
+          
+          let tooltipHtml = `<div style="padding: 8px;">
+            <div style="display: flex; align-items: center; margin-bottom: 4px;">
+              <div style="width: 10px; height: 10px; background-color: ${color}; border-radius: 50%; margin-right: 8px;"></div>
+              <div style="font-weight: bold;">${param.axisValueLabel}</div>
+            </div>
+            <div>作业数量: ${param.value}</div>
+          </div>`;
+          
+          return tooltipHtml;
+        },
+        padding: 0,
+        extraCssText: 'box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);',
       },
       legend: {
         data: ['作业数量'],
@@ -924,7 +1019,7 @@ const getExecutionTimeChartOption = (): EChartsOption => {
           name: '作业数量',
           type: 'bar',
           data: [0],
-          barWidth: '60%',
+          barWidth: '50%',
           itemStyle: {
             color: '#1890ff',
             borderRadius: [8, 8, 0, 0],
@@ -965,8 +1060,23 @@ const getExecutionTimeChartOption = (): EChartsOption => {
         color: '#262626',
         fontSize: 14,
       },
-      padding: 12,
-      formatter: '{b}: {c} 个作业',
+      formatter: function(params) {
+        const param = params[0];
+        const colorList = ['#1890ff', '#52c41a', '#ff4d4f', '#faad14', '#722ed1', '#eb2f96', '#fa8c16', '#a0d911'];
+        const color = colorList[param.dataIndex % colorList.length];
+        
+        let tooltipHtml = `<div style="padding: 8px;">
+          <div style="display: flex; align-items: center; margin-bottom: 4px;">
+            <div style="width: 10px; height: 10px; background-color: ${color}; border-radius: 50%; margin-right: 8px;"></div>
+            <div style="font-weight: bold;">${param.axisValueLabel}</div>
+          </div>
+          <div>作业数量: ${param.value}</div>
+        </div>`;
+        
+        return tooltipHtml;
+      },
+      padding: 0,
+      extraCssText: 'box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);',
     },
     legend: {
       data: ['作业数量'],
@@ -1035,7 +1145,7 @@ const getExecutionTimeChartOption = (): EChartsOption => {
         name: '作业数量',
         type: 'bar',
         data: seriesData,
-        barWidth: '60%',
+        barWidth: '50%',
         itemStyle: {
           color: function (params) {
             const colorList = ['#1890ff', '#52c41a', '#ff4d4f', '#faad14', '#722ed1', '#eb2f96', '#fa8c16', '#a0d911'];
@@ -1045,9 +1155,9 @@ const getExecutionTimeChartOption = (): EChartsOption => {
         },
         emphasis: {
           itemStyle: {
-            shadowBlur: 10,
+            shadowBlur: 15,
             shadowOffsetX: 0,
-            shadowColor: 'rgba(0, 0, 0, 0.15)',
+            shadowColor: 'rgba(0, 0, 0, 0.2)',
           },
         },
         animation: true,
@@ -1130,77 +1240,116 @@ onMounted(async () => {
 <template>
   <Page>
     <!-- 数据筛选区 -->
-    <!-- <Card class="mb-4 mt-4">
+    <!-- <Card class="mb-4 mt-4 filter-card">
       <Row :gutter="[16, 16]" align="middle">
         <Col :xs="24" :sm="12" :md="8" :lg="8">
-        <Space>
-          <Select v-model:value="selectedTimeRange" :options="timeRangeOptions" style="width: 100px"
+        <Space wrap>
+          <Select v-model:value="selectedTimeRange" :options="timeRangeOptions" style="min-width: 120px;"
             @change="handleTimeRangeChange" />
           <DatePicker.RangePicker v-if="selectedTimeRange === 'custom'" v-model:value="customDateRange"
-            style="width: 300px" @change="handleDateRangeChange" />
+            style="min-width: 300px;" @change="handleDateRangeChange" placeholder="选择日期范围" />
         </Space>
         </Col>
         <Col :xs="24" :sm="12" :md="16" :lg="16" class="text-right">
         <Button type="primary" @click="handleRefresh" :loading="loading">
+          <template #icon>
+            <SyncOutlined :spin="loading" />
+          </template>
           刷新数据
         </Button>
         </Col>
       </Row>
     </Card> -->
     <!-- 图表展示区 -->
-    <Row :gutter="[16, 16]">
+    <Row :gutter="[24, 24]">
       <!-- 统计概览卡片 -->
-      <Col :xs="24" :sm="12" :md="6" :lg="6">
-      <Card hoverable>
-        <Statistic title="总作业数" :value="statsOverview.totalJobs" prefix="📊" />
+      <Col :xs="24" :sm="12" :md="12" :lg="6" :xl="6">
+      <Card hoverable class="statistic-card" :loading="loading">
+        <div class="statistic-content" v-if="!loading">
+          <div class="statistic-prefix">📊</div>
+          <div class="statistic-info">
+            <div class="statistic-title">总作业数</div>
+            <div class="statistic-value">{{ statsOverview.totalJobs }}</div>
+          </div>
+        </div>
+        <template v-else>
+          <Skeleton active :paragraph="{ rows: 1 }" />
+        </template>
       </Card>
       </Col>
-      <Col :xs="24" :sm="12" :md="6" :lg="6">
-      <Card hoverable>
-        <Statistic title="启用作业数" :value="statsOverview.enabledJobs" prefix="✅" />
+      <Col :xs="24" :sm="12" :md="12" :lg="6" :xl="6">
+      <Card hoverable class="statistic-card" :loading="loading">
+        <div class="statistic-content" v-if="!loading">
+          <div class="statistic-prefix">✅</div>
+          <div class="statistic-info">
+            <div class="statistic-title">启用作业数</div>
+            <div class="statistic-value">{{ statsOverview.enabledJobs }}</div>
+          </div>
+        </div>
+        <template v-else>
+          <Skeleton active :paragraph="{ rows: 1 }" />
+        </template>
       </Card>
       </Col>
-      <Col :xs="24" :sm="12" :md="6" :lg="6">
-      <Card hoverable>
-        <Statistic title="禁用作业数" :value="statsOverview.disabledJobs" prefix="❌" />
+      <Col :xs="24" :sm="12" :md="12" :lg="6" :xl="6">
+      <Card hoverable class="statistic-card" :loading="loading">
+        <div class="statistic-content" v-if="!loading">
+          <div class="statistic-prefix">❌</div>
+          <div class="statistic-info">
+            <div class="statistic-title">禁用作业数</div>
+            <div class="statistic-value">{{ statsOverview.disabledJobs }}</div>
+          </div>
+        </div>
+        <template v-else>
+          <Skeleton active :paragraph="{ rows: 1 }" />
+        </template>
       </Card>
       </Col>
-      <Col :xs="24" :sm="12" :md="6" :lg="6">
-      <Card hoverable>
-        <Statistic title="正在执行" :value="statsOverview.executingJobs" prefix="⏳" />
+      <Col :xs="24" :sm="12" :md="12" :lg="6" :xl="6">
+      <Card hoverable class="statistic-card" :loading="loading">
+        <div class="statistic-content" v-if="!loading">
+          <div class="statistic-prefix">⏳</div>
+          <div class="statistic-info">
+            <div class="statistic-title">正在执行</div>
+            <div class="statistic-value">{{ statsOverview.executingJobs }}</div>
+          </div>
+        </div>
+        <template v-else>
+          <Skeleton active :paragraph="{ rows: 1 }" />
+        </template>
       </Card>
       </Col>
 
       <!-- 作业执行统计 -->
-      <Col :xs="24" :sm="24" :md="24" :lg="24">
-      <Card title="本月作业执行统计" :loading="loading">
-        <EchartsUI ref="executionStatsChartRef" />
+      <Col :xs="24" :sm="24" :md="24" :lg="24" :xl="24">
+      <Card title="近30天作业执行统计" :loading="loading" class="chart-card">
+        <EchartsUI ref="executionStatsChartRef" :style="{ height: '400px' }" />
       </Card>
       </Col>
 
       <!-- 作业状态分布 + 作业类型分布 -->
-      <Col :xs="24" :sm="12" :md="12" :lg="12">
-      <Card title="本月作业状态分布" :loading="loading">
-        <EchartsUI ref="statusDistributionChartRef" />
+      <Col :xs="24" :sm="24" :md="24" :lg="12" :xl="12">
+      <Card title="作业状态分布" :loading="loading" class="chart-card">
+        <EchartsUI ref="statusDistributionChartRef" :style="{ height: '400px' }" />
       </Card>
       </Col>
-      <Col :xs="24" :sm="12" :md="12" :lg="12">
-      <Card title="本月作业类型分布" :loading="loading">
-        <EchartsUI ref="typeDistributionChartRef" />
+      <Col :xs="24" :sm="24" :md="24" :lg="12" :xl="12">
+      <Card title="作业类型分布" :loading="loading" class="chart-card">
+        <EchartsUI ref="typeDistributionChartRef" :style="{ height: '400px' }" />
       </Card>
       </Col>
 
       <!-- 作业执行趋势 -->
-      <Col :xs="24" :sm="24" :md="24" :lg="24">
-      <Card title="本月作业执行趋势" :loading="loading">
-        <EchartsUI ref="executionTrendChartRef" />
+      <Col :xs="24" :sm="24" :md="24" :lg="24" :xl="24">
+      <Card title="近30天作业执行趋势" :loading="loading" class="chart-card">
+        <EchartsUI ref="executionTrendChartRef" :style="{ height: '400px' }" />
       </Card>
       </Col>
 
       <!-- 作业执行耗时统计 -->
-      <Col :xs="24" :sm="24" :md="24" :lg="24">
-      <Card title="本月作业执行耗时统计" :loading="loading">
-        <EchartsUI ref="executionTimeChartRef" />
+      <Col :xs="24" :sm="24" :md="24" :lg="24" :xl="24">
+      <Card title="近30天作业执行耗时统计" :loading="loading" class="chart-card">
+        <EchartsUI ref="executionTimeChartRef" :style="{ height: '400px' }" />
       </Card>
       </Col>
     </Row>
@@ -1219,5 +1368,134 @@ onMounted(async () => {
 
 .text-right {
   text-align: right;
+}
+
+/* 统计卡片样式 */
+.statistic-card {
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
+  border: 1px solid #f0f0f0;
+}
+
+.statistic-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  border-color: #e8e8e8;
+}
+
+.statistic-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.statistic-prefix {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.statistic-info {
+  flex: 1;
+}
+
+.statistic-title {
+  font-size: 14px;
+  color: #8c8c8c;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.statistic-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: #262626;
+  line-height: 1.2;
+}
+
+/* 图表卡片样式 */
+.chart-card {
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid #f0f0f0;
+}
+
+.chart-card:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* 卡片标题样式 */
+:deep(.ant-card-head) {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 0 24px;
+}
+
+:deep(.ant-card-head-title) {
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+  padding: 16px 0;
+}
+
+:deep(.ant-card-body) {
+  padding: 24px;
+}
+
+/* 页面整体间距 */
+:deep(.vben-page) {
+  padding: 24px;
+}
+
+/* 过滤器卡片样式 */
+.filter-card {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid #f0f0f0;
+  background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
+}
+
+/* 在较小屏幕上调整间距 */
+@media (max-width: 768px) {
+  :deep(.vben-page) {
+    padding: 16px;
+  }
+  
+  :deep(.ant-card-body) {
+    padding: 16px;
+  }
+  
+  .statistic-content {
+    gap: 12px;
+  }
+  
+  .statistic-title {
+    font-size: 12px;
+  }
+  
+  .statistic-value {
+    font-size: 20px;
+  }
+  
+  .filter-card :deep(.ant-space) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .filter-card :deep(.ant-space-item) {
+    width: 100%;
+  }
+  
+  .filter-card :deep(.ant-select) {
+    width: 100%;
+  }
+  
+  .filter-card :deep(.ant-picker) {
+    width: 100%;
+  }
 }
 </style>

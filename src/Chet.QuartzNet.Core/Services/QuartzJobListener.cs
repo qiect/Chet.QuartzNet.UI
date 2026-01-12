@@ -134,8 +134,7 @@ namespace Chet.QuartzNet.Core.Services
                 var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
                 await jobStorage.AddJobLogAsync(jobLog, cancellationToken);
 
-                _logger.LogInfo("作业执行被否决，日志记录成功: {JobKey}",
-                    $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}");
+                _logger.LogInfo("作业执行", "作业被否决，日志记录成功: {JobKey}", $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}");
             }
             catch (Exception ex)
             {
@@ -177,8 +176,7 @@ namespace Chet.QuartzNet.Core.Services
                 else
                 {
                     // 是手动触发的作业，即使处于暂停状态也允许执行
-                    _logger.LogInfo("手动触发作业，忽略暂停状态检查: {JobKey}",
-                        $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}");
+                    _logger.LogInfo("手动触发作业", "忽略暂停状态检查: {JobKey}", $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}");
                 }
             }
             catch (JobExecutionException)
