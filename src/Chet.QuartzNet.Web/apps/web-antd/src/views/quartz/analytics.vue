@@ -86,10 +86,11 @@ const timeRangeOptions = [
   { label: '昨日', value: 'yesterday' },
   { label: '本周', value: 'thisWeek' },
   { label: '本月', value: 'thisMonth' },
+  { label: '近30天', value: 'last30Days' },
   { label: '自定义', value: 'custom' },
 ];
 
-const selectedTimeRange = ref('custom');
+const selectedTimeRange = ref('last30Days');
 const customDateRange = ref<[Date | null, Date | null]>([null, null]);
 
 // Vben ECharts组件引用
@@ -118,13 +119,8 @@ const fetchStatsData = async () => {
 
     // 如果是自定义时间范围，添加开始时间和结束时间
     if (selectedTimeRange.value === 'custom' && customDateRange.value[0] && customDateRange.value[1]) {
-      // query.startTime = customDateRange.value[0].toISOString();
-      // query.endTime = customDateRange.value[1].toISOString();
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(endDate.getDate() - 30);
-      query.startTime = startDate.toISOString();
-      query.endTime = endDate.toISOString();
+      query.startTime = customDateRange.value[0].toISOString();
+      query.endTime = customDateRange.value[1].toISOString();
     }
 
     // 获取作业统计数据
