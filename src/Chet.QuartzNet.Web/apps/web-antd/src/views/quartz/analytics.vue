@@ -1234,7 +1234,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <Page>
+  <Page auto-content-height>
     <!-- 数据筛选区 -->
     <!-- <Card class="mb-4 mt-4 filter-card">
       <Row :gutter="[16, 16]" align="middle">
