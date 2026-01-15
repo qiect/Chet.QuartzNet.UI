@@ -29,7 +29,7 @@ foreach ($file in $csprojFiles) {
 
 # Update all nuspec files
 $nuspecFiles = @(
-    "Chet.QuartzNet.UI.nuspec",
+    "src\Chet.QuartzNet.UI\Chet.QuartzNet.UI.nuspec",
     "src\Chet.QuartzNet.EFCore.MySql\Chet.QuartzNet.EFCore.MySQL.nuspec",
     "src\Chet.QuartzNet.EFCore.PostgreSql\Chet.QuartzNet.EFCore.PostgreSQL.nuspec",
     "src\Chet.QuartzNet.EFCore.SQLite\Chet.QuartzNet.EFCore.SQLite.nuspec",
