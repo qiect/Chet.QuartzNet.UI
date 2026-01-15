@@ -1099,6 +1099,9 @@ public class FileJobStorage : IJobStorage
                 case "thisMonth":
                     startTime = new DateTime(endTime.Year, endTime.Month, 1, 0, 0, 0);
                     break;
+                case "last30Days":
+                    startTime = endTime.AddDays(-30);
+                    break;
                 default:
                     startTime = endTime.AddDays(-7); // 默认最近7天
                     break;

@@ -410,7 +410,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <Page>
+  <Page auto-content-height>
     <template #default>
       <Card class="mb-4">
         <Form ref="searchFormRef" :model="searchForm" layout="horizontal" :label-align="'right'">

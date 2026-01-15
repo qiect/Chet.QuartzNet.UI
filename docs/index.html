@@ -1,458 +1,222 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chet.QuartzNet.UI - 可视化作业调度管理系统</title>
-    <link rel="icon" href="images/icon.png" alt="Chet.QuartzNet.UI" />
-    <link rel="stylesheet" href="styles/main.css" />
-  </head>
-  <body>
-    <!-- 导航栏 -->
-    <nav class="navbar">
-      <div class="container">
-        <div class="navbar-brand">
-          <img src="images/icon.png" alt="Chet.QuartzNet.UI" class="logo" />
-          <span class="brand-name">Chet.QuartzNet.UI</span>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+
+        function initTheme() {
+            const html = document.documentElement;
+            const hour = new Date().getHours();
+            const isDarkTime = hour >= 18 || hour < 6;
+            if (isDarkTime) {
+                html.classList.add('dark');
+            } else {
+                html.classList.remove('dark');
+            }
+        }
+
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+        }
+
+        window.addEventListener('DOMContentLoaded', initTheme);
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; scroll-behavior: smooth; transition: background-color 0.4s, color 0.4s; }
+        
+        .glass { backdrop-filter: blur(10px); transition: all 0.3s; }
+        .dark .glass { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .glass { background: rgba(255, 255, 255, 0.7); border: 1px solid rgba(0, 0, 0, 0.08); }
+
+        .gradient-text { background: linear-gradient(135deg, #60a5fa, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        code { font-family: 'Fira Code', monospace; }
+        
+        /* 2. 主题按钮纯图标动效 */
+        .theme-btn i { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .theme-btn:hover i { transform: rotate(45deg) scale(1.15); }
+        .theme-btn:active i { transform: scale(0.9); }
+    </style>
+</head>
+<body class="dark:bg-[#0f172a] bg-slate-50 dark:text-slate-300 text-slate-700">
+
+    <nav class="fixed w-full z-50 glass border-b dark:border-slate-800 border-slate-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-3">
+                    <img src="images/icon.png" alt="Logo" class="w-8 h-8 object-contain">
+                    <span class="text-xl font-bold dark:text-white text-slate-900 tracking-tight">Chet.QuartzNet.UI</span>
+                </div>
+                <div class="hidden md:flex space-x-8 text-sm font-medium">
+                    <a href="#features" class="hover:text-blue-500 transition">特性</a>
+                    <a href="#install" class="hover:text-blue-500 transition">安装</a>
+                    <a href="#quickstart" class="hover:text-blue-500 transition">快速开始</a>
+                    <a href="#changelog" class="hover:text-blue-500 transition">更新日志</a>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button onclick="toggleTheme()" class="theme-btn p-2 flex items-center justify-center">
+                        <i class="fas fa-sun dark:hidden text-amber-500 text-xl"></i>
+                        <i class="fas fa-moon hidden dark:block text-indigo-400 text-xl"></i>
+                    </button>
+                    <a href="https://github.com/qiect/Chet.QuartzNet.UI" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-full text-sm font-semibold transition shadow-md shadow-blue-500/20">
+                        <i class="fab fa-github mr-1"></i> Star on GitHub
+                    </a>
+                </div>
+            </div>
         </div>
-        <div class="navbar-menu">
-          <a href="#home" class="nav-link">首页</a>
-          <a href="#features" class="nav-link">功能特性</a>
-          <a href="#installation" class="nav-link">安装指南</a>
-          <a href="#quickstart" class="nav-link">快速开始</a>
-          <a href="#examples" class="nav-link">使用示例</a>
-          <a href="#ui-features" class="nav-link">界面功能</a>
-          <a href="#configuration" class="nav-link">配置选项</a>
-        </div>
-      </div>
     </nav>
 
-    <!-- 首页横幅 -->
-    <header id="home" class="hero">
-      <div class="container">
-        <div class="hero-content">
-          <h1 class="hero-title">Chet.QuartzNet.UI</h1>
-          <p class="hero-subtitle">可视化作业调度管理系统</p>
-          <p class="hero-description">
-            基于 .NET 8.0 和 VbenAdmin
-            框架开发，提供完整的任务调度管理功能，支持文件存储和数据库存储两种模式。
-          </p>
-          <div class="hero-buttons">
-            <a href="#quickstart" class="btn btn-primary">快速开始</a>
-            <a href="#features" class="btn btn-secondary">了解更多</a>
-          </div>
+    <header class="pt-32 pb-16 px-4 text-center">
+        <div class="max-w-5xl mx-auto">
+            <span class="px-4 py-1.5 rounded-full border border-blue-500/30 text-blue-500 text-xs font-semibold mb-6 inline-block bg-blue-500/10">支持 .NET 8.0 / 10.0</span>
+            <h1 class="text-5xl md:text-7xl font-extrabold dark:text-white text-slate-900 mb-6 tracking-tight">让 Quartz.Net <br><span class="gradient-text">调度从未如此简单</span></h1>
+            <p class="text-lg dark:text-slate-400 text-slate-600 mb-10 max-w-2xl mx-auto">基于 VbenAdmin 框架的可视化作业调度管理系统。只需几行代码，即可为您的项目集成直观、易用的任务管理界面。</p>
+            <div class="flex flex-wrap justify-center gap-4">
+                <a href="#quickstart" class="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-500 transition shadow-lg shadow-blue-500/20">开始使用</a>
+                <a href="#features" class="glass dark:text-white text-slate-700 px-8 py-3 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-white/10 transition">查看特性</a>
+            </div>
         </div>
-        <div class="hero-image">
-          <img src="images/login.png" alt="仪表盘" class="dashboard-img" />
-        </div>
-      </div>
     </header>
 
-    <!-- 功能特性 -->
-    <section id="features" class="features">
-      <div class="container">
-        <h2 class="section-title">✨ 功能特性</h2>
-        <div class="features-grid">
-          <div class="feature-card">
-            <h3 class="feature-title">🚀 快速集成</h3>
-            <p class="feature-description">简单配置即可集成到现有项目</p>
-          </div>
-          <div class="feature-card">
-            <h3 class="feature-title">🎨 现代化 UI</h3>
-            <p class="feature-description">基于 VbenAdmin 框架，界面美观易用</p>
-          </div>
-          <div class="feature-card">
-            <h3 class="feature-title">🔧 可视化管理 Quartz 作业</h3>
-            <p class="feature-description">
-              通过 Web 界面管理 Quartz 作业、触发器和调度器
-            </p>
-          </div>
-          <div class="feature-card">
-            <h3 class="feature-title">📊 实时监控</h3>
-            <p class="feature-description">实时查看作业执行状态和日志</p>
-          </div>
-          <div class="feature-card">
-            <h3 class="feature-title">📦 作业管理</h3>
-            <p class="feature-description">
-              可视化管理 Quartz 作业、触发器和调度器
-            </p>
-          </div>
-          <div class="feature-card">
-            <h3 class="feature-title">📝 日志管理</h3>
-            <p class="feature-description">
-              可视化查看作业执行日志，支持搜索和过滤
-            </p>
-          </div>
-          <div class="feature-card">
-            <h3 class="feature-title">🎯 ClassJob 模式支持</h3>
-            <p class="feature-description">
-              支持基于类的作业定义，简化作业创建
-            </p>
-          </div>
-          <div class="feature-card">
-            <h3 class="feature-title">✅ ClassJob 自动注册</h3>
-            <p class="feature-description">
-              自动扫描和注册带有特定特性的作业类
-            </p>
-          </div>
-          <div class="feature-card">
-            <h3 class="feature-title">💾 多种存储方式</h3>
-            <p class="feature-description">
-              支持文件存储和数据库存储（MySQL、PostgreSQL、SQL Server、SQLite）
-            </p>
-          </div>
-          <div class="feature-card">
-            <h3 class="feature-title">🔐 认证保护</h3>
-            <p class="feature-description">提供 JWT 认证保护管理界面</p>
-          </div>
-          <div class="feature-card">
-            <h3 class="feature-title">📱 响应式设计</h3>
-            <p class="feature-description">支持移动端访问</p>
-          </div>
-          <div class="feature-card">
-            <h3 class="feature-title">📜 通知管理</h3>
-            <p class="feature-description">完整的通知发送历史记录</p>
-          </div>
-          <div class="feature-card">
-            <h3 class="feature-title">🔔 PushPlus 通知集成</h3>
-            <p class="feature-description">
-              支持多种渠道的通知推送（微信、企业微信、钉钉、邮件等）
-            </p>
-          </div>
-          <div class="feature-card">
-            <h3 class="feature-title">📋 通知模板支持</h3>
-            <p class="feature-description">
-              支持 HTML、Markdown、纯文本三种通知模板
-            </p>
-          </div>
-          <div class="feature-card">
-            <h3 class="feature-title">🎛️ 灵活的通知策略</h3>
-            <p class="feature-description">
-              可配置作业成功/失败、调度器异常时的通知规则
-            </p>
-          </div>
+    <section id="features" class="py-20 px-4">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl font-bold dark:text-white text-slate-900 mb-4">✨ 功能特性</h2>
+                <div class="h-1 w-20 bg-blue-600 mx-auto rounded-full"></div>
+            </div>
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="p-8 rounded-3xl glass hover:shadow-xl dark:hover:border-blue-500/50 group">
+                    <i class="fas fa-chart-line text-3xl text-blue-500 mb-6 group-hover:scale-110 transition"></i>
+                    <h3 class="text-xl font-bold dark:text-white text-slate-900 mb-3">实时监控</h3>
+                    <p class="dark:text-slate-400 text-slate-600 text-sm leading-relaxed">实时查看作业执行状态、日志和执行趋势，内置专业看板分析。</p>
+                </div>
+                <div class="p-8 rounded-3xl glass hover:shadow-xl dark:hover:border-blue-500/50 group">
+                    <i class="fas fa-database text-3xl text-purple-500 mb-6 group-hover:scale-110 transition"></i>
+                    <h3 class="text-xl font-bold dark:text-white text-slate-900 mb-3">多种存储方式</h3>
+                    <p class="dark:text-slate-400 text-slate-600 text-sm leading-relaxed">支持轻量级文件存储及 MySQL, PostgreSQL, SQL Server 等主流数据库。</p>
+                </div>
+                <div class="p-8 rounded-3xl glass hover:shadow-xl dark:hover:border-blue-500/50 group">
+                    <i class="fas fa-bell text-3xl text-orange-500 mb-6 group-hover:scale-110 transition"></i>
+                    <h3 class="text-xl font-bold dark:text-white text-slate-900 mb-3">PushPlus 通知</h3>
+                    <p class="dark:text-slate-400 text-slate-600 text-sm leading-relaxed">集成微信、钉钉、邮件等多种渠道通知，支持 HTML/Markdown 模板。</p>
+                </div>
+            </div>
         </div>
-      </div>
     </section>
 
-    <!-- 安装指南 -->
-    <section id="installation" class="installation">
-      <div class="container">
-        <h2 class="section-title">📦 安装</h2>
-
-        <h3 class="subsection-title">NuGet 安装</h3>
-        <div class="code-block">
-          <pre><code># 主包（包含核心功能和文件存储）
-dotnet add package Chet.QuartzNet.UI
-
-# 如果需要数据库存储支持（核心包）
-# 数据库扩展包（根据需要选择其中一个）
-dotnet add package Chet.QuartzNet.EFCore.MySql        # MySQL 支持
-dotnet add package Chet.QuartzNet.EFCore.PostgreSql    # PostgreSQL 支持
-dotnet add package Chet.QuartzNet.EFCore.SqlServer   # SQL Server 支持
-dotnet add package Chet.QuartzNet.EFCore.SQLite      # SQLite 支持</code></pre>
+    <section id="install" class="py-20 dark:bg-slate-900/50 bg-slate-100/80 border-y dark:border-slate-800 border-slate-200 px-4 transition-colors">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="text-3xl font-bold dark:text-white text-slate-900 mb-8 text-center">📦 快速安装</h2>
+            <div class="dark:bg-[#1e293b] bg-white rounded-2xl p-6 border dark:border-slate-700 border-slate-300 shadow-xl overflow-hidden">
+                <div class="flex gap-2 mb-4">
+                    <div class="w-3 h-3 rounded-full bg-red-400"></div>
+                    <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+                    <div class="w-3 h-3 rounded-full bg-green-400"></div>
+                </div>
+                <code class="dark:text-blue-400 text-blue-600 block mb-2 font-semibold"># 安装核心包</code>
+                <code class="dark:text-slate-200 text-slate-800 block mb-6 px-3 py-1.5 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-200 dark:border-transparent">dotnet add package Chet.QuartzNet.UI</code>
+                <code class="dark:text-blue-400 text-blue-600 block mb-2 font-semibold"># 根据需求安装数据库驱动</code>
+                <code class="dark:text-slate-200 text-slate-800 block px-3 py-1.5 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-200 dark:border-transparent">dotnet add package Chet.QuartzNet.EFCore.SQLite</code>
+            </div>
         </div>
-
-        <h3 class="subsection-title">依赖要求</h3>
-        <ul class="dependency-list">
-          <li>.NET 8.0</li>
-          <li>ASP.NET Core 8.0+</li>
-          <li>Quartz.NET 3.8.1+ - 作业调度核心库</li>
-          <li>Entity Framework Core 8.0+（可选，用于数据库存储）</li>
-        </ul>
-      </div>
     </section>
 
-    <!-- 快速开始 -->
-    <section id="quickstart" class="quickstart">
-      <div class="container">
-        <h2 class="section-title">🚀 快速开始</h2>
-        <h3 class="subsubsection-title">1. 文件存储模式（轻量级应用）</h3>
-        <p>
-          系统支持两种存储模式：<strong>文件存储</strong>和<strong>数据库存储</strong>，均可通过同一套
-          API 进行配置和使用。
-        </p>
-        <div class="code-block">
-          <pre><code>// Program.cs
-// 添加 Quartz UI 服务（文件存储模式）
-builder.Services.AddQuartzUI(builder.Configuration);
-// 可选：ClassJob 自动扫描注册
+    <section id="quickstart" class="py-20 px-4">
+        <div class="max-w-5xl mx-auto">
+            <div class="grid md:grid-cols-2 gap-12 items-center">
+                <div>
+                    <h2 class="text-3xl font-bold dark:text-white text-slate-900 mb-6">🚀 简单三步，即可运行</h2>
+                    <ul class="space-y-6">
+                        <li class="flex gap-4">
+                            <span class="w-8 h-8 rounded-full bg-blue-600 flex-shrink-0 flex items-center justify-center text-white font-bold text-sm">1</span>
+                            <div>
+                                <h4 class="dark:text-white text-slate-900 font-semibold">注入服务</h4>
+                                <p class="text-sm dark:text-slate-400 text-slate-600">在 Program.cs 中调用 AddQuartzUI 注入依赖。</p>
+                            </div>
+                        </li>
+                        <li class="flex gap-4">
+                            <span class="w-8 h-8 rounded-full bg-blue-600 flex-shrink-0 flex items-center justify-center text-white font-bold text-sm">2</span>
+                            <div>
+                                <h4 class="dark:text-white text-slate-900 font-semibold">启用中间件</h4>
+                                <p class="text-sm dark:text-slate-400 text-slate-600">使用 UseQuartz 启用 UI 路由与静态资源。</p>
+                            </div>
+                        </li>
+                        <li class="flex gap-4">
+                            <span class="w-8 h-8 rounded-full bg-blue-600 flex-shrink-0 flex items-center justify-center text-white font-bold text-sm">3</span>
+                            <div>
+                                <h4 class="dark:text-white text-slate-900 font-semibold">访问管理页</h4>
+                                <p class="text-sm dark:text-slate-400 text-slate-600">启动应用，访问 /quartz-ui 即可开始管理。</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="dark:bg-[#1e293b] bg-[#f9fafb] rounded-2xl p-1 shadow-2xl border dark:border-slate-700 border-slate-300">
+                    <div class="dark:bg-slate-800 bg-slate-200/50 px-4 py-2 border-b dark:border-slate-700 border-slate-300 text-xs dark:text-slate-400 text-slate-500 flex justify-between font-bold">
+                        <span>Program.cs</span>
+                        <span>C#</span>
+                    </div>
+                    <pre class="p-6 text-sm dark:text-blue-300 text-blue-700 leading-relaxed overflow-x-auto"><code>builder.Services.AddQuartzUI(config);
 builder.Services.AddQuartzClassJobs();
-// 启用中间件
-app.UseQuartz();</code></pre>
+
+var app = builder.Build();
+app.UseQuartz();
+app.Run();</code></pre>
+                </div>
+            </div>
         </div>
-        <div class="code-block">
-            <pre><code>// appsettings.json
-  "QuartzUI": {
-    "JwtSecret": "Y2V0aFF1YXJ6TmV0VUlBdXRoZW50aWNhdGlvblNlY3JldA==",
-    "JwtExpiresInMinutes": 360,
-    "JwtIssuer": "Chet.QuartzNet.UI",
-    "JwtAudience": "Chet.QuartzNet.UI",
-    "UserName": "Admin",
-    "Password": "123456"
-  } </code></pre>
-        </div>
-        <p class="code-description">
-          文件存储模式无需额外配置，系统会自动使用文件存储，作业数据存储在应用目录下的
-          JSON 文件中。
-        </p>
-
-        <h3 class="subsubsection-title">2. 数据库存储模式（中大型应用）</h3>
-        <div class="code-block">
-          <pre><code>// Program.cs
-// 添加 Quartz UI 服务（数据库存储模式）
-builder.Services.AddQuartzUI(builder.Configuration);
-// 可选：ClassJob 自动扫描注册
-builder.Services.AddQuartzClassJobs();
-// 启用中间件
-app.UseQuartz();</code></pre>
-        </div>
-                <div class="code-block">
-          <pre><code>// appsettings.json
-  "ConnectionStrings": {
-    "QuartzUI": "Server=localhost;Database=quartzui;User=root;Password=123456;" //MySQL 数据库连接字符串
-    //"QuartzUI": "Data Source=quartzui.db"
-  },
-  "QuartzUI": {
-    "StorageType": "Database", // 指定使用数据库存储
-    "DatabaseProvider": "mysql", // 可选，数据库提供者：mysql、postgresql、sqlserver、sqlite
-    "JwtSecret": "Y2V0aFF1YXJ6TmV0VUlBdXRoZW50aWNhdGlvblNlY3JldA==",
-    "JwtExpiresInMinutes": 360,
-    "JwtIssuer": "Chet.QuartzNet.UI",
-    "JwtAudience": "Chet.QuartzNet.UI",
-    "UserName": "Admin",
-    "Password": "123456"
-  }</code></pre>
-        </div>
-        <p class="code-description">
-          数据库存储模式适合中大型应用，支持 MySQL、PostgreSQL、SQL Server 和
-          SQLite。
-        </p>
-
-
-
-    <!-- 使用示例 -->
-    <section id="examples" class="examples">
-      <div class="container">
-        <h2 class="section-title">📋 ClassJob使用示例</h2>
-
-        <h3 class="subsection-title">创建 ClassJob</h3>
-        <div class="code-block">
-          <pre><code>using Chet.QuartzNet.Core.Attributes;
-using Quartz;
-
-[QuartzJob("SampleJob", "DEFAULT", "0 0/5 * * * ?", Description = "示例作业，每5分钟执行一次")]
-public class SampleJob : IJob
-{
-    private readonly ILogger&lt;SampleJob&gt; _logger;
-
-    public SampleJob(ILogger&lt;SampleJob&gt; logger)
-    {
-        _logger = logger;
-    }
-
-    public async Task Execute(IJobExecutionContext context)
-    {
-        _logger.LogInformation("SampleJob开始执行，执行时间: {ExecuteTime}", DateTime.Now);
-        try
-        {
-            // 模拟业务逻辑处理
-            await Task.Delay(1000);
-
-            // 获取作业数据
-            var jobDataJson = context.JobDetail.JobDataMap.GetJobDataJson();
-            var jobData = context.JobDetail.JobDataMap.GetJobData<SampleParam>();
-            if (!string.IsNullOrEmpty(jobDataJson))
-            {
-                _logger.LogInformation("获取到作业数据JSON: {JobDataJson}", jobDataJson);
-
-            }
-
-            _logger.LogInformation("SampleJob执行完成");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "SampleJob执行失败");
-            throw;
-        }
-    }
-}</code></pre>
-        </div>
-      </div>
     </section>
 
-    <!-- 界面功能 -->
-    <section id="ui-features" class="ui-features">
-      <div class="container">
-        <h2 class="section-title">🎯 界面功能</h2>
+    <section id="changelog" class="py-20 px-4 dark:bg-slate-900/30 bg-white">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="text-3xl font-bold dark:text-white text-slate-900 mb-12 text-center">📝 最新更新</h2>
+            <div class="space-y-12 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-blue-500 before:via-slate-300 dark:before:via-slate-700 before:to-transparent">
+                
+                <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                    <div class="flex items-center justify-center w-10 h-10 rounded-full border dark:border-slate-700 border-slate-200 dark:bg-slate-900 bg-white dark:text-blue-400 text-blue-600 shadow-sm shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 transition-colors">
+                        <i class="fas fa-rocket text-xs"></i>
+                    </div>
+                    <div class="w-[calc(100%-4rem)] md:w-[45%] p-6 rounded-3xl glass shadow-sm">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="font-bold dark:text-white text-slate-900 text-lg">v2.0.0</div>
+                            <time class="text-xs font-bold dark:text-blue-300 dark:bg-blue-900/40 text-blue-600 px-2 py-0.5 bg-blue-50 rounded-md transition-colors">2026-01-15</time>
+                        </div>
+                        <div class="dark:text-slate-400 text-slate-600 text-sm">新增 .NET 10.0 框架支持，全面升级依赖包，保持高性能与最新兼容性。</div>
+                    </div>
+                </div>
 
-        <h3 class="subsection-title">分析页</h3>
-        <ul class="feature-list">
-          <li>
-            📊
-            <strong>作业统计概览</strong
-            >：总作业数、启用/禁用作业数、正在执行作业数、成功/失败执行次数
-          </li>
-          <li>
-            📈 <strong>作业状态分布</strong>：各状态作业数量和百分比的饼图展示
-          </li>
-          <li>
-            📋 <strong>作业类型分布</strong>：各类型作业数量和百分比的饼图展示
-          </li>
-          <li>📉 <strong>作业执行趋势</strong>：作业执行趋势的折线图展示</li>
-          <li>⏱️ <strong>作业执行耗时</strong>：作业执行耗时的柱状图展示</li>
-        </ul>
-
-        <h3 class="subsection-title">作业管理</h3>
-        <ul class="feature-list">
-          <li>📋 作业列表展示（支持分页、搜索、筛选）</li>
-          <li>➕ 添加新作业（支持 Cron 表达式验证）</li>
-          <li>✏️ 编辑现有作业</li>
-          <li>🔄 触发作业（立即执行）</li>
-          <li>⏸️ 暂停/恢复作业</li>
-          <li>🗑️ 删除作业</li>
-          <li>📊 查看作业状态（正常、暂停、完成、错误、阻塞）</li>
-          <li>📝 查看作业执行历史记录</li>
-        </ul>
-
-        <h3 class="subsection-title">日志管理</h3>
-        <ul class="feature-list">
-          <li>📜 查看作业执行历史</li>
-          <li>🔍 按状态筛选日志（运行中、成功、失败）</li>
-          <li>⏱️ 查看执行耗时</li>
-          <li>❌ 查看错误信息</li>
-          <li>📋 分页显示日志记录</li>
-        </ul>
-
-        <h3 class="subsection-title">通知管理</h3>
-        <ul class="feature-list">
-          <li>
-            🔔 <strong>通知配置</strong>：配置 PushPlus
-            Token、推送渠道、消息模板等
-          </li>
-          <li>
-            🎛️
-            <strong>通知策略</strong>：设置作业成功/失败、调度器异常时的通知规则
-          </li>
-          <li>📋 <strong>通知历史</strong>：查看所有通知发送记录</li>
-          <li>🔍 <strong>通知筛选</strong>：按状态、触发来源筛选通知</li>
-          <li>🗑️ <strong>通知清理</strong>：删除单条或批量清空通知记录</li>
-          <li>📤 <strong>测试通知</strong>：发送测试通知验证配置是否正确</li>
-        </ul>
-
-        <h3 class="subsection-title">调度器状态</h3>
-        <ul class="feature-list">
-          <li>🟢 实时显示调度器运行状态</li>
-          <li>📈 自动刷新状态信息</li>
-          <li>📊 显示当前活跃作业数量</li>
-        </ul>
-
-        <h3 class="subsection-title">作业类型支持</h3>
-        <ul class="feature-list">
-          <li>🎯 DLL 模式：基于类的作业定义</li>
-          <li>⚙️ API 模式：基于 API 调用的作业定义</li>
-        </ul>
-      </div>
+                <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                    <div class="flex items-center justify-center w-10 h-10 rounded-full border dark:border-slate-700 border-slate-200 dark:bg-slate-900 bg-white dark:text-slate-500 text-slate-400 shadow-sm shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 transition-colors">
+                        <i class="fas fa-wrench text-xs"></i>
+                    </div>
+                    <div class="w-[calc(100%-4rem)] md:w-[45%] p-6 rounded-3xl glass shadow-sm">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="font-bold dark:text-white text-slate-900 text-lg">v1.6.1</div>
+                            <time class="text-xs font-bold dark:text-slate-400 dark:bg-slate-800 text-slate-500 px-2 py-0.5 bg-slate-100 rounded-md transition-colors">2026-01-12</time>
+                        </div>
+                        <div class="dark:text-slate-400 text-slate-600 text-sm">优化表单布局与响应式栅格，统计面板升级为近30天趋势展示。</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </section>
 
-    <!-- 配置选项 -->
-    <section id="configuration" class="configuration">
-      <div class="container">
-        <h2 class="section-title">🔧 配置选项</h2>
-
-        <h3 class="subsection-title">数据库配置</h3>
-        <p>
-          系统支持通过不同的扩展包来支持多种数据库。您需要根据实际使用的数据库安装对应的扩展包：
-        </p>
-        <div class="table-container">
-          <table class="database-table">
-            <thead>
-              <tr>
-                <th>数据库类型</th>
-                <th>扩展包名称</th>
-                <th>安装命令</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>MySQL</td>
-                <td>Chet.QuartzNet.EFCore.MySql</td>
-                <td>`dotnet add package Chet.QuartzNet.EFCore.MySql`</td>
-              </tr>
-              <tr>
-                <td>PostgreSQL</td>
-                <td>Chet.QuartzNet.EFCore.PostgreSQL</td>
-                <td>`dotnet add package Chet.QuartzNet.EFCore.PostgreSQL`</td>
-              </tr>
-              <tr>
-                <td>SQL Server</td>
-                <td>Chet.QuartzNet.EFCore.SqlServer</td>
-                <td>`dotnet add package Chet.QuartzNet.EFCore.SqlServer`</td>
-              </tr>
-              <tr>
-                <td>SQLite</td>
-                <td>Chet.QuartzNet.EFCore.SQLite</td>
-                <td>`dotnet add package Chet.QuartzNet.EFCore.SQLite`</td>
-              </tr>
-            </tbody>
-          </table>
+    <footer class="py-12 border-t dark:border-slate-800 border-slate-200 text-center transition-colors">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-center gap-6 mb-8 text-xl">
+                <a href="https://github.com/qiect/Chet.QuartzNet.UI" class="dark:hover:text-white hover:text-blue-600 transition"><i class="fab fa-github"></i></a>
+                <a href="mailto:qctvip@vip.163.com" class="dark:hover:text-white hover:text-blue-600 transition"><i class="fas fa-envelope"></i></a>
+            </div>
+            <p class="text-slate-500 text-sm">Released under the MIT License.</p>
+            <p class="mt-2 text-slate-400 text-xs">© 2026 Chet.QuartzNet.UI · Built with ❤️ for .NET Developers.</p>
         </div>
-
-        <h3 class="subsection-title">授权配置</h3>
-        <div class="code-block">
-          <pre><code>{  "QuartzUI": {
-    "UserName": "自定义用户名",
-    "Password": "自定义密码",
-    "JwtSecret": "your-secret-key-change-this-in-production",
-    "JwtExpiresInMinutes": 30,
-    "JwtIssuer": "Chet",
-    "JwtAudience": "Chet.QuartzNet.UI"
-  }
-}</code></pre>
-        </div>
-      </div>
-    </section>
-
-    <!-- 页脚 -->
-    <footer class="footer">
-      <div class="container">
-        <div class="footer-content">
-          <div class="footer-section">
-            <h3>Chet.QuartzNet.UI</h3>
-            <p>可视化作业调度管理系统</p>
-          </div>
-          <div class="footer-section">
-            <h3>快速链接</h3>
-            <ul class="footer-links">
-              <li><a href="#home">首页</a></li>
-              <li><a href="#features">功能特性</a></li>
-              <li><a href="#installation">安装指南</a></li>
-              <li><a href="#quickstart">快速开始</a></li>
-            </ul>
-          </div>
-          <div class="footer-section">
-            <h3>资源</h3>
-            <ul class="footer-links">
-              <li><a href="#examples">使用示例</a></li>
-              <li><a href="#ui-features">界面功能</a></li>
-              <li><a href="#configuration">配置选项</a></li>
-            </ul>
-          </div>
-          <div class="footer-section">
-            <h3>支持</h3>
-            <ul class="footer-links">
-              <li><a href="#">贡献指南</a></li>
-              <li><a href="#">许可证</a></li>
-              <li><a href="#">提交 Issue</a></li>
-            </ul>
-          </div>
-        </div>
-        <div class="footer-bottom">
-          <p>&copy; 2025 Chet.QuartzNet.UI. 采用 MIT 许可证.</p>
-        </div>
-      </div>
     </footer>
 
-    <script src="scripts/main.js"></script>
-  </body>
+</body>
 </html>

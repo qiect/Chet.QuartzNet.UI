@@ -1,1 +1,0 @@
-import{h as s}from"./bootstrap-DXlrt1hk.js";function a(a,t,r){return s({[`${a}-status-success`]:"success"===t,[`${a}-status-warning`]:"warning"===t,[`${a}-status-error`]:"error"===t,[`${a}-status-validating`]:"validating"===t,[`${a}-has-feedback`]:r})}const t=(s,a)=>a||s;export{a,t as g};
