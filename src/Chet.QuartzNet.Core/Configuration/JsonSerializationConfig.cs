@@ -16,7 +16,7 @@ namespace Chet.QuartzNet.Core.Configuration
             return new JsonSerializerOptions
             {
                 // 格式化JSON输出，增加可读性，便于调试和查看
-                WriteIndented = true,
+                WriteIndented = false,
 
                 // 使用不安全的宽松JSON转义编码器，允许输出更多字符而不转义
                 // 适合内部系统之间的数据交换，提高JSON可读性

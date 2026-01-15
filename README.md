@@ -56,10 +56,8 @@ dotnet add package Chet.QuartzNet.EFCore.SQLite      # SQLite 支持
 
 ### 依赖要求
 
-- .NET 8.0
-- ASP.NET Core 8.0+
-- Quartz.NET 3.8.1+ - 作业调度核心库
-- Entity Framework Core 8.0+（可选，用于数据库存储）
+- .NET 8.0 或 .NET 10.0
+- ASP.NET Core 8.0+ 或 ASP.NET Core 10.0+
 
 ## 🚀 快速开始
 
@@ -296,6 +294,18 @@ Chet.QuartzNet.UI/
 ```
 
 ## 📝 更新说明
+
+### [2.0.0] - 2026-1-15
+
+#### 新增
+
+- 添加 .NET 10.0 框架支持
+- 升级相关依赖包至 .NET 10 兼容版本
+
+#### 兼容性
+
+- 与现有 .NET 8.0 版本完全兼容
+- 支持 .NET 8.0 和 .NET 10.0 多框架目标
 
 ### [1.6.1] - 2026-1-12
 

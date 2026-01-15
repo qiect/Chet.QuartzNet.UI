@@ -78,10 +78,10 @@ jobs:
           VERSION=${VERSION#v}
           
           # 使用 sed 命令更新 nuspec 文件中的版本号
-          sed -i "s/<version>.*<\/version>/<version>$VERSION<\/version>/g" Chet.QuartzNet.UI.nuspec
+          sed -i "s/<version>.*<\/version>/<version>$VERSION<\/version>/g" src/Chet.QuartzNet.UI/Chet.QuartzNet.UI.nuspec
           
           # 验证更新结果
-          grep -A 3 "<id>Chet.QuartzNet.UI<\/id>" Chet.QuartzNet.UI.nuspec
+          grep -A 3 "<id>Chet.QuartzNet.UI<\/id>" src/Chet.QuartzNet.UI/Chet.QuartzNet.UI.nuspec
 
       # 3.2 Update database storage packages nuspec files
       - name: Update database storage packages nuspec version
