@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>Chet.QuartzNet.EFCore</PackageId>
-    <Version>2.0.0</Version>
+    <Version>2.1.0</Version>
     <Authors>Chet</Authors>
     <Description>Quartz.Net UI EFCore数据访问层</Description>
     <PackageProjectUrl>https://github.com/qiect/Chet.QuartzNet.UI</PackageProjectUrl>
@@ -29,6 +29,7 @@
   </ItemGroup>
 
 </Project>
+
 
 
 
