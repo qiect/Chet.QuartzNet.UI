@@ -424,12 +424,12 @@ onMounted(() => {
                 </Select>
               </Form.Item>
             </Col>
-            <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="6" :xxl="4">
+            <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="6" :xxl="6">
               <Form.Item label="触发来源" name="triggeredBy">
                 <Input v-model:value="searchForm.triggeredBy" placeholder="请输入触发来源" />
               </Form.Item>
             </Col>
-            <Col :xs="24" :sm="24" :md="24" :lg="8" :xl="12" :xxl="16" class="text-right">
+            <Col :xs="24" :sm="24" :md="24" :lg="8" :xl="12" :xxl="14" class="text-right">
               <Space>
                 <Button type="primary" @click="handleSearch">搜索</Button>
                 <Button @click="handleReset">重置</Button>
