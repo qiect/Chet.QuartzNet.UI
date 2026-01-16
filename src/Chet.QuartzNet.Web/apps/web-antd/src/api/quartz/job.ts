@@ -51,11 +51,9 @@ export interface JobStats {
   totalJobs: number;          // 总作业数
   enabledJobs: number;        // 启用的作业数
   disabledJobs: number;       // 禁用的作业数
-  executingJobs: number;      // 正在执行的作业数
-  successCount: number;       // 成功执行次数
-  failedCount: number;        // 失败执行次数
-  pausedCount: number;        // 暂停作业数
-  blockedCount: number;       // 阻塞作业数
+  totalExecutions: number;    // 总执行数
+  successCount: number;       // 成功的执行数
+  failedCount: number;        // 失败的执行数
 }
 
 // 作业状态分布数据DTO
@@ -384,6 +382,16 @@ export async function getJobStatusDistribution(query?: StatsQueryDto): Promise<A
 }
 
 /**
+ * 获取作业类型分布数据
+ * @param query 查询参数
+ * @returns 作业类型分布数据
+ */
+export async function getJobTypeDistribution(query?: StatsQueryDto): Promise<ApiResponse<JobTypeDistribution[]>> {
+  const response = await requestClient.post('/api/quartz/GetJobTypeDistribution', query);
+  return response;
+}
+
+/**
  * 获取作业执行趋势数据
  * @param query 查询参数
  * @returns 作业执行趋势数据
@@ -393,15 +401,7 @@ export async function getJobExecutionTrend(query?: StatsQueryDto): Promise<ApiRe
   return response;
 }
 
-/**
- * 获取作业类型分布数据
- * @param query 查询参数
- * @returns 作业类型分布数据
- */
-export async function getJobTypeDistribution(query?: StatsQueryDto): Promise<ApiResponse<JobTypeDistribution[]>> {
-  const response = await requestClient.post('/api/quartz/GetJobTypeDistribution', query);
-  return response;
-}
+
 
 /**
  * 获取作业执行耗时数据

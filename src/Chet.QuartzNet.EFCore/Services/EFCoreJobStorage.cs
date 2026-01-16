@@ -600,13 +600,8 @@ public class EFCoreJobStorage : IJobStorage
             var totalJobs = await _dbContext.QuartzJobs.CountAsync(cancellationToken);
             var enabledJobs = await _dbContext.QuartzJobs.CountAsync(j => j.IsEnabled, cancellationToken);
             var disabledJobs = await _dbContext.QuartzJobs.CountAsync(j => !j.IsEnabled, cancellationToken);
-            var pausedCount = await _dbContext.QuartzJobs.CountAsync(j => j.Status == JobStatus.Paused, cancellationToken);
-            var blockedCount = await _dbContext.QuartzJobs.CountAsync(j => j.Status == JobStatus.Blocked, cancellationToken);
 
             // 统计日志信息
-            var executingJobs = await _dbContext.QuartzJobLogs
-                .CountAsync(l => l.Status == LogStatus.Running && l.StartTime >= startTime && l.StartTime <= endTime, cancellationToken);
-
             var successCount = await _dbContext.QuartzJobLogs
                 .CountAsync(l => l.Status == LogStatus.Success && l.StartTime >= startTime && l.StartTime <= endTime, cancellationToken);
 
@@ -619,11 +614,9 @@ public class EFCoreJobStorage : IJobStorage
                 TotalJobs = totalJobs,
                 EnabledJobs = enabledJobs,
                 DisabledJobs = disabledJobs,
-                ExecutingJobs = executingJobs,
+                TotalExecutions = successCount + failedCount,
                 SuccessCount = successCount,
-                FailedCount = failedCount,
-                PausedCount = pausedCount,
-                BlockedCount = blockedCount
+                FailedCount = failedCount
             };
 
             return stats;

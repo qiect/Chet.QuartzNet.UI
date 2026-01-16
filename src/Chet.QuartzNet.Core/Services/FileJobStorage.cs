@@ -892,16 +892,17 @@ public class FileJobStorage : IJobStorage
             var filteredLogs = logs.Where(log => log.StartTime >= startTime && log.StartTime <= endTime).ToList();
 
             // 统计数据
+            var successCount = filteredLogs.Count(l => l.Status == LogStatus.Success);
+            var failedCount = filteredLogs.Count(l => l.Status == LogStatus.Failed);
+            
             var stats = new JobStatsDto
             {
                 TotalJobs = jobs.Count,
                 EnabledJobs = jobs.Count(j => j.IsEnabled),
                 DisabledJobs = jobs.Count(j => !j.IsEnabled),
-                ExecutingJobs = filteredLogs.Count(l => l.Status == LogStatus.Running),
-                SuccessCount = filteredLogs.Count(l => l.Status == LogStatus.Success),
-                FailedCount = filteredLogs.Count(l => l.Status == LogStatus.Failed),
-                PausedCount = jobs.Count(j => j.Status == JobStatus.Paused),
-                BlockedCount = jobs.Count(j => j.Status == JobStatus.Blocked)
+                TotalExecutions = successCount + failedCount,
+                SuccessCount = successCount,
+                FailedCount = failedCount
             };
 
             return stats;

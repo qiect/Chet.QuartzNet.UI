@@ -52,29 +52,19 @@ public class JobStatsDto
     public int DisabledJobs { get; set; }
 
     /// <summary>
-    /// 正在执行的作业数
+    /// 总执行数
     /// </summary>
-    public int ExecutingJobs { get; set; }
+    public int TotalExecutions { get; set; }
 
     /// <summary>
-    /// 成功执行次数
+    /// 成功的执行数
     /// </summary>
     public int SuccessCount { get; set; }
 
     /// <summary>
-    /// 失败执行次数
+    /// 失败的执行数
     /// </summary>
     public int FailedCount { get; set; }
-
-    /// <summary>
-    /// 暂停作业数
-    /// </summary>
-    public int PausedCount { get; set; }
-
-    /// <summary>
-    /// 阻塞作业数
-    /// </summary>
-    public int BlockedCount { get; set; }
 }
 
 /// <summary>
