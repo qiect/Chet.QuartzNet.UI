@@ -221,81 +221,87 @@ onMounted(fetchData);
 <template>
   <Page auto-content-height>
     <Row :gutter="[20, 20]">
+ <Col :xs="24" :sm="12" :lg="6">
+        <Card class="stat-card" :loading="loading" :bordered="false">
+          <div class="stat-content">
+            <div class="stat-main">
+              <span class="stat-title">总作业规模</span>
+              <span class="stat-number">{{ statsOverview.totalJobs }}<small>个</small></span>
+            </div>
+            <div class="stat-icon blue">📊</div>
+          </div>
+          <div class="stat-sub">
+            <span class="sub-label">启用/禁用</span>
+            <span class="sub-value">{{ statsOverview.enabledJobs }}/{{ statsOverview.disabledJobs }}</span>
+            <div class="mini-bar-bg">
+              <div class="mini-bar-fill blue" :style="{ width: (statsOverview.enabledJobs / (statsOverview.totalJobs || 1)) * 100 + '%' }"></div>
+            </div>
+          </div>
+        </Card>
+      </Col>
+
       <Col :xs="24" :sm="12" :lg="6">
-      <Card class="stat-card" :loading="loading" :bordered="false">
-        <div class="stat-content">
-          <div class="stat-main">
-            <span class="stat-title">总作业规模</span>
-            <span class="stat-number">{{ statsOverview.totalJobs }}</span>
+        <Card class="stat-card" :loading="loading" :bordered="false">
+          <div class="stat-content">
+            <div class="stat-main">
+              <span class="stat-title">累计执行量</span>
+              <span class="stat-number">{{ statsOverview.totalExecutions }}<small>次</small></span>
+            </div>
+            <div class="stat-icon green">🚀</div>
           </div>
-          <div class="stat-icon blue">📊</div>
-        </div>
-        <div class="stat-sub">
-          <span class="sub-label">启用率</span>
-          <span class="sub-value">{{ ((statsOverview.enabledJobs / (statsOverview.totalJobs || 1)) * 100).toFixed(0) }}%</span>
-          <div class="mini-bar-bg">
-            <div class="mini-bar-fill blue" :style="{ width: (statsOverview.enabledJobs / (statsOverview.totalJobs || 1)) * 100 + '%' }"></div>
+          <div class="stat-sub">
+            <span class="sub-label">成功率</span>
+            <span class="sub-value success">{{ ((statsOverview.successCount / (statsOverview.totalExecutions || 1)) * 100).toFixed(1) }}%</span>
+            <div class="mini-bar-bg">
+              <div class="mini-bar-fill green" :style="{ width: (statsOverview.successCount / (statsOverview.totalExecutions || 1)) * 100 + '%' }"></div>
+            </div>
           </div>
-        </div>
-      </Card>
-    </Col>
+        </Card>
+      </Col>
 
-    <Col :xs="24" :sm="12" :lg="6">
-      <Card class="stat-card" :loading="loading" :bordered="false">
-        <div class="stat-content">
-          <div class="stat-main">
-            <span class="stat-title">累计执行量</span>
-            <span class="stat-number">{{ statsOverview.totalExecutions }}</span>
+      <Col :xs="24" :sm="12" :lg="6">
+        <Card class="stat-card" :loading="loading" :bordered="false">
+          <div class="stat-content">
+            <div class="stat-main">
+              <span class="stat-title">正常运行数</span>
+              <span class="stat-number">{{ jobStatusDistribution.find(d => d.status === 'Normal')?.count || 0 }}<small>个</small></span>
+            </div>
+            <div class="stat-icon orange">🛡️</div>
           </div>
-          <div class="stat-icon green">⚡</div>
-        </div>
-        <div class="stat-sub">
-          <span class="sub-label">成功率</span>
-          <span class="sub-value success">{{ ((statsOverview.successCount / (statsOverview.totalExecutions || 1)) * 100).toFixed(1) }}%</span>
-          <div class="mini-bar-bg">
-            <div class="mini-bar-fill green" :style="{ width: (statsOverview.successCount / (statsOverview.totalExecutions || 1)) * 100 + '%' }"></div>
+          <div class="stat-sub">
+            <span class="sub-label">正常/暂停</span>
+            <span class="sub-value">
+              {{ jobStatusDistribution.find(d => d.status === 'Normal')?.count || 0 }}/{{ jobStatusDistribution.find(d => d.status === 'Paused')?.count || 0 }}
+            </span>
+            <div class="mini-bar-bg">
+              <div class="mini-bar-fill orange" :style="{ width: (jobStatusDistribution.find(d => d.status === 'Normal')?.percentage || 0) + '%' }"></div>
+            </div>
           </div>
-        </div>
-      </Card>
-    </Col>
+        </Card>
+      </Col>
 
-    <Col :xs="24" :sm="12" :lg="6">
-      <Card class="stat-card" :loading="loading" :bordered="false">
-        <div class="stat-content">
-          <div class="stat-main">
-            <span class="stat-title">正常运行数</span>
-            <span class="stat-number">{{ jobStatusDistribution.find(d => d.status === 'Normal')?.count || 0 }}</span>
+      <Col :xs="24" :sm="12" :lg="6">
+        <Card class="stat-card" :loading="loading" :bordered="false">
+          <div class="stat-content">
+            <div class="stat-main">
+              <span class="stat-title">作业架构分布</span>
+              <div class="dual-numbers">
+                <span class="dll-val">DLL <b>{{ jobTypeDistribution.find(d => d.type === 'DLL')?.count || 0 }}</b></span>
+                <span class="api-val">API <b>{{ jobTypeDistribution.find(d => d.type === 'API')?.count || 0 }}</b></span>
+              </div>
+            </div>
+            <div class="stat-icon purple">🧩</div>
           </div>
-          <div class="stat-icon orange">🛡️</div>
-        </div>
-        <div class="stat-sub">
-          <span class="sub-label">正常占比</span>
-          <span class="sub-value">{{ (jobStatusDistribution.find(d => d.status === 'Normal')?.percentage || 0).toFixed(1) }}%</span>
-          <div class="mini-bar-bg">
-            <div class="mini-bar-fill orange" :style="{ width: (jobStatusDistribution.find(d => d.status === 'Normal')?.percentage || 0) + '%' }"></div>
+          <div class="stat-sub">
+            <span class="sub-label">{{ (jobTypeDistribution.find(d => d.type === 'DLL')?.percentage || 0).toFixed(0) }}%</span>
+            <div class="mini-bar-bg dual-bg">
+              <div class="mini-bar-fill purple" :style="{ width: (jobTypeDistribution.find(d => d.type === 'DLL')?.percentage || 0) + '%' }"></div>
+              <div class="mini-bar-fill cyan" :style="{ width: (jobTypeDistribution.find(d => d.type === 'API')?.percentage || 0) + '%' }"></div>
+            </div>
+            <span class="sub-label">{{ (jobTypeDistribution.find(d => d.type === 'API')?.percentage || 0).toFixed(0) }}%</span>
           </div>
-        </div>
-      </Card>
-    </Col>
-
-    <Col :xs="24" :sm="12" :lg="6">
-      <Card class="stat-card" :loading="loading" :bordered="false">
-        <div class="stat-content">
-          <div class="stat-main">
-            <span class="stat-title">API 调度数</span>
-            <span class="stat-number">{{ jobTypeDistribution.find(d => d.type === 'API')?.count || 0 }}</span>
-          </div>
-          <div class="stat-icon purple">🔌</div>
-        </div>
-        <div class="stat-sub">
-          <span class="sub-label">API 占比</span>
-          <span class="sub-value">{{ (jobTypeDistribution.find(d => d.type === 'API')?.percentage || 0).toFixed(1) }}%</span>
-          <div class="mini-bar-bg">
-            <div class="mini-bar-fill purple" :style="{ width: (jobTypeDistribution.find(d => d.type === 'API')?.percentage || 0) + '%' }"></div>
-          </div>
-        </div>
-      </Card>
-    </Col>
+        </Card>
+      </Col>
 
       <Col :span="24">
         <Card title="近30天作业执行趋势" class="chart-card">
@@ -317,111 +323,84 @@ onMounted(fetchData);
 </template>
 
 <style scoped>
-
-
-/* 图表卡片样式 */
-:deep(.ant-card-head) { 
-  border-bottom: none; 
-  padding: 0 20px;
-}
-
-:deep(.ant-card-head-title) { 
-  font-size: 15px; 
-  font-weight: 600; 
-}
-</style>
-
-<style scoped>
+/* 保持原有基础风格 */
 .stat-card {
   border-radius: 12px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
-  transition: all 0.3s ease;
   overflow: hidden;
   background: #fff;
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+  min-height: 145px;
+  display: flex;
+  flex-direction: column;
 }
 
 .stat-content {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
-.stat-main {
-  display: flex;
-  flex-direction: column;
-}
+.stat-main { display: flex; flex-direction: column; flex: 1; }
+.stat-title { color: #8c8c8c; font-size: 13px; margin-bottom: 6px; }
 
-.stat-title {
-  color: #8c8c8c;
-  font-size: 13px;
-  margin-bottom: 4px;
-}
+.stat-number { font-size: 24px; font-weight: 700; color: #262626; }
+.stat-number small { font-size: 12px; color: #bfbfbf; margin-left: 4px; font-weight: normal; }
 
-.stat-number {
-  font-size: 24px;
-  font-weight: 700;
-  color: #262626;
-  font-family: 'Inter', -apple-system, sans-serif;
-}
+/* 针对第四个卡片的数值放大设计 */
+.dual-numbers { display: flex; gap: 12px; }
+.dll-val, .api-val { font-size: 12px; color: #8c8c8c; }
+.dll-val b { font-size: 24px; color: #722ed1; margin-left: 4px; }
+.api-val b { font-size: 24px; color: #13c2c2; margin-left: 4px; }
 
 .stat-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
+  width: 42px; height: 42px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; font-size: 20px;
 }
 
-/* 风格统一的主题色 */
 .stat-icon.blue { background: #e6f7ff; }
 .stat-icon.green { background: #f6ffed; }
 .stat-icon.orange { background: #fff7e6; }
 .stat-icon.purple { background: #f9f0ff; }
 
-/* 辅助信息与微缩进度条 */
+/* 核心进度条区域：确保宽度统一 */
 .stat-sub {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-size: 12px;
   color: #595959;
+  margin-top: auto; /* 推到底部 */
+  padding-top: 8px;
 }
 
-.sub-label {
-  color: #bfbfbf;
-}
-
-.sub-value {
-  font-weight: 600;
-  min-width: 35px;
-}
-
+.sub-label { color: #bfbfbf; white-space: nowrap; }
+.sub-value { font-weight: 600; min-width: 45px; text-align: right; }
 .sub-value.success { color: #52c41a; }
 
 .mini-bar-bg {
   flex: 1;
-  height: 4px;
-  background: #f0f0f0;
-  border-radius: 2px;
+  height: 6px;
+  background: #f5f5f5;
+  border-radius: 3px;
   overflow: hidden;
+  display: flex;
 }
 
 .mini-bar-fill {
   height: 100%;
-  border-radius: 2px;
   transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .mini-bar-fill.blue { background: #1890ff; }
 .mini-bar-fill.green { background: #52c41a; }
 .mini-bar-fill.orange { background: #faad14; }
-.mini-bar-fill.purple { background: #722ed1; }
+
+/* 双向条特殊颜色 */
+.mini-bar-fill.purple { background: #722ed1; border-right: 1px solid #fff;}
+.mini-bar-fill.cyan { background: #13c2c2; }
+
+/* 统一图表头样式 */
+:deep(.ant-card-head) { border-bottom: none; padding: 0 20px; }
+:deep(.ant-card-head-title) { font-size: 15px; font-weight: 600; }
 </style>
