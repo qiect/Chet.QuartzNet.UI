@@ -137,16 +137,31 @@ const getExecutionTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
 
 const getExecutionTimeOption = (data: JobExecutionTime[]): EChartsOption => {
   const xAxisData = data.length > 0 ? data.map(i => i.timeRange) : ['无数据'];
+  // 检测是否为暗色模式，用于调整文字颜色
+  const isDark = document.documentElement.classList.contains('dark');
+
   return {
     backgroundColor: 'transparent',
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      extraCssText: 'backdrop-filter: blur(4px);'
+    },
     grid: { left: '1%', right: '2%', bottom: '5%', top: '15%', containLabel: true },
     xAxis: {
       type: 'category',
       data: xAxisData,
-      axisLabel: { color: '#8c8c8c', rotate: xAxisData.length > 6 ? 30 : 0 }
+      axisLabel: {
+        color: isDark ? 'rgba(255,255,255,0.45)' : '#8c8c8c',
+        rotate: xAxisData.length > 6 ? 30 : 0
+      },
+      axisLine: { lineStyle: { color: isDark ? '#303030' : '#f0f0f0' } }
     },
-    yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed', color: '#f5f5f5' } } },
+    yAxis: {
+      type: 'value',
+      splitLine: { lineStyle: { type: 'dashed', color: isDark ? '#303030' : '#f5f5f5' } },
+      axisLabel: { color: isDark ? 'rgba(255,255,255,0.45)' : '#8c8c8c' }
+    },
     series: [{
       name: '作业数量',
       type: 'bar',
@@ -155,11 +170,27 @@ const getExecutionTimeOption = (data: JobExecutionTime[]): EChartsOption => {
       itemStyle: {
         borderRadius: [4, 4, 0, 0],
         color: (params: any) => {
+          // 根据数据索引或耗时档位计算“紧张程度”
+          // 假设 xAxisData 是按耗时从小到大排列的
           const ratio = params.dataIndex / (xAxisData.length - 1 || 1);
-          const color = ratio > 0.7 ? '#ff4d4f' : ratio > 0.4 ? '#faad14' : '#1890ff';
+
+          let color;
+          if (ratio < 0.25) {
+            color = '#1890ff'; // 蓝色 - 极速
+          } else if (ratio < 0.5) {
+            color = '#52c41a'; // 绿色 - 正常
+          } else if (ratio < 0.75) {
+            color = '#faad14'; // 黄色 - 偏慢
+          } else {
+            color = '#ff4d4f'; // 红色 - 极慢（紧张感）
+          }
+
           return {
             type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-            colorStops: [{ offset: 0, color: color }, { offset: 1, color: color + '99' }]
+            colorStops: [
+              { offset: 0, color: color },           // 顶部亮色
+              { offset: 1, color: color + '99' }     // 底部带透明度，增加通透感
+            ]
           };
         }
       }
@@ -269,7 +300,7 @@ onMounted(fetchData);
             <div class="stat-main">
               <span class="stat-title">正常运行数</span>
               <span class="stat-number">{{jobStatusDistribution.find(d => d.status === 'Normal')?.count || 0
-              }}<small>个</small></span>
+                }}<small>个</small></span>
             </div>
             <div class="stat-icon orange">💗</div>
           </div>
@@ -295,16 +326,16 @@ onMounted(fetchData);
               <span class="stat-title">作业类型分布</span>
               <div class="dual-numbers">
                 <span class="dll-val">DLL <b>{{jobTypeDistribution.find(d => d.type === 'DLL')?.count || 0
-                }}</b></span>
+                    }}</b></span>
                 <span class="api-val">API <b>{{jobTypeDistribution.find(d => d.type === 'API')?.count || 0
-                }}</b></span>
+                    }}</b></span>
               </div>
             </div>
             <div class="stat-icon purple">🗃</div>
           </div>
           <div class="stat-sub">
             <span class="sub-label">{{(jobTypeDistribution.find(d => d.type === 'DLL')?.percentage || 0).toFixed(0)
-            }}%</span>
+              }}%</span>
             <div class="mini-bar-bg dual-bg">
               <div class="mini-bar-fill purple"
                 :style="{ width: (jobTypeDistribution.find(d => d.type === 'DLL')?.percentage || 0) + '%' }"></div>
@@ -312,7 +343,7 @@ onMounted(fetchData);
                 :style="{ width: (jobTypeDistribution.find(d => d.type === 'API')?.percentage || 0) + '%' }"></div>
             </div>
             <span class="sub-label">{{(jobTypeDistribution.find(d => d.type === 'API')?.percentage || 0).toFixed(0)
-            }}%</span>
+              }}%</span>
           </div>
         </Card>
       </Col>
@@ -365,39 +396,108 @@ onMounted(fetchData);
   padding: 4px;
 }
 
-.stat-main { display: flex; flex-direction: column; flex: 1; }
+.stat-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
 
 /* 文字颜色适配 */
-.stat-title { color: #8c8c8c; font-size: 13px; margin-bottom: 6px; }
-:where(.dark) .stat-title { color: rgba(255, 255, 255, 0.45); }
+.stat-title {
+  color: #8c8c8c;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
 
-.stat-number { font-size: 24px; font-weight: 700; color: #262626; }
-:where(.dark) .stat-number { color: rgba(255, 255, 255, 0.85); }
+:where(.dark) .stat-title {
+  color: rgba(255, 255, 255, 0.45);
+}
 
-.stat-number small { font-size: 12px; color: #bfbfbf; margin-left: 4px; font-weight: normal; }
+.stat-number {
+  font-size: 24px;
+  font-weight: 700;
+  color: #262626;
+}
+
+:where(.dark) .stat-number {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.stat-number small {
+  font-size: 12px;
+  color: #bfbfbf;
+  margin-left: 4px;
+  font-weight: normal;
+}
 
 /* DLL/API 核心数值 */
-.dual-numbers { display: flex; gap: 12px; }
-.dll-val b { font-size: 24px; color: #722ed1; margin-left: 4px; }
-:where(.dark) .dll-val b { color: #9254de; } 
+.dual-numbers {
+  display: flex;
+  gap: 12px;
+}
 
-.api-val b { font-size: 24px; color: #13c2c2; margin-left: 4px; }
-:where(.dark) .api-val b { color: #14e1e1; }
+.dll-val b {
+  font-size: 24px;
+  color: #722ed1;
+  margin-left: 4px;
+}
+
+:where(.dark) .dll-val b {
+  color: #9254de;
+}
+
+.api-val b {
+  font-size: 24px;
+  color: #13c2c2;
+  margin-left: 4px;
+}
+
+:where(.dark) .api-val b {
+  color: #14e1e1;
+}
 
 /* --- 2. 图标背景适配 --- */
 .stat-icon {
-  width: 42px; height: 42px; border-radius: 8px;
-  display: flex; align-items: center; justify-content: center; font-size: 20px;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
 }
-.stat-icon.blue { background: #e6f7ff; }
-.stat-icon.green { background: #f6ffed; }
-.stat-icon.orange { background: #fff7e6; }
-.stat-icon.purple { background: #f9f0ff; }
 
-:where(.dark) .stat-icon.blue { background: rgba(24, 144, 255, 0.15); }
-:where(.dark) .stat-icon.green { background: rgba(82, 196, 26, 0.15); }
-:where(.dark) .stat-icon.orange { background: rgba(250, 173, 20, 0.15); }
-:where(.dark) .stat-icon.purple { background: rgba(114, 46, 209, 0.15); }
+.stat-icon.blue {
+  background: #e6f7ff;
+}
+
+.stat-icon.green {
+  background: #f6ffed;
+}
+
+.stat-icon.orange {
+  background: #fff7e6;
+}
+
+.stat-icon.purple {
+  background: #f9f0ff;
+}
+
+:where(.dark) .stat-icon.blue {
+  background: rgba(24, 144, 255, 0.15);
+}
+
+:where(.dark) .stat-icon.green {
+  background: rgba(82, 196, 26, 0.15);
+}
+
+:where(.dark) .stat-icon.orange {
+  background: rgba(250, 173, 20, 0.15);
+}
+
+:where(.dark) .stat-icon.purple {
+  background: rgba(114, 46, 209, 0.15);
+}
 
 /* --- 3. 进度条核心修复 (重点) --- */
 .stat-sub {
@@ -409,22 +509,35 @@ onMounted(fetchData);
   padding-top: 8px;
 }
 
-.sub-label { color: #bfbfbf; white-space: nowrap; }
-.sub-value { font-weight: 600; min-width: 45px; text-align: right; color: #595959; }
-:where(.dark) .sub-value { color: rgba(255, 255, 255, 0.65); }
+.sub-label {
+  color: #bfbfbf;
+  white-space: nowrap;
+}
+
+.sub-value {
+  font-weight: 600;
+  min-width: 45px;
+  text-align: right;
+  color: #595959;
+}
+
+:where(.dark) .sub-value {
+  color: rgba(255, 255, 255, 0.65);
+}
 
 .mini-bar-bg {
   flex: 1;
   height: 6px;
-  background: #f5f5f5; /* 浅色模式背景 */
+  background: #f5f5f5;
+  /* 浅色模式背景 */
   border-radius: 3px;
   overflow: hidden;
   display: flex;
 }
 
 /* 暗色模式下进度条槽的颜色 */
-:where(.dark) .mini-bar-bg { 
-  background: #333333 !important; 
+:where(.dark) .mini-bar-bg {
+  background: #333333 !important;
 }
 
 .mini-bar-fill {
@@ -433,13 +546,29 @@ onMounted(fetchData);
 }
 
 /* 强制指定填充颜色，防止被暗色选择器覆盖 */
-.mini-bar-fill.blue { background-color: #1890ff !important; }
-.mini-bar-fill.green { background-color: #52c41a !important; }
-.mini-bar-fill.orange { background-color: #faad14 !important; }
-.mini-bar-fill.purple { background-color: #722ed1 !important; border-right: 1px solid #fff; }
-.mini-bar-fill.cyan { background-color: #13c2c2 !important; }
+.mini-bar-fill.blue {
+  background-color: #1890ff !important;
+}
+
+.mini-bar-fill.green {
+  background-color: #52c41a !important;
+}
+
+.mini-bar-fill.orange {
+  background-color: #faad14 !important;
+}
+
+.mini-bar-fill.purple {
+  background-color: #722ed1 !important;
+  border-right: 1px solid #fff;
+}
+
+.mini-bar-fill.cyan {
+  background-color: #13c2c2 !important;
+}
 
 /* 暗色模式下，DLL的白色分割线也要变深 */
-:where(.dark) .mini-bar-fill.purple { border-right-color: #1f1f1f; }
+:where(.dark) .mini-bar-fill.purple {
+  border-right-color: #1f1f1f;
+}
 </style>
-
