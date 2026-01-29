@@ -73,7 +73,7 @@ const loading = ref(false);
 const dataSource = ref<QuartzJobResponseDto[]>([]);
 const total = ref(0);
 const currentPage = ref(1);
-const pageSize = ref(10);
+const pageSize = ref(20);
 // 批量删除相关
 const selectedRowKeys = ref<string[]>([]);
 const selectedRows = ref<QuartzJobResponseDto[]>([]);
@@ -378,7 +378,7 @@ const handleTableChange = (pagination: any, filters: any, sorter: any) => {
   }
 
   // 处理排序变化
-  if (sorter.field !== undefined) {
+  if (sorter.field !== undefined && sorter.order !== undefined) {
     sortBy.value = sorter.field;
     // 根据表格组件返回的排序状态直接设置，表格组件会自动处理切换逻辑（升序→降序→取消）
     sortOrder.value = sorter.order === 'ascend' ? 'asc' : sorter.order === 'descend' ? 'desc' : '';
