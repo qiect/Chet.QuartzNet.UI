@@ -73,7 +73,7 @@ const loading = ref(false);
 const dataSource = ref<QuartzJobResponseDto[]>([]);
 const total = ref(0);
 const currentPage = ref(1);
-const pageSize = ref(10);
+const pageSize = ref(20);
 // 批量删除相关
 const selectedRowKeys = ref<string[]>([]);
 const selectedRows = ref<QuartzJobResponseDto[]>([]);
@@ -378,7 +378,7 @@ const handleTableChange = (pagination: any, filters: any, sorter: any) => {
   }
 
   // 处理排序变化
-  if (sorter.field !== undefined) {
+  if (sorter.field !== undefined && sorter.order !== undefined) {
     sortBy.value = sorter.field;
     // 根据表格组件返回的排序状态直接设置，表格组件会自动处理切换逻辑（升序→降序→取消）
     sortOrder.value = sorter.order === 'ascend' ? 'asc' : sorter.order === 'descend' ? 'desc' : '';
@@ -878,17 +878,20 @@ onMounted(async () => {
           :label-align="'right'">
           <Row :gutter="16">
             <Col :xs="24" :sm="24" :md="24">
-              <Form.Item label="作业名称" name="jobName" :rules="[{ required: true, message: '请输入作业名称' }]">
+              <Form.Item label="作业名称" name="jobName"
+                :rules="[{ required: true, message: '请输入作业名称' }, { max: 100, message: '作业名称长度不能超过100个字符' }]">
                 <Input v-model:value="editForm.jobName" placeholder="请输入作业名称" :disabled="editModalTitle === '编辑作业'" />
               </Form.Item>
             </Col>
             <Col :xs="24" :sm="24" :md="24">
-              <Form.Item label="作业分组" name="jobGroup" :rules="[{ required: true, message: '请输入作业分组' }]">
+              <Form.Item label="作业分组" name="jobGroup"
+                :rules="[{ required: true, message: '请输入作业分组' }, { max: 100, message: '作业分组长度不能超过100个字符' }]">
                 <Input v-model:value="editForm.jobGroup" placeholder="请输入作业分组" :disabled="editModalTitle === '编辑作业'" />
               </Form.Item>
             </Col>
             <Col :xs="24" :sm="24" :md="24">
-              <Form.Item label="Cron表达式" name="cronExpression" :rules="[{ required: true, message: '请输入Cron表达式' }]">
+              <Form.Item label="Cron表达式" name="cronExpression"
+                :rules="[{ required: true, message: '请输入Cron表达式' }, { max: 200, message: 'Cron表达式长度不能超过200个字符' }]">
                 <Space.Compact style="width: 100%">
                   <Input v-model:value="editForm.cronExpression" placeholder="例如: 0 0/1 * * * ?" style="flex: 1" />
                   <Tooltip title="帮助">
@@ -906,7 +909,8 @@ onMounted(async () => {
               </Form.Item>
             </Col>
             <Col :xs="24" :sm="24" :md="24">
-              <Form.Item label="作业类名/API" name="jobClassOrApi" :rules="[{ required: true, message: '请选择或输入作业类名、API' }]">
+              <Form.Item label="作业类名/API" name="jobClassOrApi"
+                :rules="[{ required: true, message: '请选择或输入作业类名、API' }, { max: 500, message: '作业类名或API URL长度不能超过500个字符' }]">
                 <Select v-model:value="editForm.jobClassOrApi" placeholder="请选择或输入作业类名、API" showSearch allowClear
                   mode="SECRET_COMBOBOX_MODE_DO_NOT_USE" :filter-option="(input, option) => {
                     return (option?.label || '')
@@ -949,7 +953,8 @@ onMounted(async () => {
             </Col>
             <!-- API相关配置 -->
             <Col :xs="24" :sm="24" :md="24" v-if="editForm.jobType === JobTypeEnum.API">
-              <Form.Item label="API请求方法" name="apiMethod" :rules="[{ required: true, message: '请选择API请求方法' }]">
+              <Form.Item label="API请求方法" name="apiMethod"
+                :rules="[{ required: true, message: '请选择API请求方法' }, { max: 10, message: 'API请求方法长度不能超过10个字符' }]">
                 <Select v-model:value="editForm.apiMethod">
                   <Select.Option value="GET">GET</Select.Option>
                   <Select.Option value="POST">POST</Select.Option>
@@ -970,7 +975,7 @@ onMounted(async () => {
                   message: '请输入API超时时间',
                   type: 'number',
                 },
-                { type: 'number', min: 1, message: 'API超时时间必须大于0' },
+                { type: 'number', min: 1, max: 99999, message: 'API超时时间必须在1秒到99999秒之间' },
               ]">
                 <Input type="number" v-model:value.number="editForm.apiTimeout" placeholder="请输入API超时时间，单位秒" />
               </Form.Item>
@@ -1027,7 +1032,7 @@ onMounted(async () => {
               </Form.Item>
             </Col>
             <Col :xs="24" :sm="24" :md="24">
-              <Form.Item label="描述" name="description">
+              <Form.Item label="描述" name="description" :rules="[{ max: 500, message: '作业描述长度不能超过500个字符' }]">
                 <Input.TextArea v-model:value="editForm.description" placeholder="请输入作业描述" :rows="3" />
               </Form.Item>
             </Col>

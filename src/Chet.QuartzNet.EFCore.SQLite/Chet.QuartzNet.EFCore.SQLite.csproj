@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>Chet.QuartzNet.EFCore.SQLite</PackageId>
-    <Version>2.1.0</Version>
+    <Version>2.1.1</Version>
     <Authors>Chet</Authors>
     <Description>Chet.QuartzNet.UI SQLite 数据库支持</Description>
 		<PackageTags>Quartz;Scheduler;EFCore;SQLite</PackageTags>
@@ -32,6 +32,7 @@
   </ItemGroup>
 
 </Project>
+
 
 
 

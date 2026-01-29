@@ -19,6 +19,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('#/views/quartz/job.vue'),
     meta: {
       icon: 'ion:time-outline',
+      keepAlive: true,
       title: $t('page.quartz.job'),
     },
   },
@@ -28,6 +29,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('#/views/quartz/log.vue'),
     meta: {
       icon: 'lucide:logs',
+      keepAlive: true,
       title: $t('page.quartz.log'),
     },
   },
@@ -37,6 +39,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('#/views/quartz/notification.vue'),
     meta: {
       icon: 'lucide:bell',
+      keepAlive: true,
       title: $t('page.quartz.notification'),
     },
   },

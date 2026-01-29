@@ -152,7 +152,7 @@ public class QuartzJobDto
     /// <summary>
     /// API超时时间（秒）
     /// </summary>
-    [ConditionalRange(1, 3600, nameof(JobType), JobTypeEnum.API, ErrorMessage = "API超时时间必须在1秒到1小时之间")]
+    [ConditionalRange(1, 99999, nameof(JobType), JobTypeEnum.API, ErrorMessage = "API超时时间必须在1秒到99999秒之间")]
     public int ApiTimeout { get; set; } = 60; // 默认60秒
 
     /// <summary>

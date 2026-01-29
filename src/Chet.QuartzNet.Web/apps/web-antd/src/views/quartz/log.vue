@@ -49,7 +49,7 @@ const loading = ref(false);
 const dataSource = ref<LogResponseDto[]>([]);
 const total = ref(0);
 const currentPage = ref(1);
-const pageSize = ref(10);
+const pageSize = ref(20);
 
 // 搜索条件
 // 添加表单实例引用
@@ -154,8 +154,18 @@ const columns = computed<ColumnsType<LogResponseDto>[]>(() => [
     width: 80,
     key: 'action',
     fixed: 'right',
-    slots: {
-      customRender: 'action',
+    customRender: ({ record }) => {
+      return h(Space, { size: 'middle' }, {
+        default: () => [
+          h(Button, {
+            type: 'primary',
+            onClick: () => handleDetail(record),
+            disabled: loading.value,
+          }, {
+            default: () => '详情',
+          }),
+        ],
+      });
     },
   },
 ]);
@@ -229,17 +239,12 @@ const handleTableChange = (pagination: any, filters: any, sorter: any) => {
   if (pagination.pageSize !== undefined) {
     pageSize.value = pagination.pageSize;
   }
-
   // 处理排序变化
-  if (sorter.field !== undefined) {
+  if (sorter.field !== undefined && sorter.order !== undefined) {
+    console.log('sorter:', sorter);
     sortBy.value = sorter.field;
     // 根据表格组件返回的排序状态直接设置，表格组件会自动处理切换逻辑（升序→降序→取消）
-    sortOrder.value =
-      sorter.order === 'ascend'
-        ? 'asc'
-        : sorter.order === 'descend'
-          ? 'desc'
-          : '';
+    sortOrder.value = sorter.order === 'ascend' ? 'asc' : sorter.order === 'descend' ? 'desc' : '';
   }
 
   // 重新加载数据
@@ -380,13 +385,6 @@ initData();
         <!-- 日志列表 -->
         <Table :columns="columns" :data-source="dataSource" :pagination="pagination" :loading="loading"
           :rowKey="(record) => record.logId" size="middle" @change="handleTableChange" :scroll="{ x: 'max-content' }">
-          <template #action="{ record }">
-            <Space size="middle">
-              <Button type="primary" @click="handleDetail(record)" :disabled="loading">
-                详情
-              </Button>
-            </Space>
-          </template>
         </Table>
       </Card>
 
@@ -419,7 +417,7 @@ initData();
                 <span class="font-semibold text-sm opacity-80">结束时间:</span>
                 <span class="text-sm">{{
                   logDetail.endTime ? formatDateTime(logDetail.endTime) : '-'
-                }}</span>
+                  }}</span>
               </div>
             </div>
           </div>
