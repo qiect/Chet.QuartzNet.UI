@@ -53,8 +53,10 @@ public class ApiJob : IJob
             throw new JobExecutionException("作业信息不存在");
         }
 
-        // 检查作业是否被暂停
-        if (jobInfo.Status == JobStatus.Paused)
+        // 检查作业是否被暂停（手动触发时允许执行暂停中的作业）
+        bool isManualTrigger = context.MergedJobDataMap.TryGetValue("IsManualTrigger", out var manualTriggerValue) &&
+                               manualTriggerValue is bool && (bool)manualTriggerValue;
+        if (jobInfo.Status == JobStatus.Paused && !isManualTrigger)
         {
             _logger.LogWarn("执行API作业", $"作业执行被跳过, 作业已被暂停 - {jobGroup}.{jobName}");
             return; // 直接返回, 不执行作业

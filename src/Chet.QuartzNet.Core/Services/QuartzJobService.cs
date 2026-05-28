@@ -755,10 +755,9 @@ public class QuartzJobService : IQuartzJobService
             {
                 // 直接触发作业，Quartz允许手动触发暂停的作业，无需修改作业状态
                 await _scheduler.TriggerJob(jobKey, jobDataMap, cancellationToken);
-                _logger.LogSuccess("TriggerJob", $"手动触发作业成功: {jobGroup}.{jobName}");
             }
 
-            _logger.LogSuccess("TriggerJob", $"{jobGroup}.{jobName}");
+            _logger.LogSuccess("TriggerJob", $"手动触发作业成功: {jobGroup}.{jobName}");
             return ApiResponseDto<bool>.SuccessResponse(true, "作业触发成功");
         }
         catch (Exception ex)
@@ -780,29 +779,10 @@ public class QuartzJobService : IQuartzJobService
 
         // 添加手动触发标记
         jobDataMap.Add("IsManualTrigger", true);
-
         // 解析并添加作业数据
         if (!string.IsNullOrEmpty(jobInfo.JobData))
         {
-            try
-            {
-                var jobDataDict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(jobInfo.JobData);
-                if (jobDataDict != null)
-                {
-                    foreach (var kvp in jobDataDict)
-                    {
-                        if (kvp.Value != null)
-                        {
-                            jobDataMap.Add(kvp.Key, kvp.Value);
-                        }
-                    }
-                }
-            }
-            catch (System.Text.Json.JsonException ex)
-            {
-                _logger.LogFailure("ParseJobData", ex);
-                throw new InvalidOperationException("作业数据JSON格式无效", ex);
-            }
+            jobDataMap.Add(QuartzJobConst.JobData, jobInfo.JobData);
         }
 
         return jobDataMap;
