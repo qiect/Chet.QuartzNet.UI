@@ -190,6 +190,50 @@ public interface IJobStorage
         CancellationToken cancellationToken = default
     );
 
+    /// <summary>
+    /// 批量添加作业（跳过已存在的作业）
+    /// </summary>
+    /// <param name="jobs">作业信息列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>成功插入的数量</returns>
+    Task<int> AddJobsBatchAsync(
+        List<QuartzJobInfo> jobs,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 批量添加作业日志（跳过已存在的日志）
+    /// </summary>
+    /// <param name="logs">作业日志列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>成功插入的数量</returns>
+    Task<int> AddJobLogsBatchAsync(
+        List<QuartzJobLog> logs,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 批量保存设置（存在则更新，不存在则添加）
+    /// </summary>
+    /// <param name="settings">设置列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>成功保存的数量</returns>
+    Task<int> SaveSettingsBatchAsync(
+        List<QuartzSetting> settings,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 批量添加通知消息（跳过已存在的通知）
+    /// </summary>
+    /// <param name="notifications">通知消息列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>成功插入的数量</returns>
+    Task<int> AddNotificationsBatchAsync(
+        List<QuartzNotification> notifications,
+        CancellationToken cancellationToken = default
+    );
+
     #region 通知管理
 
     /// <summary>

@@ -1366,4 +1366,251 @@ public class EFCoreJobStorage : IJobStorage
     }
 
     #endregion
+
+    #region 批量操作
+
+    /// <summary>
+    /// 批量添加作业（跳过已存在的作业）
+    /// </summary>
+    /// <param name="jobs">作业信息列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>成功插入的数量</returns>
+    public async Task<int> AddJobsBatchAsync(
+        List<QuartzJobInfo> jobs,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (jobs == null || jobs.Count == 0)
+            return 0;
+
+        try
+        {
+            // 查询数据库中已存在的作业键
+            var jobKeys = jobs.Select(j => new { j.JobName, j.JobGroup }).ToList();
+            var existingKeys = await _dbContext
+                .QuartzJobs.Where(j =>
+                    jobKeys.Select(k => k.JobName).Contains(j.JobName)
+                    && jobKeys.Select(k => k.JobGroup).Contains(j.JobGroup)
+                )
+                .Select(j => new { j.JobName, j.JobGroup })
+                .ToListAsync(cancellationToken);
+
+            // 过滤掉已存在的作业
+            var newJobs = jobs.Where(j =>
+                    !existingKeys.Any(e => e.JobName == j.JobName && e.JobGroup == j.JobGroup)
+                )
+                .ToList();
+
+            if (newJobs.Count == 0)
+            {
+                _logger.LogInfo("批量添加作业", "所有作业已存在，跳过插入");
+                return 0;
+            }
+
+            const int batchSize = 200;
+            var totalInserted = 0;
+
+            for (int i = 0; i < newJobs.Count; i += batchSize)
+            {
+                var batch = newJobs.Skip(i).Take(batchSize).ToList();
+                await _dbContext.QuartzJobs.AddRangeAsync(batch, cancellationToken);
+                totalInserted += await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+
+            _logger.LogSuccess(
+                "批量添加作业",
+                "成功插入 {Count} 条，跳过 {Skipped} 条",
+                totalInserted,
+                jobs.Count - newJobs.Count
+            );
+            return totalInserted;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("批量添加作业", ex);
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 批量添加作业日志（跳过已存在的日志）
+    /// </summary>
+    /// <param name="logs">作业日志列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>成功插入的数量</returns>
+    public async Task<int> AddJobLogsBatchAsync(
+        List<QuartzJobLog> logs,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (logs == null || logs.Count == 0)
+            return 0;
+
+        try
+        {
+            // 查询数据库中已存在的日志ID
+            var logIds = logs.Select(l => l.LogId).ToList();
+            var existingIds = await _dbContext
+                .QuartzJobLogs.Where(l => logIds.Contains(l.LogId))
+                .Select(l => l.LogId)
+                .ToListAsync(cancellationToken);
+
+            var existingIdSet = new HashSet<Guid>(existingIds);
+
+            // 过滤掉已存在的日志
+            var newLogs = logs.Where(l => !existingIdSet.Contains(l.LogId)).ToList();
+
+            if (newLogs.Count == 0)
+            {
+                _logger.LogInfo("批量添加日志", "所有日志已存在，跳过插入");
+                return 0;
+            }
+
+            const int batchSize = 500;
+            var totalInserted = 0;
+
+            for (int i = 0; i < newLogs.Count; i += batchSize)
+            {
+                var batch = newLogs.Skip(i).Take(batchSize).ToList();
+                batch.ForEach(p => p.LogId = Guid.NewGuid());
+                await _dbContext.QuartzJobLogs.AddRangeAsync(batch, cancellationToken);
+                totalInserted += await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+
+            _logger.LogSuccess(
+                "批量添加日志",
+                "成功插入 {Count} 条，跳过 {Skipped} 条",
+                totalInserted,
+                logs.Count - newLogs.Count
+            );
+            return totalInserted;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("批量添加日志", ex);
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 批量保存设置（存在则更新，不存在则添加）
+    /// </summary>
+    /// <param name="settings">设置列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>成功保存的数量</returns>
+    public async Task<int> SaveSettingsBatchAsync(
+        List<QuartzSetting> settings,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (settings == null || settings.Count == 0)
+            return 0;
+
+        try
+        {
+            var keys = settings.Select(s => s.Key).ToList();
+            var existingSettings = await _dbContext
+                .QuartzSettings.Where(s => keys.Contains(s.Key))
+                .ToListAsync(cancellationToken);
+
+            var existingDict = existingSettings.ToDictionary(s => s.Key);
+
+            var savedCount = 0;
+
+            foreach (var setting in settings)
+            {
+                if (existingDict.TryGetValue(setting.Key, out var existing))
+                {
+                    // 更新现有设置
+                    existing.Value = setting.Value;
+                    existing.Description = setting.Description;
+                    existing.Enabled = setting.Enabled;
+                    existing.UpdateTime = DateTime.Now;
+                    _dbContext.QuartzSettings.Update(existing);
+                }
+                else
+                {
+                    setting.SettingId = Guid.NewGuid();
+                    // 添加新设置
+                    setting.CreateTime = DateTime.Now;
+                    await _dbContext.QuartzSettings.AddAsync(setting, cancellationToken);
+                }
+                savedCount++;
+            }
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            _logger.LogSuccess("批量保存设置", "成功保存 {Count} 条", savedCount);
+            return savedCount;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("批量保存设置", ex);
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 批量添加通知消息（跳过已存在的通知）
+    /// </summary>
+    /// <param name="notifications">通知消息列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>成功插入的数量</returns>
+    public async Task<int> AddNotificationsBatchAsync(
+        List<QuartzNotification> notifications,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (notifications == null || notifications.Count == 0)
+            return 0;
+
+        try
+        {
+            // 查询数据库中已存在的通知ID
+            var notificationIds = notifications.Select(n => n.NotificationId).ToList();
+            var existingIds = await _dbContext
+                .QuartzNotifications.Where(n => notificationIds.Contains(n.NotificationId))
+                .Select(n => n.NotificationId)
+                .ToListAsync(cancellationToken);
+
+            var existingIdSet = new HashSet<Guid>(existingIds);
+
+            // 过滤掉已存在的通知
+            var newNotifications = notifications
+                .Where(n => !existingIdSet.Contains(n.NotificationId))
+                .ToList();
+
+            if (newNotifications.Count == 0)
+            {
+                _logger.LogInfo("批量添加通知", "所有通知已存在，跳过插入");
+                return 0;
+            }
+
+            const int batchSize = 200;
+            var totalInserted = 0;
+
+            for (int i = 0; i < newNotifications.Count; i += batchSize)
+            {
+                var batch = newNotifications.Skip(i).Take(batchSize).ToList();
+                batch.ForEach(p => p.NotificationId = Guid.NewGuid());
+                await _dbContext.QuartzNotifications.AddRangeAsync(batch, cancellationToken);
+                totalInserted += await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+
+            _logger.LogSuccess(
+                "批量添加通知",
+                "成功插入 {Count} 条，跳过 {Skipped} 条",
+                totalInserted,
+                notifications.Count - newNotifications.Count
+            );
+            return totalInserted;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("批量添加通知", ex);
+            return 0;
+        }
+    }
+
+    #endregion
 }

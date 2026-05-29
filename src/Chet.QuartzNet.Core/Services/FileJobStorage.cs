@@ -1917,5 +1917,178 @@ public class FileJobStorage : IJobStorage
 
     #endregion
 
+    #region 批量操作
+
+    /// <summary>
+    /// 批量添加作业（跳过已存在的作业）
+    /// </summary>
+    /// <param name="jobs">作业信息列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>成功插入的数量</returns>
+    public async Task<int> AddJobsBatchAsync(
+        List<QuartzJobInfo> jobs,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (jobs == null || jobs.Count == 0)
+            return 0;
+
+        try
+        {
+            var existingJobs = await LoadJobsAsync();
+            var existingKeys = new HashSet<string>(
+                existingJobs.Select(j => $"{j.JobName}|{j.JobGroup}")
+            );
+
+            var newJobs = jobs
+                .Where(j => !existingKeys.Contains($"{j.JobName}|{j.JobGroup}"))
+                .ToList();
+
+            if (newJobs.Count == 0)
+                return 0;
+
+            existingJobs.AddRange(newJobs);
+            await SaveJobsAsync(existingJobs);
+
+            _logger.LogSuccess("批量添加作业", "成功插入 {Count} 条，跳过 {Skipped} 条",
+                newJobs.Count, jobs.Count - newJobs.Count);
+            return newJobs.Count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("批量添加作业", ex);
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 批量添加作业日志（跳过已存在的日志）
+    /// </summary>
+    /// <param name="logs">作业日志列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>成功插入的数量</returns>
+    public async Task<int> AddJobLogsBatchAsync(
+        List<QuartzJobLog> logs,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (logs == null || logs.Count == 0)
+            return 0;
+
+        try
+        {
+            var existingLogs = await LoadLogsAsync();
+            var existingIds = new HashSet<Guid>(existingLogs.Select(l => l.LogId));
+
+            var newLogs = logs.Where(l => !existingIds.Contains(l.LogId)).ToList();
+
+            if (newLogs.Count == 0)
+                return 0;
+
+            existingLogs.AddRange(newLogs);
+            await SaveLogsAsync(existingLogs);
+
+            _logger.LogSuccess("批量添加日志", "成功插入 {Count} 条，跳过 {Skipped} 条",
+                newLogs.Count, logs.Count - newLogs.Count);
+            return newLogs.Count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("批量添加日志", ex);
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 批量保存设置（存在则更新，不存在则添加）
+    /// </summary>
+    /// <param name="settings">设置列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>成功保存的数量</returns>
+    public async Task<int> SaveSettingsBatchAsync(
+        List<QuartzSetting> settings,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (settings == null || settings.Count == 0)
+            return 0;
+
+        try
+        {
+            var existingSettings = await LoadSettingsAsync();
+            var existingDict = existingSettings.ToDictionary(s => s.Key);
+
+            foreach (var setting in settings)
+            {
+                if (existingDict.TryGetValue(setting.Key, out var existing))
+                {
+                    existing.Value = setting.Value;
+                    existing.Description = setting.Description;
+                    existing.Enabled = setting.Enabled;
+                    existing.UpdateTime = DateTime.Now;
+                }
+                else
+                {
+                    setting.CreateTime = DateTime.Now;
+                    existingSettings.Add(setting);
+                }
+            }
+
+            await SaveSettingsAsync(existingSettings);
+
+            _logger.LogSuccess("批量保存设置", "成功保存 {Count} 条", settings.Count);
+            return settings.Count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("批量保存设置", ex);
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 批量添加通知消息（跳过已存在的通知）
+    /// </summary>
+    /// <param name="notifications">通知消息列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>成功插入的数量</returns>
+    public async Task<int> AddNotificationsBatchAsync(
+        List<QuartzNotification> notifications,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (notifications == null || notifications.Count == 0)
+            return 0;
+
+        try
+        {
+            var existingNotifications = await LoadNotificationsAsync();
+            var existingIds = new HashSet<Guid>(
+                existingNotifications.Select(n => n.NotificationId)
+            );
+
+            var newNotifications = notifications
+                .Where(n => !existingIds.Contains(n.NotificationId))
+                .ToList();
+
+            if (newNotifications.Count == 0)
+                return 0;
+
+            existingNotifications.AddRange(newNotifications);
+            await SaveNotificationsAsync(existingNotifications);
+
+            _logger.LogSuccess("批量添加通知", "成功插入 {Count} 条，跳过 {Skipped} 条",
+                newNotifications.Count, notifications.Count - newNotifications.Count);
+            return newNotifications.Count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("批量添加通知", ex);
+            return 0;
+        }
+    }
+
+    #endregion
+
     #endregion
 }

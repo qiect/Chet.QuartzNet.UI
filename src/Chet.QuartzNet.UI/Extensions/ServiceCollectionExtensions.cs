@@ -3,12 +3,14 @@ using Chet.QuartzNet.Core.Configuration;
 using Chet.QuartzNet.Core.Helpers;
 using Chet.QuartzNet.Core.Interfaces;
 using Chet.QuartzNet.Core.Services;
+using Chet.QuartzNet.Models.DTOs;
 using Chet.QuartzNet.Models.Entities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Quartz;
 using Quartz.Impl.Matchers;
 
@@ -297,6 +299,28 @@ public static class ServiceCollectionExtensions
     {
         // 注册ClassJob初始化服务
         services.AddHostedService<ClassJobInitializer>();
+        return services;
+    }
+
+    /// <summary>
+    /// 将文件存储中的数据迁移到数据库存储
+    /// 应用启动后自动执行，从 FileJobStorage 读取作业、日志、设置、通知数据，
+    /// 通过当前注册的 IJobStorage（数据库存储）写入，跳过已存在的记录
+    /// </summary>
+    /// <param name="services">服务集合</param>
+    /// <param name="configureOptions">可选：覆写文件存储路径等配置（默认从 IConfiguration 读取）</param>
+    /// <returns>服务集合</returns>
+    public static IServiceCollection AddFileDataToDatabase(
+        this IServiceCollection services,
+        Action<QuartzUIOptions>? configureOptions = null
+    )
+    {
+        if (configureOptions != null)
+        {
+            services.PostConfigure(configureOptions);
+        }
+
+        services.AddHostedService<FileDataMigrator>();
         return services;
     }
 
@@ -604,6 +628,293 @@ public static class ServiceCollectionExtensions
             catch (Exception ex)
             {
                 _logger.LogFailure("初始化作业调度", ex);
+            }
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// 文件数据迁移服务，将 FileJobStorage 中的数据迁移到数据库存储
+    /// </summary>
+    private class FileDataMigrator : IHostedService
+    {
+        private readonly IServiceScopeFactory _scopeFactory;
+        private readonly ILogger<FileDataMigrator> _logger;
+        private readonly IOptions<QuartzUIOptions> _options;
+
+        public FileDataMigrator(
+            IServiceScopeFactory scopeFactory,
+            ILogger<FileDataMigrator> logger,
+            IOptions<QuartzUIOptions> options
+        )
+        {
+            _scopeFactory = scopeFactory;
+            _logger = logger;
+            _options = options;
+        }
+
+        public async Task StartAsync(CancellationToken cancellationToken)
+        {
+            var options = _options.Value;
+
+            // 检查文件存储路径是否存在
+            if (
+                string.IsNullOrWhiteSpace(options.FileStoragePath)
+                || !Directory.Exists(options.FileStoragePath)
+            )
+            {
+                _logger.LogInfo(
+                    "文件数据迁移",
+                    "文件存储路径不存在，跳过迁移: {Path}",
+                    options.FileStoragePath
+                );
+                return;
+            }
+
+            _logger.LogInfoStructured("开始文件数据迁移到数据库");
+
+            try
+            {
+                // 创建 FileJobStorage 实例直接读取文件数据
+                var fileStorageLoggerFactory = LoggerFactory.Create(builder =>
+                    builder.AddConsole()
+                );
+                var fileStorageLogger = fileStorageLoggerFactory.CreateLogger<FileJobStorage>();
+                var optionsWrapper = new OptionsWrapper<QuartzUIOptions>(options);
+                var fileStorage = new FileJobStorage(optionsWrapper, fileStorageLogger);
+
+                using var scope = _scopeFactory.CreateScope();
+                var dbStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
+
+                // 确保数据库已初始化
+                var initialized = await dbStorage.InitializeAsync(cancellationToken);
+                if (!initialized)
+                {
+                    _logger.LogFailure("文件数据迁移", "数据库初始化失败，终止迁移");
+                    return;
+                }
+
+                // 1. 迁移作业数据
+                await MigrateJobsAsync(fileStorage, dbStorage, cancellationToken);
+
+                // 2. 迁移作业日志
+                await MigrateLogsAsync(fileStorage, dbStorage, cancellationToken);
+
+                // 3. 迁移系统设置
+                await MigrateSettingsAsync(fileStorage, dbStorage, cancellationToken);
+
+                // 4. 迁移通知消息
+                await MigrateNotificationsAsync(fileStorage, dbStorage, cancellationToken);
+
+                _logger.LogSuccess("文件数据迁移", "文件数据迁移到数据库完成");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogFailure("文件数据迁移", ex);
+            }
+        }
+
+        /// <summary>
+        /// 迁移作业数据
+        /// </summary>
+        private async Task MigrateJobsAsync(
+            FileJobStorage fileStorage,
+            IJobStorage dbStorage,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                var jobs = await fileStorage.GetAllJobsAsync(cancellationToken);
+                if (jobs.Count == 0)
+                {
+                    _logger.LogInfo("文件数据迁移", "没有作业数据需要迁移");
+                    return;
+                }
+
+                _logger.LogInfo("文件数据迁移", "找到 {Count} 条作业数据", jobs.Count);
+                var migratedCount = await dbStorage.AddJobsBatchAsync(jobs, cancellationToken);
+
+                _logger.LogInfo(
+                    "文件数据迁移",
+                    "作业迁移完成: 成功 {Migrated}, 跳过 {Skipped}, 共 {Total}",
+                    migratedCount,
+                    jobs.Count - migratedCount,
+                    jobs.Count
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogFailure("迁移作业数据", ex);
+            }
+        }
+
+        /// <summary>
+        /// 迁移作业日志
+        /// </summary>
+        private async Task MigrateLogsAsync(
+            FileJobStorage fileStorage,
+            IJobStorage dbStorage,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                // FileJobStorage 没有直接获取所有日志的方法，使用分页查询
+                var allLogs = new List<QuartzJobLog>();
+                var pageIndex = 1;
+                const int pageSize = 500;
+
+                while (true)
+                {
+                    var queryDto = new QuartzJobLogQueryDto
+                    {
+                        PageIndex = pageIndex,
+                        PageSize = pageSize,
+                    };
+                    var pagedResult = await fileStorage.GetJobLogsAsync(
+                        queryDto,
+                        cancellationToken
+                    );
+                    if (pagedResult.Items.Count == 0)
+                        break;
+
+                    allLogs.AddRange(pagedResult.Items);
+
+                    if (pagedResult.Items.Count < pageSize)
+                        break;
+
+                    pageIndex++;
+                }
+
+                if (allLogs.Count == 0)
+                {
+                    _logger.LogInfo("文件数据迁移", "没有作业日志需要迁移");
+                    return;
+                }
+
+                _logger.LogInfo("文件数据迁移", "找到 {Count} 条作业日志", allLogs.Count);
+                var migratedCount = await dbStorage.AddJobLogsBatchAsync(
+                    allLogs,
+                    cancellationToken
+                );
+
+                _logger.LogInfo(
+                    "文件数据迁移",
+                    "日志迁移完成: 成功 {Migrated}, 跳过 {Skipped}, 共 {Total}",
+                    migratedCount,
+                    allLogs.Count - migratedCount,
+                    allLogs.Count
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogFailure("迁移作业日志", ex);
+            }
+        }
+
+        /// <summary>
+        /// 迁移系统设置
+        /// </summary>
+        private async Task MigrateSettingsAsync(
+            FileJobStorage fileStorage,
+            IJobStorage dbStorage,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                var settings = await fileStorage.GetAllSettingsAsync(cancellationToken);
+                if (settings.Count == 0)
+                {
+                    _logger.LogInfo("文件数据迁移", "没有系统设置需要迁移");
+                    return;
+                }
+
+                _logger.LogInfo("文件数据迁移", "找到 {Count} 条系统设置", settings.Count);
+                var migratedCount = await dbStorage.SaveSettingsBatchAsync(
+                    settings,
+                    cancellationToken
+                );
+
+                _logger.LogInfo(
+                    "文件数据迁移",
+                    "设置迁移完成: 成功 {Migrated}, 共 {Total}",
+                    migratedCount,
+                    settings.Count
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogFailure("迁移系统设置", ex);
+            }
+        }
+
+        /// <summary>
+        /// 迁移通知消息
+        /// </summary>
+        private async Task MigrateNotificationsAsync(
+            FileJobStorage fileStorage,
+            IJobStorage dbStorage,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                // 使用分页查询获取所有通知
+                var allNotifications = new List<QuartzNotification>();
+                var pageIndex = 1;
+                const int pageSize = 500;
+
+                while (true)
+                {
+                    var queryDto = new NotificationQueryDto
+                    {
+                        PageIndex = pageIndex,
+                        PageSize = pageSize,
+                    };
+                    var pagedResult = await fileStorage.GetNotificationsAsync(
+                        queryDto,
+                        cancellationToken
+                    );
+                    if (pagedResult.Items.Count == 0)
+                        break;
+
+                    allNotifications.AddRange(pagedResult.Items);
+
+                    if (pagedResult.Items.Count < pageSize)
+                        break;
+
+                    pageIndex++;
+                }
+
+                if (allNotifications.Count == 0)
+                {
+                    _logger.LogInfo("文件数据迁移", "没有通知消息需要迁移");
+                    return;
+                }
+
+                _logger.LogInfo("文件数据迁移", "找到 {Count} 条通知消息", allNotifications.Count);
+                var migratedCount = await dbStorage.AddNotificationsBatchAsync(
+                    allNotifications,
+                    cancellationToken
+                );
+
+                _logger.LogInfo(
+                    "文件数据迁移",
+                    "通知迁移完成: 成功 {Migrated}, 跳过 {Skipped}, 共 {Total}",
+                    migratedCount,
+                    allNotifications.Count - migratedCount,
+                    allNotifications.Count
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogFailure("迁移通知消息", ex);
             }
         }
 

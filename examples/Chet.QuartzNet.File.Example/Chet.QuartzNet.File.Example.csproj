@@ -1,5 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
-
   <PropertyGroup>
     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <Nullable>enable</Nullable>
@@ -7,8 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Chet.QuartzNet.EFCore.SQLite\Chet.QuartzNet.EFCore.SQLite.csproj" />
     <ProjectReference Include="..\..\src\Chet.QuartzNet.UI\Chet.QuartzNet.UI.csproj" />
     <ProjectReference Include="..\..\src\Chet.QuartzNet.Core\Chet.QuartzNet.Core.csproj" />
   </ItemGroup>
-
 </Project>
