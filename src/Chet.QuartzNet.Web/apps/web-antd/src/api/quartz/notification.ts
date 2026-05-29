@@ -20,6 +20,14 @@ export interface PushPlusConfigDto {
   channel: string;
   template: string;
   topic: string;
+  /** 渠道配置参数（webhook/cp必填，mail可选） */
+  option: string;
+  /** 接收人（好友令牌或企业微信用户id，多人逗号隔开） */
+  to: string;
+  /** 发送结果回调地址 */
+  callbackUrl: string;
+  /** 毫秒时间戳，服务器时间大于此值则不发送 */
+  timestamp?: number;
   enable: boolean;
   strategy: NotificationStrategyDto;
 }

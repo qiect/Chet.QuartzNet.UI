@@ -83,6 +83,10 @@ const configForm = reactive<PushPlusConfigDto>({
   channel: 'wechat',
   template: 'html',
   topic: '',
+  option: '',
+  to: '',
+  callbackUrl: '',
+  timestamp: undefined,
   enable: false,
   strategy: {
     notifyOnJobSuccess: false,
@@ -92,6 +96,25 @@ const configForm = reactive<PushPlusConfigDto>({
 });
 
 const formRef = ref<FormInstance>();
+
+// Option 动态占位符（根据渠道变化）
+const optionPlaceholder = computed(() => {
+  const placeholders: Record<string, string> = {
+    webhook: $t('page.quartz.notificationPage.optionPlaceholderWebhook'),
+    cp: $t('page.quartz.notificationPage.optionPlaceholderCp'),
+    mail: $t('page.quartz.notificationPage.optionPlaceholderMail'),
+  };
+  return placeholders[configForm.channel] || '';
+});
+
+// 时间戳输入（字符串形式展示，转换为数字存储）
+const timestampInput = computed({
+  get: () => configForm.timestamp?.toString() || '',
+  set: (val: string) => {
+    const num = Number(val);
+    configForm.timestamp = val && !isNaN(num) ? num : undefined;
+  },
+});
 
 // 列配置
 const columns = computed(() => [
@@ -489,9 +512,12 @@ onMounted(() => {
                     <Select v-model:value="configForm.channel">
                       <Select.Option value="wechat">{{ $t('page.quartz.notificationPage.channelWechat') }}</Select.Option>
                       <Select.Option value="cp">{{ $t('page.quartz.notificationPage.channelWechatWork') }}</Select.Option>
-                      <Select.Option value="webhook">{{ $t('page.quartz.notificationPage.channelDingTalk') }}</Select.Option>
+                      <Select.Option value="webhook">{{ $t('page.quartz.notificationPage.channelWebhook') }}</Select.Option>
                       <Select.Option value="mail">{{ $t('page.quartz.notificationPage.channelEmail') }}</Select.Option>
                       <Select.Option value="sms">{{ $t('page.quartz.notificationPage.channelSms') }}</Select.Option>
+                      <Select.Option value="voice">{{ $t('page.quartz.notificationPage.channelVoice') }}</Select.Option>
+                      <Select.Option value="extension">{{ $t('page.quartz.notificationPage.channelExtension') }}</Select.Option>
+                      <Select.Option value="app">{{ $t('page.quartz.notificationPage.channelApp') }}</Select.Option>
                     </Select>
                   </Form.Item>
                 </Col>
@@ -499,7 +525,8 @@ onMounted(() => {
                   <Form.Item :label="$t('page.quartz.notificationPage.messageTemplate')" name="template">
                     <Select v-model:value="configForm.template">
                       <Select.Option value="html">{{ $t('page.quartz.notificationPage.templateHtml') }}</Select.Option>
-                      <Select.Option value="text">{{ $t('page.quartz.notificationPage.templateText') }}</Select.Option>
+                      <Select.Option value="txt">{{ $t('page.quartz.notificationPage.templateTxt') }}</Select.Option>
+                      <Select.Option value="json">{{ $t('page.quartz.notificationPage.templateJson') }}</Select.Option>
                       <Select.Option value="markdown">{{ $t('page.quartz.notificationPage.templateMarkdown') }}</Select.Option>
                     </Select>
                   </Form.Item>
@@ -507,6 +534,37 @@ onMounted(() => {
                 <Col :span="24">
                   <Form.Item :label="$t('page.quartz.notificationPage.topicLabel')" name="topic">
                     <Input v-model:value="configForm.topic" :placeholder="$t('page.quartz.notificationPage.topicPlaceholder')" />
+                  </Form.Item>
+                </Col>
+                <Col :span="24" v-if="['webhook', 'cp', 'mail'].includes(configForm.channel)">
+                  <Form.Item :label="$t('page.quartz.notificationPage.optionLabel')" name="option"
+                    :rules="[{ required: ['webhook', 'cp'].includes(configForm.channel), message: $t('page.quartz.notificationPage.optionRequired') }]">
+                    <Input v-model:value="configForm.option" :placeholder="optionPlaceholder" />
+                  </Form.Item>
+                </Col>
+                <Col :span="24" v-if="['wechat', 'cp'].includes(configForm.channel)">
+                  <Form.Item :label="$t('page.quartz.notificationPage.toLabel')" name="to">
+                    <Input v-model:value="configForm.to" :placeholder="$t('page.quartz.notificationPage.toPlaceholder')" />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </section>
+
+            <section class="form-section">
+              <div class="section-header">
+                <span class="icon">🔗</span>
+                <span class="title">{{ $t('page.quartz.notificationPage.advancedConfig') }}</span>
+              </div>
+
+              <Row :gutter="24">
+                <Col :span="24">
+                  <Form.Item :label="$t('page.quartz.notificationPage.callbackUrlLabel')" name="callbackUrl">
+                    <Input v-model:value="configForm.callbackUrl" :placeholder="$t('page.quartz.notificationPage.callbackUrlPlaceholder')" />
+                  </Form.Item>
+                </Col>
+                <Col :span="12">
+                  <Form.Item :label="$t('page.quartz.notificationPage.timestampLabel')" name="timestamp">
+                    <Input v-model:value="timestampInput" :placeholder="$t('page.quartz.notificationPage.timestampPlaceholder')" />
                   </Form.Item>
                 </Col>
               </Row>

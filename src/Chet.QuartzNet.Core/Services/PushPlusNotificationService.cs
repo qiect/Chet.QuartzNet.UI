@@ -326,15 +326,36 @@ public class PushPlusNotificationService : INotificationService
             httpClient.Timeout = TimeSpan.FromSeconds(30);
 
             // 构建请求体
-            var requestBody = new
+            var requestBody = new Dictionary<string, object?>
             {
-                token = config.Token,
-                title = title,
-                content = content,
-                template = config.Template,
-                channel = config.Channel,
-                topic = string.IsNullOrEmpty(config.Topic) ? null : config.Topic,
+                ["token"] = config.Token,
+                ["title"] = title,
+                ["content"] = content,
+                ["template"] = config.Template,
+                ["channel"] = config.Channel,
             };
+
+            // 可选参数：仅在有值时添加，避免发送无效字段
+            if (!string.IsNullOrEmpty(config.Topic))
+            {
+                requestBody["topic"] = config.Topic;
+            }
+            if (!string.IsNullOrEmpty(config.Option))
+            {
+                requestBody["option"] = config.Option;
+            }
+            if (!string.IsNullOrEmpty(config.To))
+            {
+                requestBody["to"] = config.To;
+            }
+            if (!string.IsNullOrEmpty(config.CallbackUrl))
+            {
+                requestBody["callbackUrl"] = config.CallbackUrl;
+            }
+            if (config.Timestamp.HasValue)
+            {
+                requestBody["timestamp"] = config.Timestamp.Value;
+            }
 
             // 发送请求
             var response = await httpClient.PostAsJsonAsync(
