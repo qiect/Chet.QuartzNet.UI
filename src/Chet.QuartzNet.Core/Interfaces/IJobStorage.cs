@@ -31,7 +31,11 @@ public interface IJobStorage
     /// <param name="jobGroup">作业分组</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>操作结果</returns>
-    Task<bool> DeleteJobAsync(string jobName, string jobGroup, CancellationToken cancellationToken = default);
+    Task<bool> DeleteJobAsync(
+        string jobName,
+        string jobGroup,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取作业
@@ -40,7 +44,11 @@ public interface IJobStorage
     /// <param name="jobGroup">作业分组</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业信息</returns>
-    Task<QuartzJobInfo?> GetJobAsync(string jobName, string jobGroup, CancellationToken cancellationToken = default);
+    Task<QuartzJobInfo?> GetJobAsync(
+        string jobName,
+        string jobGroup,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取作业列表
@@ -48,7 +56,10 @@ public interface IJobStorage
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业列表</returns>
-    Task<PagedResponseDto<QuartzJobInfo>> GetJobsAsync(QuartzJobQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<PagedResponseDto<QuartzJobInfo>> GetJobsAsync(
+        QuartzJobQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取所有作业
@@ -65,7 +76,12 @@ public interface IJobStorage
     /// <param name="status">状态</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>操作结果</returns>
-    Task<bool> UpdateJobStatusAsync(string jobName, string jobGroup, JobStatus status, CancellationToken cancellationToken = default);
+    Task<bool> UpdateJobStatusAsync(
+        string jobName,
+        string jobGroup,
+        JobStatus status,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 添加作业日志
@@ -81,7 +97,10 @@ public interface IJobStorage
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业日志列表</returns>
-    Task<PagedResponseDto<QuartzJobLog>> GetJobLogsAsync(QuartzJobLogQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<PagedResponseDto<QuartzJobLog>> GetJobLogsAsync(
+        QuartzJobLogQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 清除过期日志
@@ -97,7 +116,10 @@ public interface IJobStorage
     /// <param name="queryDto">查询条件，用于指定清空哪些日志</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>操作结果</returns>
-    Task<bool> ClearJobLogsAsync(QuartzJobLogQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<bool> ClearJobLogsAsync(
+        QuartzJobLogQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 初始化存储
@@ -119,7 +141,10 @@ public interface IJobStorage
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业统计数据</returns>
-    Task<JobStatsDto> GetJobStatsAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<JobStatsDto> GetJobStatsAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取作业状态分布数据
@@ -127,7 +152,10 @@ public interface IJobStorage
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业状态分布数据</returns>
-    Task<List<JobStatusDistributionDto>> GetJobStatusDistributionAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<List<JobStatusDistributionDto>> GetJobStatusDistributionAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取作业执行趋势数据
@@ -135,7 +163,10 @@ public interface IJobStorage
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业执行趋势数据</returns>
-    Task<List<JobExecutionTrendDto>> GetJobExecutionTrendAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<List<JobExecutionTrendDto>> GetJobExecutionTrendAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取作业类型分布数据
@@ -143,7 +174,10 @@ public interface IJobStorage
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业类型分布数据</returns>
-    Task<List<JobTypeDistributionDto>> GetJobTypeDistributionAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<List<JobTypeDistributionDto>> GetJobTypeDistributionAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取作业执行耗时数据
@@ -151,7 +185,54 @@ public interface IJobStorage
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业执行耗时数据</returns>
-    Task<List<JobExecutionTimeDto>> GetJobExecutionTimeAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<List<JobExecutionTimeDto>> GetJobExecutionTimeAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 批量添加作业（跳过已存在的作业）
+    /// </summary>
+    /// <param name="jobs">作业信息列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>成功插入的数量</returns>
+    Task<int> AddJobsBatchAsync(
+        List<QuartzJobInfo> jobs,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 批量添加作业日志（跳过已存在的日志）
+    /// </summary>
+    /// <param name="logs">作业日志列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>成功插入的数量</returns>
+    Task<int> AddJobLogsBatchAsync(
+        List<QuartzJobLog> logs,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 批量保存设置（存在则更新，不存在则添加）
+    /// </summary>
+    /// <param name="settings">设置列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>成功保存的数量</returns>
+    Task<int> SaveSettingsBatchAsync(
+        List<QuartzSetting> settings,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 批量添加通知消息（跳过已存在的通知）
+    /// </summary>
+    /// <param name="notifications">通知消息列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>成功插入的数量</returns>
+    Task<int> AddNotificationsBatchAsync(
+        List<QuartzNotification> notifications,
+        CancellationToken cancellationToken = default
+    );
 
     #region 通知管理
 
@@ -161,7 +242,10 @@ public interface IJobStorage
     /// <param name="setting">设置信息</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>保存成功返回true，失败返回false</returns>
-    Task<bool> SaveSettingAsync(QuartzSetting setting, CancellationToken cancellationToken = default);
+    Task<bool> SaveSettingAsync(
+        QuartzSetting setting,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取设置
@@ -184,7 +268,10 @@ public interface IJobStorage
     /// <param name="notification">通知消息</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>添加成功返回true，失败返回false</returns>
-    Task<bool> AddNotificationAsync(QuartzNotification notification, CancellationToken cancellationToken = default);
+    Task<bool> AddNotificationAsync(
+        QuartzNotification notification,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 更新通知消息
@@ -192,7 +279,10 @@ public interface IJobStorage
     /// <param name="notification">通知消息</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>更新成功返回true，失败返回false</returns>
-    Task<bool> UpdateNotificationAsync(QuartzNotification notification, CancellationToken cancellationToken = default);
+    Task<bool> UpdateNotificationAsync(
+        QuartzNotification notification,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取通知消息
@@ -200,7 +290,10 @@ public interface IJobStorage
     /// <param name="notificationId">通知ID</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>通知消息，不存在返回null</returns>
-    Task<QuartzNotification?> GetNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default);
+    Task<QuartzNotification?> GetNotificationAsync(
+        Guid notificationId,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取通知消息列表，支持分页、过滤和排序
@@ -208,7 +301,10 @@ public interface IJobStorage
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>分页通知消息列表</returns>
-    Task<PagedResponseDto<QuartzNotification>> GetNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<PagedResponseDto<QuartzNotification>> GetNotificationsAsync(
+        NotificationQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 删除通知消息
@@ -216,7 +312,10 @@ public interface IJobStorage
     /// <param name="notificationId">通知ID</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>删除成功返回true，失败返回false</returns>
-    Task<bool> DeleteNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default);
+    Task<bool> DeleteNotificationAsync(
+        Guid notificationId,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 根据查询条件清空通知消息
@@ -224,7 +323,10 @@ public interface IJobStorage
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>清空成功返回true，失败返回false</returns>
-    Task<bool> ClearNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<bool> ClearNotificationsAsync(
+        NotificationQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     #endregion
 }

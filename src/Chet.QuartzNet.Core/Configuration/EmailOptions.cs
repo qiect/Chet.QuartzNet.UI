@@ -73,9 +73,10 @@ public class EmailOptions
         if (string.IsNullOrWhiteSpace(Recipients))
             return new List<string>();
 
-        return Recipients.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries)
-                        .Select(email => email.Trim())
-                        .Where(email => !string.IsNullOrWhiteSpace(email))
-                        .ToList();
+        return Recipients
+            .Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(email => email.Trim())
+            .Where(email => !string.IsNullOrWhiteSpace(email))
+            .ToList();
     }
 }

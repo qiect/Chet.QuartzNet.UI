@@ -67,7 +67,7 @@
             {
                 Success = true,
                 Message = message,
-                Data = data
+                Data = data,
             };
         }
 
@@ -80,7 +80,7 @@
             {
                 Success = false,
                 Message = message,
-                ErrorCode = errorCode
+                ErrorCode = errorCode,
             };
         }
     }

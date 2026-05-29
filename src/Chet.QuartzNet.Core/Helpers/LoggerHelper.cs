@@ -8,7 +8,7 @@ namespace Chet.QuartzNet.Core.Helpers;
 public static class LoggerHelper
 {
     #region 日志前缀常量
-    private const string LOG_PREFIX = "Chet.QuartzNet.UI";  // 统一日志前缀
+    private const string LOG_PREFIX = "Chet.QuartzNet.UI"; // 统一日志前缀
     #endregion
 
     #region Information 日志
@@ -21,7 +21,12 @@ public static class LoggerHelper
     /// <param name="operation">操作名称</param>
     /// <param name="message">日志消息模板</param>
     /// <param name="args">日志消息参数</param>
-    public static void LogInfo<T>(this ILogger<T> logger, string operation, string message, params object?[] args)
+    public static void LogInfo<T>(
+        this ILogger<T> logger,
+        string operation,
+        string message,
+        params object?[] args
+    )
     {
         logger.LogInformation($"[{LOG_PREFIX}] <{operation}> {message}", args);
     }
@@ -53,7 +58,12 @@ public static class LoggerHelper
     /// <param name="operation">操作名称</param>
     /// <param name="message">日志消息模板</param>
     /// <param name="args">日志消息参数</param>
-    public static void LogSuccess<T>(this ILogger<T> logger, string operation, string message, params object?[] args)
+    public static void LogSuccess<T>(
+        this ILogger<T> logger,
+        string operation,
+        string message,
+        params object?[] args
+    )
     {
         logger.LogInformation($"[{LOG_PREFIX}] (SUCCESS) <{operation}> 操作成功, {message}", args);
     }
@@ -88,7 +98,12 @@ public static class LoggerHelper
     /// <param name="operation">操作名称</param>
     /// <param name="message">日志消息模板</param>
     /// <param name="args">日志消息参数</param>
-    public static void LogWarn<T>(this ILogger<T> logger, string operation, string message, params object?[] args)
+    public static void LogWarn<T>(
+        this ILogger<T> logger,
+        string operation,
+        string message,
+        params object?[] args
+    )
     {
         logger.LogWarning($"[{LOG_PREFIX}] (WARNING) <{operation}> {message}", args);
     }
@@ -116,7 +131,12 @@ public static class LoggerHelper
     /// <param name="operation">操作名称</param>
     /// <param name="details">失败详情</param>
     /// <param name="exception">异常对象</param>
-    public static void LogFailure<T>(this ILogger<T> logger, string operation, string details, Exception exception)
+    public static void LogFailure<T>(
+        this ILogger<T> logger,
+        string operation,
+        string details,
+        Exception exception
+    )
     {
         logger.LogError(exception, $"[{LOG_PREFIX}] (FAILURE) <{operation}> 操作失败, {details}");
     }
@@ -143,23 +163,31 @@ public static class LoggerHelper
     /// <param name="logLevel">日志级别</param>
     /// <param name="eventName">事件名称</param>
     /// <param name="properties">结构化属性</param>
-    public static void LogStructured<T>(this ILogger<T> logger, LogLevel logLevel, string eventName, params (string Key, object? Value)[] properties)
+    public static void LogStructured<T>(
+        this ILogger<T> logger,
+        LogLevel logLevel,
+        string eventName,
+        params (string Key, object? Value)[] properties
+    )
     {
-        var state = new Dictionary<string, object?>
-        {
-            ["EventName"] = eventName
-        };
+        var state = new Dictionary<string, object?> { ["EventName"] = eventName };
 
         foreach (var (key, value) in properties)
         {
             state[key] = value;
         }
 
-        logger.Log(logLevel, new EventId(), state, null, (s, e) =>
-        {
-            var propertyString = string.Join(", ", s.Select(kv => $"{kv.Key}: {kv.Value}"));
-            return $"[{LOG_PREFIX}] [{eventName}] {propertyString}";
-        });
+        logger.Log(
+            logLevel,
+            new EventId(),
+            state,
+            null,
+            (s, e) =>
+            {
+                var propertyString = string.Join(", ", s.Select(kv => $"{kv.Key}: {kv.Value}"));
+                return $"[{LOG_PREFIX}] [{eventName}] {propertyString}";
+            }
+        );
     }
 
     /// <summary>
@@ -169,7 +197,11 @@ public static class LoggerHelper
     /// <param name="logger">日志记录器</param>
     /// <param name="eventName">事件名称</param>
     /// <param name="properties">结构化属性</param>
-    public static void LogInfoStructured<T>(this ILogger<T> logger, string eventName, params (string Key, object? Value)[] properties)
+    public static void LogInfoStructured<T>(
+        this ILogger<T> logger,
+        string eventName,
+        params (string Key, object? Value)[] properties
+    )
     {
         LogStructured(logger, LogLevel.Information, eventName, properties);
     }
@@ -182,23 +214,31 @@ public static class LoggerHelper
     /// <param name="eventName">事件名称</param>
     /// <param name="exception">异常对象</param>
     /// <param name="properties">结构化属性</param>
-    public static void LogErrorStructured<T>(this ILogger<T> logger, string eventName, Exception exception, params (string Key, object? Value)[] properties)
+    public static void LogErrorStructured<T>(
+        this ILogger<T> logger,
+        string eventName,
+        Exception exception,
+        params (string Key, object? Value)[] properties
+    )
     {
-        var state = new Dictionary<string, object?>
-        {
-            ["EventName"] = eventName
-        };
+        var state = new Dictionary<string, object?> { ["EventName"] = eventName };
 
         foreach (var (key, value) in properties)
         {
             state[key] = value;
         }
 
-        logger.Log(LogLevel.Error, new EventId(), state, exception, (s, e) =>
-        {
-            var propertyString = string.Join(", ", s.Select(kv => $"{kv.Key}: {kv.Value}"));
-            return $"[{LOG_PREFIX}] (FAILURE) [{eventName}] {propertyString}";
-        });
+        logger.Log(
+            LogLevel.Error,
+            new EventId(),
+            state,
+            exception,
+            (s, e) =>
+            {
+                var propertyString = string.Join(", ", s.Select(kv => $"{kv.Key}: {kv.Value}"));
+                return $"[{LOG_PREFIX}] (FAILURE) [{eventName}] {propertyString}";
+            }
+        );
     }
     #endregion
 
@@ -211,15 +251,24 @@ public static class LoggerHelper
     /// <param name="operation">操作名称</param>
     /// <param name="durationMilliseconds">持续时间（毫秒）</param>
     /// <param name="thresholdMilliseconds">警告阈值（毫秒）</param>
-    public static void LogPerformance<T>(this ILogger<T> logger, string operation, long durationMilliseconds, long thresholdMilliseconds = 1000)
+    public static void LogPerformance<T>(
+        this ILogger<T> logger,
+        string operation,
+        long durationMilliseconds,
+        long thresholdMilliseconds = 1000
+    )
     {
         if (durationMilliseconds > thresholdMilliseconds)
         {
-            logger.LogWarning($"[{LOG_PREFIX}] (PERFORMANCE) <{operation}> 性能警告, 执行时间过长 - {durationMilliseconds}ms");
+            logger.LogWarning(
+                $"[{LOG_PREFIX}] (PERFORMANCE) <{operation}> 性能警告, 执行时间过长 - {durationMilliseconds}ms"
+            );
         }
         else
         {
-            logger.LogInformation($"[{LOG_PREFIX}] (PERFORMANCE) <{operation}> 执行时间: {durationMilliseconds}ms");
+            logger.LogInformation(
+                $"[{LOG_PREFIX}] (PERFORMANCE) <{operation}> 执行时间: {durationMilliseconds}ms"
+            );
         }
     }
     #endregion

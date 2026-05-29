@@ -2,7 +2,6 @@
 
 namespace Chet.QuartzNet.Core.Configuration
 {
-
     /// <summary>
     /// DateTime序列化配置辅助类
     /// </summary>
@@ -23,7 +22,12 @@ namespace Chet.QuartzNet.Core.Configuration
                 Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
 
                 // 序列化时忽略值为null的属性，减少JSON大小
-                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+                DefaultIgnoreCondition = System
+                    .Text
+                    .Json
+                    .Serialization
+                    .JsonIgnoreCondition
+                    .WhenWritingNull,
 
                 // 反序列化时忽略属性名大小写，提高兼容性
                 // 允许处理不同命名约定的JSON数据（如驼峰式、 PascalCase等）
@@ -31,7 +35,7 @@ namespace Chet.QuartzNet.Core.Configuration
 
                 // 注册自定义UTC时间转换器，确保DateTime值以统一格式序列化
                 // 避免时区偏移问题，提高跨系统数据交换的可靠性
-                Converters = { new UtcDateTimeConverter() }
+                Converters = { new UtcDateTimeConverter() },
             };
         }
 
@@ -48,7 +52,11 @@ namespace Chet.QuartzNet.Core.Configuration
             /// <summary>
             /// 读取JSON中的DateTime值
             /// </summary>
-            public override DateTime Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options)
+            public override DateTime Read(
+                ref System.Text.Json.Utf8JsonReader reader,
+                Type typeToConvert,
+                System.Text.Json.JsonSerializerOptions options
+            )
             {
                 return DateTime.Parse(reader.GetString()!);
             }
@@ -56,7 +64,11 @@ namespace Chet.QuartzNet.Core.Configuration
             /// <summary>
             /// 将DateTime值写入JSON
             /// </summary>
-            public override void Write(System.Text.Json.Utf8JsonWriter writer, DateTime value, System.Text.Json.JsonSerializerOptions options)
+            public override void Write(
+                System.Text.Json.Utf8JsonWriter writer,
+                DateTime value,
+                System.Text.Json.JsonSerializerOptions options
+            )
             {
                 // 序列化时使用UTC时间，避免时区偏移
                 writer.WriteStringValue(value.ToString(DateTimeFormat));

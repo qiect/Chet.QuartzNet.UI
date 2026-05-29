@@ -21,19 +21,28 @@ public static class ServiceCollectionExtensions
     /// <param name="connectionString">数据库连接字符串</param>
     /// <param name="serverVersion">MySQL服务器版本</param>
     /// <returns>服务集合</returns>
-    public static IServiceCollection AddQuartzUIMySql(this IServiceCollection services, string connectionString, string? serverVersion = null)
+    public static IServiceCollection AddQuartzUIMySql(
+        this IServiceCollection services,
+        string connectionString,
+        string? serverVersion = null
+    )
     {
         services.AddDbContext<QuartzDbContext>(options =>
         {
-            var mySqlServerVersion = serverVersion != null
-                ? MySqlServerVersion.Parse(serverVersion)
-                : MySqlServerVersion.AutoDetect(connectionString);
+            var mySqlServerVersion =
+                serverVersion != null
+                    ? MySqlServerVersion.Parse(serverVersion)
+                    : MySqlServerVersion.AutoDetect(connectionString);
 
-            options.UseMySql(connectionString, mySqlServerVersion, mySqlOptions =>
-            {
-                mySqlOptions.MaxBatchSize(1);
-                mySqlOptions.MigrationsAssembly("Chet.QuartzNet.EFCore.MySQL");
-            });
+            options.UseMySql(
+                connectionString,
+                mySqlServerVersion,
+                mySqlOptions =>
+                {
+                    mySqlOptions.MaxBatchSize(1);
+                    mySqlOptions.MigrationsAssembly("Chet.QuartzNet.EFCore.MySQL");
+                }
+            );
         });
 
         services.Replace(ServiceDescriptor.Scoped<IJobStorage, EFCoreJobStorage>());
@@ -47,7 +56,11 @@ public static class ServiceCollectionExtensions
     /// <param name="configuration">配置</param>
     /// <param name="serverVersion">MySQL服务器版本</param>
     /// <returns>服务集合</returns>
-    public static IServiceCollection AddQuartzUIMySql(this IServiceCollection services, IConfiguration configuration, string? serverVersion = null)
+    public static IServiceCollection AddQuartzUIMySql(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        string? serverVersion = null
+    )
     {
         var quartzUIOptions = configuration.GetSection("QuartzUI").Get<QuartzUIOptions>();
 

@@ -1,3 +1,6 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 using Chet.QuartzNet.Core.Configuration;
 using Chet.QuartzNet.Core.Helpers;
 using Chet.QuartzNet.Core.Interfaces;
@@ -7,9 +10,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
 
 namespace Chet.QuartzNet.UI.Controllers;
 
@@ -26,9 +26,11 @@ public class QuartzUIController : ControllerBase
     private readonly ILogger<QuartzUIController> _logger;
     private readonly QuartzUIOptions _quartzUIOptions;
 
-    public QuartzUIController(IQuartzJobService jobService,
-                              ILogger<QuartzUIController> logger,
-                              IOptions<QuartzUIOptions> quartzUIOptions)
+    public QuartzUIController(
+        IQuartzJobService jobService,
+        ILogger<QuartzUIController> logger,
+        IOptions<QuartzUIOptions> quartzUIOptions
+    )
     {
         _jobService = jobService;
         _logger = logger;
@@ -51,7 +53,11 @@ public class QuartzUIController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogFailure("获取调度器状态", ex);
-            return Ok(ApiResponseDto<SchedulerStatusDto>.ErrorResponse("获取调度器状态失败: " + ex.Message));
+            return Ok(
+                ApiResponseDto<SchedulerStatusDto>.ErrorResponse(
+                    "获取调度器状态失败: " + ex.Message
+                )
+            );
         }
     }
 
@@ -115,7 +121,9 @@ public class QuartzUIController : ControllerBase
     /// 获取作业列表
     /// </summary>
     [HttpPost("GetJobs")]
-    public async Task<ActionResult<ApiResponseDto<PagedResponseDto<QuartzJobResponseDto>>>> GetJobs([FromBody] QuartzJobQueryDto query)
+    public async Task<ActionResult<ApiResponseDto<PagedResponseDto<QuartzJobResponseDto>>>> GetJobs(
+        [FromBody] QuartzJobQueryDto query
+    )
     {
         try
         {
@@ -125,7 +133,11 @@ public class QuartzUIController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogFailure("获取作业列表", ex);
-            return Ok(ApiResponseDto<PagedResponseDto<QuartzJobResponseDto>>.ErrorResponse("获取作业列表失败: " + ex.Message));
+            return Ok(
+                ApiResponseDto<PagedResponseDto<QuartzJobResponseDto>>.ErrorResponse(
+                    "获取作业列表失败: " + ex.Message
+                )
+            );
         }
     }
 
@@ -133,7 +145,10 @@ public class QuartzUIController : ControllerBase
     /// 获取作业详情
     /// </summary>
     [HttpGet("GetJob")]
-    public async Task<ActionResult<ApiResponseDto<QuartzJobResponseDto>>> GetJob(string jobName, string jobGroup)
+    public async Task<ActionResult<ApiResponseDto<QuartzJobResponseDto>>> GetJob(
+        string jobName,
+        string jobGroup
+    )
     {
         try
         {
@@ -143,7 +158,11 @@ public class QuartzUIController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogFailure("获取作业详情", ex);
-            return Ok(ApiResponseDto<QuartzJobResponseDto>.ErrorResponse("获取作业详情失败: " + ex.Message));
+            return Ok(
+                ApiResponseDto<QuartzJobResponseDto>.ErrorResponse(
+                    "获取作业详情失败: " + ex.Message
+                )
+            );
         }
     }
 
@@ -158,11 +177,19 @@ public class QuartzUIController : ControllerBase
             var result = await _jobService.AddJobAsync(jobDto);
             if (result.Success)
             {
-                _logger.LogSuccess("添加作业", "作业: {jobName}.{jobGroup}", jobDto.JobName, jobDto.JobGroup);
+                _logger.LogSuccess(
+                    "添加作业",
+                    "作业: {jobName}.{jobGroup}",
+                    jobDto.JobName,
+                    jobDto.JobGroup
+                );
             }
             else
             {
-                _logger.LogWarn("添加作业", $"添加作业失败: {jobDto.JobName}.{jobDto.JobGroup}, 原因: {result.Message}");
+                _logger.LogWarn(
+                    "添加作业",
+                    $"添加作业失败: {jobDto.JobName}.{jobDto.JobGroup}, 原因: {result.Message}"
+                );
             }
             return Ok(result);
         }
@@ -184,11 +211,19 @@ public class QuartzUIController : ControllerBase
             var result = await _jobService.UpdateJobAsync(jobDto);
             if (result.Success)
             {
-                _logger.LogSuccess("更新作业", "作业: {jobName}.{jobGroup}", jobDto.JobName, jobDto.JobGroup);
+                _logger.LogSuccess(
+                    "更新作业",
+                    "作业: {jobName}.{jobGroup}",
+                    jobDto.JobName,
+                    jobDto.JobGroup
+                );
             }
             else
             {
-                _logger.LogWarn("更新作业", $"更新作业失败: {jobDto.JobName}.{jobDto.JobGroup}, 原因: {result.Message}");
+                _logger.LogWarn(
+                    "更新作业",
+                    $"更新作业失败: {jobDto.JobName}.{jobDto.JobGroup}, 原因: {result.Message}"
+                );
             }
             return Ok(result);
         }
@@ -214,7 +249,10 @@ public class QuartzUIController : ControllerBase
             }
             else
             {
-                _logger.LogWarn("删除作业", $"删除作业失败: {jobName}.{jobGroup}, 原因: {result.Message}");
+                _logger.LogWarn(
+                    "删除作业",
+                    $"删除作业失败: {jobName}.{jobGroup}, 原因: {result.Message}"
+                );
             }
             return Ok(result);
         }
@@ -229,7 +267,9 @@ public class QuartzUIController : ControllerBase
     /// 批量删除作业
     /// </summary>
     [HttpPost("BatchDeleteJobs")]
-    public async Task<ActionResult<ApiResponseDto<bool>>> BatchDeleteJobs([FromBody] List<BatchDeleteRequest> jobs)
+    public async Task<ActionResult<ApiResponseDto<bool>>> BatchDeleteJobs(
+        [FromBody] List<BatchDeleteRequest> jobs
+    )
     {
         try
         {
@@ -252,7 +292,7 @@ public class QuartzUIController : ControllerBase
             return Ok(ApiResponseDto<bool>.ErrorResponse("批量删除作业失败: " + ex.Message));
         }
     }
-    
+
     /// <summary>
     /// 暂停作业
     /// </summary>
@@ -268,7 +308,10 @@ public class QuartzUIController : ControllerBase
             }
             else
             {
-                _logger.LogWarn("暂停作业", $"暂停作业失败: {jobName}.{jobGroup}, 原因: {result.Message}");
+                _logger.LogWarn(
+                    "暂停作业",
+                    $"暂停作业失败: {jobName}.{jobGroup}, 原因: {result.Message}"
+                );
             }
             return Ok(result);
         }
@@ -294,7 +337,10 @@ public class QuartzUIController : ControllerBase
             }
             else
             {
-                _logger.LogWarn("恢复作业", $"恢复作业失败: {jobName}.{jobGroup}, 原因: {result.Message}");
+                _logger.LogWarn(
+                    "恢复作业",
+                    $"恢复作业失败: {jobName}.{jobGroup}, 原因: {result.Message}"
+                );
             }
             return Ok(result);
         }
@@ -309,7 +355,10 @@ public class QuartzUIController : ControllerBase
     /// 立即触发作业
     /// </summary>
     [HttpPost("TriggerJob")]
-    public async Task<ActionResult<ApiResponseDto<bool>>> TriggerJob(string jobName, string jobGroup)
+    public async Task<ActionResult<ApiResponseDto<bool>>> TriggerJob(
+        string jobName,
+        string jobGroup
+    )
     {
         try
         {
@@ -320,7 +369,10 @@ public class QuartzUIController : ControllerBase
             }
             else
             {
-                _logger.LogFailure("立即触发作业", $"触发作业失败: {jobName}.{jobGroup}, 错误信息: {result.Message}");
+                _logger.LogFailure(
+                    "立即触发作业",
+                    $"触发作业失败: {jobName}.{jobGroup}, 错误信息: {result.Message}"
+                );
             }
             return Ok(result);
         }
@@ -339,7 +391,9 @@ public class QuartzUIController : ControllerBase
     /// 获取作业日志
     /// </summary>
     [HttpPost("GetJobLogs")]
-    public async Task<ActionResult<ApiResponseDto<PagedResponseDto<QuartzJobLogDto>>>> GetJobLogs([FromBody] QuartzJobLogQueryDto query)
+    public async Task<ActionResult<ApiResponseDto<PagedResponseDto<QuartzJobLogDto>>>> GetJobLogs(
+        [FromBody] QuartzJobLogQueryDto query
+    )
     {
         try
         {
@@ -349,7 +403,11 @@ public class QuartzUIController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogFailure("获取作业日志", ex);
-            return Ok(ApiResponseDto<PagedResponseDto<QuartzJobLogDto>>.ErrorResponse("获取作业日志失败: " + ex.Message));
+            return Ok(
+                ApiResponseDto<PagedResponseDto<QuartzJobLogDto>>.ErrorResponse(
+                    "获取作业日志失败: " + ex.Message
+                )
+            );
         }
     }
 
@@ -357,7 +415,9 @@ public class QuartzUIController : ControllerBase
     /// 清空作业日志
     /// </summary>
     [HttpPost("ClearLogs")]
-    public async Task<ActionResult<ApiResponseDto<bool>>> ClearLogs([FromBody] QuartzJobLogQueryDto query)
+    public async Task<ActionResult<ApiResponseDto<bool>>> ClearLogs(
+        [FromBody] QuartzJobLogQueryDto query
+    )
     {
         try
         {
@@ -389,7 +449,9 @@ public class QuartzUIController : ControllerBase
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>PushPlus配置</returns>
     [HttpGet("GetPushPlusConfig")]
-    public async Task<ActionResult<ApiResponseDto<PushPlusConfigDto>>> GetPushPlusConfig(CancellationToken cancellationToken = default)
+    public async Task<ActionResult<ApiResponseDto<PushPlusConfigDto>>> GetPushPlusConfig(
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -400,14 +462,21 @@ public class QuartzUIController : ControllerBase
             }
             else
             {
-                _logger.LogWarn("获取PushPlus配置", $"获取PushPlus配置失败, 原因: {result.Message}");
+                _logger.LogWarn(
+                    "获取PushPlus配置",
+                    $"获取PushPlus配置失败, 原因: {result.Message}"
+                );
             }
             return Ok(result);
         }
         catch (Exception ex)
         {
             _logger.LogFailure("获取PushPlus配置", ex);
-            return Ok(ApiResponseDto<PushPlusConfigDto>.ErrorResponse("获取PushPlus配置失败: " + ex.Message));
+            return Ok(
+                ApiResponseDto<PushPlusConfigDto>.ErrorResponse(
+                    "获取PushPlus配置失败: " + ex.Message
+                )
+            );
         }
     }
 
@@ -418,7 +487,10 @@ public class QuartzUIController : ControllerBase
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>保存结果</returns>
     [HttpPost("SavePushPlusConfig")]
-    public async Task<ActionResult<ApiResponseDto<bool>>> SavePushPlusConfig([FromBody] PushPlusConfigDto config, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<ApiResponseDto<bool>>> SavePushPlusConfig(
+        [FromBody] PushPlusConfigDto config,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -429,7 +501,10 @@ public class QuartzUIController : ControllerBase
             }
             else
             {
-                _logger.LogWarn("保存PushPlus配置", $"保存PushPlus配置失败, 原因: {result.Message}");
+                _logger.LogWarn(
+                    "保存PushPlus配置",
+                    $"保存PushPlus配置失败, 原因: {result.Message}"
+                );
             }
             return Ok(result);
         }
@@ -446,7 +521,9 @@ public class QuartzUIController : ControllerBase
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>发送结果</returns>
     [HttpPost("SendTestNotification")]
-    public async Task<ActionResult<ApiResponseDto<bool>>> SendTestNotification(CancellationToken cancellationToken = default)
+    public async Task<ActionResult<ApiResponseDto<bool>>> SendTestNotification(
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -479,7 +556,12 @@ public class QuartzUIController : ControllerBase
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>通知消息列表</returns>
     [HttpPost("GetNotifications")]
-    public async Task<ActionResult<ApiResponseDto<PagedResponseDto<QuartzNotificationDto>>>> GetNotifications([FromBody] NotificationQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<
+        ActionResult<ApiResponseDto<PagedResponseDto<QuartzNotificationDto>>>
+    > GetNotifications(
+        [FromBody] NotificationQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -490,14 +572,21 @@ public class QuartzUIController : ControllerBase
             }
             else
             {
-                _logger.LogWarn("获取通知消息列表", $"获取通知消息列表失败, 原因: {result.Message}");
+                _logger.LogWarn(
+                    "获取通知消息列表",
+                    $"获取通知消息列表失败, 原因: {result.Message}"
+                );
             }
             return Ok(result);
         }
         catch (Exception ex)
         {
             _logger.LogFailure("获取通知消息列表", ex);
-            return Ok(ApiResponseDto<PagedResponseDto<QuartzNotificationDto>>.ErrorResponse("获取通知消息列表失败: " + ex.Message));
+            return Ok(
+                ApiResponseDto<PagedResponseDto<QuartzNotificationDto>>.ErrorResponse(
+                    "获取通知消息列表失败: " + ex.Message
+                )
+            );
         }
     }
 
@@ -508,7 +597,10 @@ public class QuartzUIController : ControllerBase
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>通知消息详情</returns>
     [HttpGet("GetNotification")]
-    public async Task<ActionResult<ApiResponseDto<QuartzNotificationDto>>> GetNotification(Guid notificationId, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<ApiResponseDto<QuartzNotificationDto>>> GetNotification(
+        Guid notificationId,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -519,14 +611,21 @@ public class QuartzUIController : ControllerBase
             }
             else
             {
-                _logger.LogWarn("获取通知消息详情", $"获取通知消息详情失败, 通知ID: {notificationId}, 原因: {result.Message}");
+                _logger.LogWarn(
+                    "获取通知消息详情",
+                    $"获取通知消息详情失败, 通知ID: {notificationId}, 原因: {result.Message}"
+                );
             }
             return Ok(result);
         }
         catch (Exception ex)
         {
             _logger.LogFailure("获取通知消息详情", ex);
-            return Ok(ApiResponseDto<QuartzNotificationDto>.ErrorResponse("获取通知消息详情失败: " + ex.Message));
+            return Ok(
+                ApiResponseDto<QuartzNotificationDto>.ErrorResponse(
+                    "获取通知消息详情失败: " + ex.Message
+                )
+            );
         }
     }
 
@@ -537,18 +636,27 @@ public class QuartzUIController : ControllerBase
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>删除结果</returns>
     [HttpDelete("DeleteNotification")]
-    public async Task<ActionResult<ApiResponseDto<bool>>> DeleteNotification(Guid notificationId, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<ApiResponseDto<bool>>> DeleteNotification(
+        Guid notificationId,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
-            var result = await _jobService.DeleteNotificationAsync(notificationId, cancellationToken);
+            var result = await _jobService.DeleteNotificationAsync(
+                notificationId,
+                cancellationToken
+            );
             if (result.Success)
             {
                 _logger.LogSuccess("删除通知消息", notificationId.ToString());
             }
             else
             {
-                _logger.LogWarn("删除通知消息", $"删除通知消息失败, 通知ID: {notificationId}, 原因: {result.Message}");
+                _logger.LogWarn(
+                    "删除通知消息",
+                    $"删除通知消息失败, 通知ID: {notificationId}, 原因: {result.Message}"
+                );
             }
             return Ok(result);
         }
@@ -566,7 +674,10 @@ public class QuartzUIController : ControllerBase
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>清空结果</returns>
     [HttpPost("ClearNotifications")]
-    public async Task<ActionResult<ApiResponseDto<bool>>> ClearNotifications([FromBody] NotificationQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<ApiResponseDto<bool>>> ClearNotifications(
+        [FromBody] NotificationQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -602,9 +713,15 @@ public class QuartzUIController : ControllerBase
         try
         {
             // 验证用户名密码
-            if (request.UserName != _quartzUIOptions.UserName || request.Password != _quartzUIOptions.Password)
+            if (
+                request.UserName != _quartzUIOptions.UserName
+                || request.Password != _quartzUIOptions.Password
+            )
             {
-                _logger.LogWarn("Login", $"登录失败: 用户名或密码错误 - 尝试用户名: {request.UserName}");
+                _logger.LogWarn(
+                    "Login",
+                    $"登录失败: 用户名或密码错误 - 尝试用户名: {request.UserName}"
+                );
                 return Ok(ApiResponseDto<LoginResponseDto>.ErrorResponse("用户名或密码错误"));
             }
 
@@ -615,7 +732,7 @@ public class QuartzUIController : ControllerBase
             var claims = new[]
             {
                 new Claim(ClaimTypes.Name, request.UserName),
-                new Claim(ClaimTypes.Role, "QuartzUIAdmin")
+                new Claim(ClaimTypes.Role, "QuartzUIAdmin"),
             };
 
             var tokenDescriptor = new SecurityTokenDescriptor
@@ -624,7 +741,10 @@ public class QuartzUIController : ControllerBase
                 Expires = DateTime.UtcNow.AddMinutes(_quartzUIOptions.JwtExpiresInMinutes),
                 Issuer = _quartzUIOptions.JwtIssuer,
                 Audience = _quartzUIOptions.JwtAudience,
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+                SigningCredentials = new SigningCredentials(
+                    new SymmetricSecurityKey(key),
+                    SecurityAlgorithms.HmacSha256Signature
+                ),
             };
 
             var token = tokenHandler.CreateToken(tokenDescriptor);
@@ -636,13 +756,14 @@ public class QuartzUIController : ControllerBase
                 AccessToken = tokenString,
                 TokenType = "Bearer",
                 ExpiresIn = _quartzUIOptions.JwtExpiresInMinutes * 60,
-                UserName = request.UserName
+                UserName = request.UserName,
             };
 
             _logger.LogSuccess("Login", $"用户名: {request.UserName}");
             return Ok(ApiResponseDto<LoginResponseDto>.SuccessResponse(response, "登录成功"));
         }
-        catch (ArgumentOutOfRangeException ex) when (ex.Message.Contains("IDX10653") || ex.Message.Contains("IDX10720"))
+        catch (ArgumentOutOfRangeException ex)
+            when (ex.Message.Contains("IDX10653") || ex.Message.Contains("IDX10720"))
         {
             _logger.LogFailure("Login", ex);
             return BadRequest(new { message = "JWT 密钥配置错误，请联系管理员" });
@@ -662,7 +783,9 @@ public class QuartzUIController : ControllerBase
     /// 获取作业统计数据
     /// </summary>
     [HttpPost("GetJobStats")]
-    public async Task<ActionResult<ApiResponseDto<JobStatsDto>>> GetJobStats([FromBody] StatsQueryDto query)
+    public async Task<ActionResult<ApiResponseDto<JobStatsDto>>> GetJobStats(
+        [FromBody] StatsQueryDto query
+    )
     {
         try
         {
@@ -672,7 +795,9 @@ public class QuartzUIController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogFailure("获取作业统计数据", ex);
-            return Ok(ApiResponseDto<JobStatsDto>.ErrorResponse("获取作业统计数据失败: " + ex.Message));
+            return Ok(
+                ApiResponseDto<JobStatsDto>.ErrorResponse("获取作业统计数据失败: " + ex.Message)
+            );
         }
     }
 
@@ -680,7 +805,9 @@ public class QuartzUIController : ControllerBase
     /// 获取作业状态分布数据
     /// </summary>
     [HttpPost("GetJobStatusDistribution")]
-    public async Task<ActionResult<ApiResponseDto<List<JobStatusDistributionDto>>>> GetJobStatusDistribution([FromBody] StatsQueryDto query)
+    public async Task<
+        ActionResult<ApiResponseDto<List<JobStatusDistributionDto>>>
+    > GetJobStatusDistribution([FromBody] StatsQueryDto query)
     {
         try
         {
@@ -690,7 +817,11 @@ public class QuartzUIController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogFailure("获取作业状态分布数据", ex);
-            return Ok(ApiResponseDto<List<JobStatusDistributionDto>>.ErrorResponse("获取作业状态分布数据失败: " + ex.Message));
+            return Ok(
+                ApiResponseDto<List<JobStatusDistributionDto>>.ErrorResponse(
+                    "获取作业状态分布数据失败: " + ex.Message
+                )
+            );
         }
     }
 
@@ -698,7 +829,9 @@ public class QuartzUIController : ControllerBase
     /// 获取作业类型分布数据
     /// </summary>
     [HttpPost("GetJobTypeDistribution")]
-    public async Task<ActionResult<ApiResponseDto<List<JobTypeDistributionDto>>>> GetJobTypeDistribution([FromBody] StatsQueryDto query)
+    public async Task<
+        ActionResult<ApiResponseDto<List<JobTypeDistributionDto>>>
+    > GetJobTypeDistribution([FromBody] StatsQueryDto query)
     {
         try
         {
@@ -708,7 +841,11 @@ public class QuartzUIController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogFailure("获取作业类型分布数据", ex);
-            return Ok(ApiResponseDto<List<JobTypeDistributionDto>>.ErrorResponse("获取作业类型分布数据失败: " + ex.Message));
+            return Ok(
+                ApiResponseDto<List<JobTypeDistributionDto>>.ErrorResponse(
+                    "获取作业类型分布数据失败: " + ex.Message
+                )
+            );
         }
     }
 
@@ -716,7 +853,9 @@ public class QuartzUIController : ControllerBase
     /// 获取作业执行趋势数据
     /// </summary>
     [HttpPost("GetJobExecutionTrend")]
-    public async Task<ActionResult<ApiResponseDto<List<JobExecutionTrendDto>>>> GetJobExecutionTrend([FromBody] StatsQueryDto query)
+    public async Task<
+        ActionResult<ApiResponseDto<List<JobExecutionTrendDto>>>
+    > GetJobExecutionTrend([FromBody] StatsQueryDto query)
     {
         try
         {
@@ -726,7 +865,11 @@ public class QuartzUIController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogFailure("获取作业执行趋势数据", ex);
-            return Ok(ApiResponseDto<List<JobExecutionTrendDto>>.ErrorResponse("获取作业执行趋势数据失败: " + ex.Message));
+            return Ok(
+                ApiResponseDto<List<JobExecutionTrendDto>>.ErrorResponse(
+                    "获取作业执行趋势数据失败: " + ex.Message
+                )
+            );
         }
     }
 
@@ -734,7 +877,9 @@ public class QuartzUIController : ControllerBase
     /// 获取作业执行耗时数据
     /// </summary>
     [HttpPost("GetJobExecutionTime")]
-    public async Task<ActionResult<ApiResponseDto<List<JobExecutionTimeDto>>>> GetJobExecutionTime([FromBody] StatsQueryDto query)
+    public async Task<ActionResult<ApiResponseDto<List<JobExecutionTimeDto>>>> GetJobExecutionTime(
+        [FromBody] StatsQueryDto query
+    )
     {
         try
         {
@@ -744,7 +889,11 @@ public class QuartzUIController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogFailure("获取作业执行耗时数据", ex);
-            return Ok(ApiResponseDto<List<JobExecutionTimeDto>>.ErrorResponse("获取作业执行耗时数据失败: " + ex.Message));
+            return Ok(
+                ApiResponseDto<List<JobExecutionTimeDto>>.ErrorResponse(
+                    "获取作业执行耗时数据失败: " + ex.Message
+                )
+            );
         }
     }
 
@@ -767,7 +916,10 @@ public class QuartzUIController : ControllerBase
             }
             else
             {
-                _logger.LogWarn("ValidateCronExpression", $"验证Cron表达式失败: {cronExpression}, 原因: {result.Message}");
+                _logger.LogWarn(
+                    "ValidateCronExpression",
+                    $"验证Cron表达式失败: {cronExpression}, 原因: {result.Message}"
+                );
             }
             return Ok(result);
         }
@@ -792,7 +944,9 @@ public class QuartzUIController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogFailure("获取ClassJob列表", ex);
-            return Ok(ApiResponseDto<List<string>>.ErrorResponse("获取作业类列表失败: " + ex.Message));
+            return Ok(
+                ApiResponseDto<List<string>>.ErrorResponse("获取作业类列表失败: " + ex.Message)
+            );
         }
     }
 

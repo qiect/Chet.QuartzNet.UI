@@ -175,7 +175,7 @@ public enum JobTypeEnum
     /// <summary>
     /// API作业
     /// </summary>
-    API = 1
+    API = 1,
 }
 
 /// <summary>
@@ -206,7 +206,7 @@ public enum JobStatus
     /// <summary>
     /// 阻塞
     /// </summary>
-    Blocked = 4
+    Blocked = 4,
 }
 
 /// <summary>
@@ -319,5 +319,5 @@ public enum LogStatus
     /// <summary>
     /// 失败
     /// </summary>
-    Failed = 2
+    Failed = 2,
 }

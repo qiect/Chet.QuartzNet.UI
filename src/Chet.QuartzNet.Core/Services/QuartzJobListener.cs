@@ -1,10 +1,10 @@
+using System.Text.Json;
 using Chet.QuartzNet.Core.Helpers;
 using Chet.QuartzNet.Core.Interfaces;
 using Chet.QuartzNet.Models.Entities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Quartz;
-using System.Text.Json;
 
 namespace Chet.QuartzNet.Core.Services
 {
@@ -21,7 +21,10 @@ namespace Chet.QuartzNet.Core.Services
         /// </summary>
         /// <param name="scopeFactory">服务作用域工厂</param>
         /// <param name="logger">日志记录器</param>
-        public QuartzJobListener(IServiceScopeFactory scopeFactory, ILogger<QuartzJobListener> logger)
+        public QuartzJobListener(
+            IServiceScopeFactory scopeFactory,
+            ILogger<QuartzJobListener> logger
+        )
         {
             _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -38,7 +41,11 @@ namespace Chet.QuartzNet.Core.Services
         /// <param name="context">作业执行上下文</param>
         /// <param name="executionException">作业执行结果</param>
         /// <param name="cancellationToken">取消令牌</param>
-        public async Task JobWasExecuted(IJobExecutionContext context, JobExecutionException? executionException, CancellationToken cancellationToken = default)
+        public async Task JobWasExecuted(
+            IJobExecutionContext context,
+            JobExecutionException? executionException,
+            CancellationToken cancellationToken = default
+        )
         {
             try
             {
@@ -50,8 +57,9 @@ namespace Chet.QuartzNet.Core.Services
                     TriggerGroup = context.Trigger.Key.Group,
                     StartTime = context.FireTimeUtc.LocalDateTime,
                     EndTime = DateTime.Now,
-                    Duration = (long)(DateTime.Now - context.FireTimeUtc.LocalDateTime).TotalMilliseconds,
-                    Result = context.Result?.ToString()
+                    Duration = (long)
+                        (DateTime.Now - context.FireTimeUtc.LocalDateTime).TotalMilliseconds,
+                    Result = context.Result?.ToString(),
                 };
 
                 // 处理执行结果
@@ -72,7 +80,10 @@ namespace Chet.QuartzNet.Core.Services
                 // 记录作业数据
                 if (context.MergedJobDataMap != null && context.MergedJobDataMap.Count > 0)
                 {
-                    var jobDataDict = context.MergedJobDataMap.ToDictionary(kvp => kvp.Key, kvp => kvp.Value?.ToString());
+                    var jobDataDict = context.MergedJobDataMap.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value?.ToString()
+                    );
                     jobLog.JobData = JsonSerializer.Serialize(jobDataDict);
                 }
 
@@ -85,7 +96,12 @@ namespace Chet.QuartzNet.Core.Services
                 await jobStorage.AddJobLogAsync(jobLog, cancellationToken);
 
                 // 更新作业的下次执行时间和上次执行时间
-                await jobService.UpdateJobExecutionTimesAsync(context.JobDetail.Key.Name, context.JobDetail.Key.Group, context.Trigger, cancellationToken);
+                await jobService.UpdateJobExecutionTimesAsync(
+                    context.JobDetail.Key.Name,
+                    context.JobDetail.Key.Group,
+                    context.Trigger,
+                    cancellationToken
+                );
 
                 // 发送推送通知
                 var notificationService = scope.ServiceProvider.GetService<INotificationService>();
@@ -98,14 +114,22 @@ namespace Chet.QuartzNet.Core.Services
                         jobLog.Message,
                         jobLog.Duration ?? 0,
                         jobLog.ErrorMessage,
-                        cancellationToken);
+                        cancellationToken
+                    );
                 }
 
-                _logger.LogSuccess("作业执行完成", $"日志记录成功: {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}, 状态: {jobLog.Status}");
+                _logger.LogSuccess(
+                    "作业执行完成",
+                    $"日志记录成功: {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}, 状态: {jobLog.Status}"
+                );
             }
             catch (Exception ex)
             {
-                _logger.LogFailure("作业执行完成", $"记录作业执行日志失败: {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}", ex);
+                _logger.LogFailure(
+                    "作业执行完成",
+                    $"记录作业执行日志失败: {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}",
+                    ex
+                );
             }
         }
 
@@ -114,7 +138,10 @@ namespace Chet.QuartzNet.Core.Services
         /// </summary>
         /// <param name="context">作业执行上下文</param>
         /// <param name="cancellationToken">取消令牌</param>
-        public async Task JobExecutionVetoed(IJobExecutionContext context, CancellationToken cancellationToken = default)
+        public async Task JobExecutionVetoed(
+            IJobExecutionContext context,
+            CancellationToken cancellationToken = default
+        )
         {
             try
             {
@@ -126,7 +153,7 @@ namespace Chet.QuartzNet.Core.Services
                     TriggerGroup = context.Trigger.Key.Group,
                     StartTime = context.FireTimeUtc.LocalDateTime,
                     Status = LogStatus.Failed,
-                    Message = "作业执行被否决"
+                    Message = "作业执行被否决",
                 };
 
                 // 创建作用域来解析IJobStorage
@@ -134,11 +161,19 @@ namespace Chet.QuartzNet.Core.Services
                 var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
                 await jobStorage.AddJobLogAsync(jobLog, cancellationToken);
 
-                _logger.LogInfo("作业执行", "作业被否决，日志记录成功: {JobKey}", $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}");
+                _logger.LogInfo(
+                    "作业执行",
+                    "作业被否决，日志记录成功: {JobKey}",
+                    $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}"
+                );
             }
             catch (Exception ex)
             {
-                _logger.LogFailure("作业执行被否决", $"记录作业执行否决日志失败: {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}", ex);
+                _logger.LogFailure(
+                    "作业执行被否决",
+                    $"记录作业执行否决日志失败: {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}",
+                    ex
+                );
             }
         }
 
@@ -147,13 +182,21 @@ namespace Chet.QuartzNet.Core.Services
         /// </summary>
         /// <param name="context">作业执行上下文</param>
         /// <param name="cancellationToken">取消令牌</param>
-        public async Task JobToBeExecuted(IJobExecutionContext context, CancellationToken cancellationToken = default)
+        public async Task JobToBeExecuted(
+            IJobExecutionContext context,
+            CancellationToken cancellationToken = default
+        )
         {
             try
             {
                 // 检查是否是手动触发的作业
-                bool isManualTrigger = context.MergedJobDataMap.TryGetValue("IsManualTrigger", out var manualTriggerValue) &&
-                                      manualTriggerValue is bool && (bool)manualTriggerValue;
+                bool isManualTrigger =
+                    context.MergedJobDataMap.TryGetValue(
+                        "IsManualTrigger",
+                        out var manualTriggerValue
+                    )
+                    && manualTriggerValue is bool
+                    && (bool)manualTriggerValue;
 
                 if (!isManualTrigger)
                 {
@@ -162,21 +205,34 @@ namespace Chet.QuartzNet.Core.Services
                     var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
 
                     // 获取作业信息
-                    var jobInfo = await jobStorage.GetJobAsync(context.JobDetail.Key.Name, context.JobDetail.Key.Group, cancellationToken);
+                    var jobInfo = await jobStorage.GetJobAsync(
+                        context.JobDetail.Key.Name,
+                        context.JobDetail.Key.Group,
+                        cancellationToken
+                    );
 
                     if (jobInfo != null && jobInfo.Status == JobStatus.Paused)
                     {
                         // 作业被暂停，记录日志并抛出异常阻止执行
-                        _logger.LogWarn("作业即将执行", $"作业执行被阻止: 作业已被暂停 - {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}");
+                        _logger.LogWarn(
+                            "作业即将执行",
+                            $"作业执行被阻止: 作业已被暂停 - {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}"
+                        );
 
                         // 抛出JobExecutionException来阻止作业执行
-                        throw new JobExecutionException($"作业 {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name} 已被暂停，执行被阻止");
+                        throw new JobExecutionException(
+                            $"作业 {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name} 已被暂停，执行被阻止"
+                        );
                     }
                 }
                 else
                 {
                     // 是手动触发的作业，即使处于暂停状态也允许执行
-                    _logger.LogInfo("手动触发作业", "忽略暂停状态检查: {JobKey}", $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}");
+                    _logger.LogInfo(
+                        "手动触发作业",
+                        "忽略暂停状态检查: {JobKey}",
+                        $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}"
+                    );
                 }
             }
             catch (JobExecutionException)
@@ -187,8 +243,11 @@ namespace Chet.QuartzNet.Core.Services
             catch (Exception ex)
             {
                 // 记录检查过程中的错误，但不阻止作业执行
-                _logger.LogError(ex, "检查作业暂停状态时发生错误: {JobKey}",
-                    $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}");
+                _logger.LogError(
+                    ex,
+                    "检查作业暂停状态时发生错误: {JobKey}",
+                    $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}"
+                );
             }
         }
     }

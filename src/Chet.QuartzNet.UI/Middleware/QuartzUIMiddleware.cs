@@ -1,9 +1,9 @@
+using System.Reflection;
 using Chet.QuartzNet.Core.Configuration;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
-using System.Reflection;
 
 namespace Chet.QuartzNet.UI.Middleware;
 
@@ -18,7 +18,11 @@ public class QuartzUIMiddleware
     private readonly IFileProvider _fileProvider;
     private readonly QuartzUIOptions _options;
 
-    public QuartzUIMiddleware(RequestDelegate next, IWebHostEnvironment env, IOptions<QuartzUIOptions> options)
+    public QuartzUIMiddleware(
+        RequestDelegate next,
+        IWebHostEnvironment env,
+        IOptions<QuartzUIOptions> options
+    )
     {
         _next = next;
         _env = env;
@@ -36,7 +40,6 @@ public class QuartzUIMiddleware
 
         if (path?.StartsWith("/quartz-ui") == true)
         {
-
             // 处理根路径，返回主页面
             if (path == "/quartz-ui" || path == "/quartz-ui/")
             {
@@ -128,6 +131,7 @@ public class QuartzUIMiddleware
             await context.Response.WriteAsync("加载文件失败");
         }
     }
+
     /// <summary>
     /// 根据文件扩展名获取MIME类型
     /// </summary>
@@ -148,7 +152,7 @@ public class QuartzUIMiddleware
             ".woff" => "font/woff",
             ".woff2" => "font/woff2",
             ".ttf" => "font/ttf",
-            _ => "application/octet-stream"
+            _ => "application/octet-stream",
         };
     }
 }

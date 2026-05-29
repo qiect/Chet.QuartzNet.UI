@@ -14,7 +14,10 @@ public interface IQuartzJobService
     /// <param name="jobDto">作业信息</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>操作结果</returns>
-    Task<ApiResponseDto<bool>> AddJobAsync(QuartzJobDto jobDto, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<bool>> AddJobAsync(
+        QuartzJobDto jobDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 更新作业
@@ -22,7 +25,10 @@ public interface IQuartzJobService
     /// <param name="jobDto">作业信息</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>操作结果</returns>
-    Task<ApiResponseDto<bool>> UpdateJobAsync(QuartzJobDto jobDto, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<bool>> UpdateJobAsync(
+        QuartzJobDto jobDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 删除作业
@@ -31,7 +37,11 @@ public interface IQuartzJobService
     /// <param name="jobGroup">作业分组</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>操作结果</returns>
-    Task<ApiResponseDto<bool>> DeleteJobAsync(string jobName, string jobGroup, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<bool>> DeleteJobAsync(
+        string jobName,
+        string jobGroup,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 批量删除作业
@@ -39,7 +49,10 @@ public interface IQuartzJobService
     /// <param name="jobs">作业列表（包含jobName和jobGroup）</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>操作结果</returns>
-    Task<ApiResponseDto<bool>> BatchDeleteJobsAsync(List<(string JobName, string JobGroup)> jobs, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<bool>> BatchDeleteJobsAsync(
+        List<(string JobName, string JobGroup)> jobs,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 暂停作业
@@ -48,7 +61,11 @@ public interface IQuartzJobService
     /// <param name="jobGroup">作业分组</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>操作结果</returns>
-    Task<ApiResponseDto<bool>> PauseJobAsync(string jobName, string jobGroup, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<bool>> PauseJobAsync(
+        string jobName,
+        string jobGroup,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 恢复作业
@@ -57,7 +74,11 @@ public interface IQuartzJobService
     /// <param name="jobGroup">作业分组</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>操作结果</returns>
-    Task<ApiResponseDto<bool>> ResumeJobAsync(string jobName, string jobGroup, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<bool>> ResumeJobAsync(
+        string jobName,
+        string jobGroup,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 立即执行作业
@@ -66,7 +87,11 @@ public interface IQuartzJobService
     /// <param name="jobGroup">作业分组</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>操作结果</returns>
-    Task<ApiResponseDto<bool>> TriggerJobAsync(string jobName, string jobGroup, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<bool>> TriggerJobAsync(
+        string jobName,
+        string jobGroup,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取作业列表
@@ -74,7 +99,10 @@ public interface IQuartzJobService
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业列表</returns>
-    Task<ApiResponseDto<PagedResponseDto<QuartzJobResponseDto>>> GetJobsAsync(QuartzJobQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<PagedResponseDto<QuartzJobResponseDto>>> GetJobsAsync(
+        QuartzJobQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取作业详情
@@ -83,7 +111,11 @@ public interface IQuartzJobService
     /// <param name="jobGroup">作业分组</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业详情</returns>
-    Task<ApiResponseDto<QuartzJobResponseDto>> GetJobDetailAsync(string jobName, string jobGroup, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<QuartzJobResponseDto>> GetJobDetailAsync(
+        string jobName,
+        string jobGroup,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取作业日志列表
@@ -91,14 +123,19 @@ public interface IQuartzJobService
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业日志列表</returns>
-    Task<ApiResponseDto<PagedResponseDto<QuartzJobLog>>> GetJobLogsAsync(QuartzJobLogQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<PagedResponseDto<QuartzJobLog>>> GetJobLogsAsync(
+        QuartzJobLogQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取调度器状态
     /// </summary>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>调度器状态</returns>
-    Task<ApiResponseDto<SchedulerStatusDto>> GetSchedulerStatusAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<SchedulerStatusDto>> GetSchedulerStatusAsync(
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 启动调度器
@@ -112,7 +149,9 @@ public interface IQuartzJobService
     /// </summary>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>操作结果</returns>
-    Task<ApiResponseDto<bool>> ShutdownSchedulerAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<bool>> ShutdownSchedulerAsync(
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 清除所有作业
@@ -126,7 +165,9 @@ public interface IQuartzJobService
     /// </summary>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业类名列表</returns>
-    Task<ApiResponseDto<List<string>>> GetJobClassesAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<List<string>>> GetJobClassesAsync(
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 验证Cron表达式
@@ -151,7 +192,12 @@ public interface IQuartzJobService
     /// <param name="trigger">触发器</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>操作结果</returns>
-    Task<ApiResponseDto<bool>> UpdateJobExecutionTimesAsync(string jobName, string jobGroup, Quartz.ITrigger trigger, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<bool>> UpdateJobExecutionTimesAsync(
+        string jobName,
+        string jobGroup,
+        Quartz.ITrigger trigger,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 清空作业日志
@@ -159,7 +205,10 @@ public interface IQuartzJobService
     /// <param name="queryDto">查询条件，用于指定清空哪些日志</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>操作结果</returns>
-    Task<ApiResponseDto<bool>> ClearJobLogsAsync(QuartzJobLogQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<bool>> ClearJobLogsAsync(
+        QuartzJobLogQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取作业统计数据
@@ -167,7 +216,10 @@ public interface IQuartzJobService
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业统计数据</returns>
-    Task<ApiResponseDto<JobStatsDto>> GetJobStatsAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<JobStatsDto>> GetJobStatsAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取作业状态分布数据
@@ -175,7 +227,10 @@ public interface IQuartzJobService
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业状态分布数据</returns>
-    Task<ApiResponseDto<List<JobStatusDistributionDto>>> GetJobStatusDistributionAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<List<JobStatusDistributionDto>>> GetJobStatusDistributionAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取作业执行趋势数据
@@ -183,7 +238,10 @@ public interface IQuartzJobService
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业执行趋势数据</returns>
-    Task<ApiResponseDto<List<JobExecutionTrendDto>>> GetJobExecutionTrendAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<List<JobExecutionTrendDto>>> GetJobExecutionTrendAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取作业类型分布数据
@@ -191,7 +249,10 @@ public interface IQuartzJobService
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业类型分布数据</returns>
-    Task<ApiResponseDto<List<JobTypeDistributionDto>>> GetJobTypeDistributionAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<List<JobTypeDistributionDto>>> GetJobTypeDistributionAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取作业执行耗时数据
@@ -199,7 +260,10 @@ public interface IQuartzJobService
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业执行耗时数据</returns>
-    Task<ApiResponseDto<List<JobExecutionTimeDto>>> GetJobExecutionTimeAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<List<JobExecutionTimeDto>>> GetJobExecutionTimeAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     #region 通知管理
 
@@ -208,7 +272,9 @@ public interface IQuartzJobService
     /// </summary>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>PushPlus配置</returns>
-    Task<ApiResponseDto<PushPlusConfigDto>> GetPushPlusConfigAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<PushPlusConfigDto>> GetPushPlusConfigAsync(
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 保存PushPlus配置
@@ -216,14 +282,19 @@ public interface IQuartzJobService
     /// <param name="config">PushPlus配置</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>保存结果</returns>
-    Task<ApiResponseDto<bool>> SavePushPlusConfigAsync(PushPlusConfigDto config, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<bool>> SavePushPlusConfigAsync(
+        PushPlusConfigDto config,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 发送测试通知
     /// </summary>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>发送结果</returns>
-    Task<ApiResponseDto<bool>> SendTestNotificationAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<bool>> SendTestNotificationAsync(
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取通知消息列表
@@ -231,7 +302,10 @@ public interface IQuartzJobService
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>通知消息列表</returns>
-    Task<ApiResponseDto<PagedResponseDto<QuartzNotificationDto>>> GetNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<PagedResponseDto<QuartzNotificationDto>>> GetNotificationsAsync(
+        NotificationQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 获取通知消息详情
@@ -239,7 +313,10 @@ public interface IQuartzJobService
     /// <param name="notificationId">通知ID</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>通知消息详情</returns>
-    Task<ApiResponseDto<QuartzNotificationDto>> GetNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<QuartzNotificationDto>> GetNotificationAsync(
+        Guid notificationId,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 删除通知消息
@@ -247,7 +324,10 @@ public interface IQuartzJobService
     /// <param name="notificationId">通知ID</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>删除结果</returns>
-    Task<ApiResponseDto<bool>> DeleteNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<bool>> DeleteNotificationAsync(
+        Guid notificationId,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 清空通知消息
@@ -255,7 +335,10 @@ public interface IQuartzJobService
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>清空结果</returns>
-    Task<ApiResponseDto<bool>> ClearNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<bool>> ClearNotificationsAsync(
+        NotificationQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
 
     #endregion
 }

@@ -127,9 +127,8 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
     errorMessageResponseInterceptor((msg: string, error) => {
       const accessStore = useAccessStore();
 
-      // 【核心修复】
       // 如果状态码是 401，或者 accessStore 已经标记登录过期
-      // 我们就静默处理，不调用 message.error
+      // 静默处理，不调用 message.error
       if (error?.response?.status === 401 || accessStore.loginExpired) {
         return;
       }
@@ -140,6 +139,22 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
       message.error(errorMessage || msg);
     }),
   );
+
+  // 【关键修复】最终拦截器：吞掉 401 错误，阻止其传播到页面级 catch 块
+  // authenticateResponseInterceptor 已处理跳转逻辑，
+  // 但 rejected promise 仍会传播到各页面的 catch 块导致 message.error 弹出
+  // 返回一个永远 pending 的 Promise 可以优雅地阻断错误传播
+  client.addResponseInterceptor({
+    rejected: (error) => {
+      const accessStore = useAccessStore();
+      if (error?.response?.status === 401 || accessStore.loginExpired) {
+        // 吞掉错误，防止页面 catch 块弹出"请求失败"等提示
+        // 页面即将因登出而销毁，pending promise 不会造成内存泄漏
+        return new Promise(() => {});
+      }
+      return Promise.reject(error);
+    },
+  });
 
   return client;
 }
