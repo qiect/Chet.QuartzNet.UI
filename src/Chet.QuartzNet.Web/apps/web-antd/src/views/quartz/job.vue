@@ -181,7 +181,7 @@ const columns = computed(() => [
     sorter: true,
     // fixed: 'left',
     // width: 300,
-    sortOrder: sortBy.value === 'jobName' ? (sortOrder.value === 'asc' ? 'ascend' : sortOrder.value === 'desc' ? 'descend' : undefined) : undefined,
+    sortOrder: sortBy.value === 'jobName' ? sortOrder.value : undefined,
   },
   {
     title: '作业分组',
@@ -190,7 +190,7 @@ const columns = computed(() => [
     sorter: true,
     // fixed: 'left',
     // width: 300,
-    sortOrder: sortBy.value === 'jobGroup' ? (sortOrder.value === 'asc' ? 'ascend' : sortOrder.value === 'desc' ? 'descend' : undefined) : undefined,
+    sortOrder: sortBy.value === 'jobGroup' ? sortOrder.value : undefined,
   },
   {
     title: '作业类型',
@@ -218,7 +218,7 @@ const columns = computed(() => [
     dataIndex: 'previousRunTime',
     ellipsis: true,
     sorter: true,
-    sortOrder: sortBy.value === 'previousRunTime' ? (sortOrder.value === 'asc' ? 'ascend' : sortOrder.value === 'desc' ? 'descend' : undefined) : undefined,
+    sortOrder: sortBy.value === 'previousRunTime' ? sortOrder.value : undefined,
     customRender: ({ record }: { record: QuartzJobResponseDto }) => {
       return record.previousRunTime
         ? formatDateTime(record.previousRunTime)
@@ -230,7 +230,7 @@ const columns = computed(() => [
     dataIndex: 'nextRunTime',
     ellipsis: true,
     sorter: true,
-    sortOrder: sortBy.value === 'nextRunTime' ? (sortOrder.value === 'asc' ? 'ascend' : sortOrder.value === 'desc' ? 'descend' : undefined) : undefined,
+    sortOrder: sortBy.value === 'nextRunTime' ? sortOrder.value : undefined,
     customRender: ({ record }: { record: QuartzJobResponseDto }) => {
       return record.nextRunTime ? formatDateTime(record.nextRunTime) : '-';
     },
@@ -262,7 +262,7 @@ const columns = computed(() => [
     dataIndex: 'createTime',
     ellipsis: true,
     sorter: true,
-    sortOrder: sortBy.value === 'createTime' ? (sortOrder.value === 'asc' ? 'ascend' : sortOrder.value === 'desc' ? 'descend' : undefined) : undefined,
+    sortOrder: sortBy.value === 'createTime' ? sortOrder.value : undefined,
     customRender: ({ record }: { record: QuartzJobResponseDto }) => {
       return record.createTime ? formatDateTime(record.createTime) : '-';
     },
@@ -378,10 +378,14 @@ const handleTableChange = (pagination: any, filters: any, sorter: any) => {
   }
 
   // 处理排序变化
-  if (sorter.field !== undefined && sorter.order !== undefined) {
+  if (sorter.field !== undefined) {
     sortBy.value = sorter.field;
-    // 根据表格组件返回的排序状态直接设置，表格组件会自动处理切换逻辑（升序→降序→取消）
-    sortOrder.value = sorter.order === 'ascend' ? 'asc' : sorter.order === 'descend' ? 'desc' : '';
+    sortOrder.value =
+      sorter.order === 'ascend'
+        ? 'ascend'
+        : sorter.order === 'descend'
+          ? 'descend'
+          : undefined;
   }
 
   // 重新加载数据
@@ -825,7 +829,7 @@ onMounted(async () => {
               <Form.Item label="作业状态" name="status">
                 <Select v-model:value="searchForm.status" placeholder="请选择状态" allowClear>
                   <Select.Option :value="JobStatusEnum.Normal">正常</Select.Option>
-                  <Select.Option :value="JobStatusEnum.Paused">暂停</Select.Option>
+                  <Select.Option :value="JobStatusEnum.Paused">已暂停</Select.Option>
                 </Select>
               </Form.Item>
             </Col>

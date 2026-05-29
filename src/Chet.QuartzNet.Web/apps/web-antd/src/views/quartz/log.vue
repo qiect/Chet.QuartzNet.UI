@@ -106,14 +106,7 @@ const columns = computed<ColumnsType<LogResponseDto>[]>(() => [
     dataIndex: 'startTime',
     ellipsis: true,
     sorter: true,
-    sortOrder:
-      sortBy.value === 'startTime'
-        ? sortOrder.value === 'asc'
-          ? 'ascend'
-          : sortOrder.value === 'desc'
-            ? 'descend'
-            : undefined
-        : undefined,
+    sortOrder: sortBy.value === 'startTime' ? sortOrder.value : undefined,
     customRender: ({ record }: { record: LogResponseDto }) => {
       return record.startTime ? formatDateTime(record.startTime) : '-';
     },
@@ -123,14 +116,7 @@ const columns = computed<ColumnsType<LogResponseDto>[]>(() => [
     dataIndex: 'endTime',
     ellipsis: true,
     sorter: true,
-    sortOrder:
-      sortBy.value === 'endTime'
-        ? sortOrder.value === 'asc'
-          ? 'ascend'
-          : sortOrder.value === 'desc'
-            ? 'descend'
-            : undefined
-        : undefined,
+    sortOrder: sortBy.value === 'endTime' ? sortOrder.value : undefined,
     customRender: ({ record }: { record: LogResponseDto }) => {
       return record.endTime ? formatDateTime(record.endTime) : '-';
     },
@@ -239,12 +225,16 @@ const handleTableChange = (pagination: any, filters: any, sorter: any) => {
   if (pagination.pageSize !== undefined) {
     pageSize.value = pagination.pageSize;
   }
+
   // 处理排序变化
-  if (sorter.field !== undefined && sorter.order !== undefined) {
-    console.log('sorter:', sorter);
+  if (sorter.field !== undefined) {
     sortBy.value = sorter.field;
-    // 根据表格组件返回的排序状态直接设置，表格组件会自动处理切换逻辑（升序→降序→取消）
-    sortOrder.value = sorter.order === 'ascend' ? 'asc' : sorter.order === 'descend' ? 'desc' : '';
+    sortOrder.value =
+      sorter.order === 'ascend'
+        ? 'ascend'
+        : sorter.order === 'descend'
+          ? 'descend'
+          : undefined;
   }
 
   // 重新加载数据

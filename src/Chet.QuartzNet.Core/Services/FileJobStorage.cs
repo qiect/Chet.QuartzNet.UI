@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Text.Json;
 using Chet.QuartzNet.Core.Configuration;
 using Chet.QuartzNet.Core.Helpers;
 using Chet.QuartzNet.Core.Interfaces;
@@ -5,8 +7,6 @@ using Chet.QuartzNet.Models.DTOs;
 using Chet.QuartzNet.Models.Entities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Collections.Concurrent;
-using System.Text.Json;
 
 namespace Chet.QuartzNet.Core.Services;
 
@@ -56,7 +56,6 @@ public class FileJobStorage : IJobStorage
     /// </summary>
     private static readonly ConcurrentDictionary<string, DateTime> _lastBackupTimes = new();
 
-
     /// <summary>
     /// 初始化FileJobStorage实例
     /// </summary>
@@ -91,7 +90,10 @@ public class FileJobStorage : IJobStorage
     /// <param name="jobInfo">作业信息对象</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>添加成功返回true，失败返回false</returns>
-    public async Task<bool> AddJobAsync(QuartzJobInfo jobInfo, CancellationToken cancellationToken = default)
+    public async Task<bool> AddJobAsync(
+        QuartzJobInfo jobInfo,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -115,12 +117,17 @@ public class FileJobStorage : IJobStorage
     /// <param name="jobInfo">作业信息对象</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>更新成功返回true，失败返回false</returns>
-    public async Task<bool> UpdateJobAsync(QuartzJobInfo jobInfo, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateJobAsync(
+        QuartzJobInfo jobInfo,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
             var jobs = await LoadJobsAsync();
-            var existingJob = jobs.FirstOrDefault(j => j.JobName == jobInfo.JobName && j.JobGroup == jobInfo.JobGroup);
+            var existingJob = jobs.FirstOrDefault(j =>
+                j.JobName == jobInfo.JobName && j.JobGroup == jobInfo.JobGroup
+            );
 
             if (existingJob == null)
             {
@@ -168,12 +175,18 @@ public class FileJobStorage : IJobStorage
     /// <param name="jobGroup">作业分组</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>删除成功返回true，失败返回false</returns>
-    public async Task<bool> DeleteJobAsync(string jobName, string jobGroup, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteJobAsync(
+        string jobName,
+        string jobGroup,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
             var jobs = await LoadJobsAsync();
-            var jobToRemove = jobs.FirstOrDefault(j => j.JobName == jobName && j.JobGroup == jobGroup);
+            var jobToRemove = jobs.FirstOrDefault(j =>
+                j.JobName == jobName && j.JobGroup == jobGroup
+            );
 
             if (jobToRemove == null)
             {
@@ -200,12 +213,19 @@ public class FileJobStorage : IJobStorage
     /// <param name="jobGroup">作业分组</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业信息对象，不存在返回null</returns>
-    public async Task<QuartzJobInfo?> GetJobAsync(string jobName, string jobGroup, CancellationToken cancellationToken = default)
+    public async Task<QuartzJobInfo?> GetJobAsync(
+        string jobName,
+        string jobGroup,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
             var jobs = await LoadJobsAsync();
-            return jobs.FirstOrDefault(j => j.JobName.Equals(jobName, StringComparison.CurrentCultureIgnoreCase) && j.JobGroup == jobGroup);
+            return jobs.FirstOrDefault(j =>
+                j.JobName.Equals(jobName, StringComparison.CurrentCultureIgnoreCase)
+                && j.JobGroup == jobGroup
+            );
         }
         catch (Exception ex)
         {
@@ -220,7 +240,10 @@ public class FileJobStorage : IJobStorage
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>分页作业列表</returns>
-    public async Task<PagedResponseDto<QuartzJobInfo>> GetJobsAsync(QuartzJobQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<PagedResponseDto<QuartzJobInfo>> GetJobsAsync(
+        QuartzJobQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -229,12 +252,18 @@ public class FileJobStorage : IJobStorage
             // 应用过滤条件
             if (!string.IsNullOrEmpty(queryDto.JobName))
             {
-                jobs = jobs.Where(j => j.JobName.Contains(queryDto.JobName, StringComparison.OrdinalIgnoreCase)).ToList();
+                jobs = jobs.Where(j =>
+                        j.JobName.Contains(queryDto.JobName, StringComparison.OrdinalIgnoreCase)
+                    )
+                    .ToList();
             }
 
             if (!string.IsNullOrEmpty(queryDto.JobGroup))
             {
-                jobs = jobs.Where(j => j.JobGroup.Contains(queryDto.JobGroup, StringComparison.OrdinalIgnoreCase)).ToList();
+                jobs = jobs.Where(j =>
+                        j.JobGroup.Contains(queryDto.JobGroup, StringComparison.OrdinalIgnoreCase)
+                    )
+                    .ToList();
             }
 
             if (queryDto.Status.HasValue)
@@ -248,35 +277,51 @@ public class FileJobStorage : IJobStorage
             }
 
             // 应用排序
-            if (!string.IsNullOrEmpty(queryDto.SortBy))
+            if (!string.IsNullOrEmpty(queryDto.SortBy) && !string.IsNullOrEmpty(queryDto.SortOrder))
             {
-                var isAscending = string.Equals(queryDto.SortOrder, "asc", StringComparison.OrdinalIgnoreCase);
+                var isAscending = queryDto.SortOrder.ToLower().StartsWith("asc");
 
                 switch (queryDto.SortBy.ToLower())
                 {
                     case "jobname":
-                        jobs = isAscending ? jobs.OrderBy(j => j.JobName).ToList() : jobs.OrderByDescending(j => j.JobName).ToList();
+                        jobs = isAscending
+                            ? jobs.OrderBy(j => j.JobName).ToList()
+                            : jobs.OrderByDescending(j => j.JobName).ToList();
                         break;
                     case "jobgroup":
-                        jobs = isAscending ? jobs.OrderBy(j => j.JobGroup).ToList() : jobs.OrderByDescending(j => j.JobGroup).ToList();
+                        jobs = isAscending
+                            ? jobs.OrderBy(j => j.JobGroup).ToList()
+                            : jobs.OrderByDescending(j => j.JobGroup).ToList();
                         break;
                     case "status":
-                        jobs = isAscending ? jobs.OrderBy(j => j.Status).ToList() : jobs.OrderByDescending(j => j.Status).ToList();
+                        jobs = isAscending
+                            ? jobs.OrderBy(j => j.Status).ToList()
+                            : jobs.OrderByDescending(j => j.Status).ToList();
                         break;
                     case "isenabled":
-                        jobs = isAscending ? jobs.OrderBy(j => j.IsEnabled).ToList() : jobs.OrderByDescending(j => j.IsEnabled).ToList();
+                        jobs = isAscending
+                            ? jobs.OrderBy(j => j.IsEnabled).ToList()
+                            : jobs.OrderByDescending(j => j.IsEnabled).ToList();
                         break;
                     case "createtime":
-                        jobs = isAscending ? jobs.OrderBy(j => j.CreateTime).ToList() : jobs.OrderByDescending(j => j.CreateTime).ToList();
+                        jobs = isAscending
+                            ? jobs.OrderBy(j => j.CreateTime).ToList()
+                            : jobs.OrderByDescending(j => j.CreateTime).ToList();
                         break;
                     case "updatetime":
-                        jobs = isAscending ? jobs.OrderBy(j => j.UpdateTime).ToList() : jobs.OrderByDescending(j => j.UpdateTime).ToList();
+                        jobs = isAscending
+                            ? jobs.OrderBy(j => j.UpdateTime).ToList()
+                            : jobs.OrderByDescending(j => j.UpdateTime).ToList();
                         break;
                     case "previousruntime":
-                        jobs = isAscending ? jobs.OrderBy(j => j.PreviousRunTime).ToList() : jobs.OrderByDescending(j => j.PreviousRunTime).ToList();
+                        jobs = isAscending
+                            ? jobs.OrderBy(j => j.PreviousRunTime).ToList()
+                            : jobs.OrderByDescending(j => j.PreviousRunTime).ToList();
                         break;
                     case "nextruntime":
-                        jobs = isAscending ? jobs.OrderBy(j => j.NextRunTime).ToList() : jobs.OrderByDescending(j => j.NextRunTime).ToList();
+                        jobs = isAscending
+                            ? jobs.OrderBy(j => j.NextRunTime).ToList()
+                            : jobs.OrderByDescending(j => j.NextRunTime).ToList();
                         break;
                     default:
                         // 默认按创建时间降序排序
@@ -292,8 +337,7 @@ public class FileJobStorage : IJobStorage
 
             // 分页处理
             var totalCount = jobs.Count;
-            var pagedJobs = jobs
-                .Skip((queryDto.PageIndex - 1) * queryDto.PageSize)
+            var pagedJobs = jobs.Skip((queryDto.PageIndex - 1) * queryDto.PageSize)
                 .Take(queryDto.PageSize)
                 .ToList();
 
@@ -303,7 +347,7 @@ public class FileJobStorage : IJobStorage
                 Items = pagedJobs,
                 TotalCount = totalCount,
                 PageIndex = queryDto.PageIndex,
-                PageSize = queryDto.PageSize
+                PageSize = queryDto.PageSize,
             };
         }
         catch (Exception ex)
@@ -318,7 +362,9 @@ public class FileJobStorage : IJobStorage
     /// </summary>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业信息列表</returns>
-    public async Task<List<QuartzJobInfo>> GetAllJobsAsync(CancellationToken cancellationToken = default)
+    public async Task<List<QuartzJobInfo>> GetAllJobsAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -339,7 +385,12 @@ public class FileJobStorage : IJobStorage
     /// <param name="status">新状态</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>更新成功返回true，失败返回false</returns>
-    public async Task<bool> UpdateJobStatusAsync(string jobName, string jobGroup, JobStatus status, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateJobStatusAsync(
+        string jobName,
+        string jobGroup,
+        JobStatus status,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -356,7 +407,12 @@ public class FileJobStorage : IJobStorage
 
             await SaveJobsAsync(jobs);
 
-            _logger.LogSuccess("更新作业状态", "作业: {jobKey}, 状态: {status}", job.GetJobKey(), status);
+            _logger.LogSuccess(
+                "更新作业状态",
+                "作业: {jobKey}, 状态: {status}",
+                job.GetJobKey(),
+                status
+            );
             return true;
         }
         catch (Exception ex)
@@ -376,7 +432,10 @@ public class FileJobStorage : IJobStorage
     /// <param name="jobLog">作业日志对象</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>添加成功返回true，失败返回false</returns>
-    public async Task<bool> AddJobLogAsync(QuartzJobLog jobLog, CancellationToken cancellationToken = default)
+    public async Task<bool> AddJobLogAsync(
+        QuartzJobLog jobLog,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -400,7 +459,10 @@ public class FileJobStorage : IJobStorage
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>分页日志列表</returns>
-    public async Task<PagedResponseDto<QuartzJobLog>> GetJobLogsAsync(QuartzJobLogQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<PagedResponseDto<QuartzJobLog>> GetJobLogsAsync(
+        QuartzJobLogQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -409,12 +471,18 @@ public class FileJobStorage : IJobStorage
             // 应用过滤条件
             if (!string.IsNullOrEmpty(queryDto.JobName))
             {
-                logs = logs.Where(l => l.JobName.Contains(queryDto.JobName, StringComparison.OrdinalIgnoreCase)).ToList();
+                logs = logs.Where(l =>
+                        l.JobName.Contains(queryDto.JobName, StringComparison.OrdinalIgnoreCase)
+                    )
+                    .ToList();
             }
 
             if (!string.IsNullOrEmpty(queryDto.JobGroup))
             {
-                logs = logs.Where(l => l.JobGroup.Contains(queryDto.JobGroup, StringComparison.OrdinalIgnoreCase)).ToList();
+                logs = logs.Where(l =>
+                        l.JobGroup.Contains(queryDto.JobGroup, StringComparison.OrdinalIgnoreCase)
+                    )
+                    .ToList();
             }
 
             if (queryDto.Status.HasValue)
@@ -433,32 +501,46 @@ public class FileJobStorage : IJobStorage
             }
 
             // 应用排序
-            if (!string.IsNullOrEmpty(queryDto.SortBy))
+            if (!string.IsNullOrEmpty(queryDto.SortBy) && !string.IsNullOrEmpty(queryDto.SortOrder))
             {
-                var isAscending = string.Equals(queryDto.SortOrder, "asc", StringComparison.OrdinalIgnoreCase);
+                var isAscending = queryDto.SortOrder.ToLower().StartsWith("asc");
 
                 switch (queryDto.SortBy.ToLower())
                 {
                     case "jobname":
-                        logs = isAscending ? logs.OrderBy(l => l.JobName).ToList() : logs.OrderByDescending(l => l.JobName).ToList();
+                        logs = isAscending
+                            ? logs.OrderBy(l => l.JobName).ToList()
+                            : logs.OrderByDescending(l => l.JobName).ToList();
                         break;
                     case "jobgroup":
-                        logs = isAscending ? logs.OrderBy(l => l.JobGroup).ToList() : logs.OrderByDescending(l => l.JobGroup).ToList();
+                        logs = isAscending
+                            ? logs.OrderBy(l => l.JobGroup).ToList()
+                            : logs.OrderByDescending(l => l.JobGroup).ToList();
                         break;
                     case "status":
-                        logs = isAscending ? logs.OrderBy(l => l.Status).ToList() : logs.OrderByDescending(l => l.Status).ToList();
+                        logs = isAscending
+                            ? logs.OrderBy(l => l.Status).ToList()
+                            : logs.OrderByDescending(l => l.Status).ToList();
                         break;
                     case "createtime":
-                        logs = isAscending ? logs.OrderBy(l => l.CreateTime).ToList() : logs.OrderByDescending(l => l.CreateTime).ToList();
+                        logs = isAscending
+                            ? logs.OrderBy(l => l.CreateTime).ToList()
+                            : logs.OrderByDescending(l => l.CreateTime).ToList();
                         break;
                     case "starttime":
-                        logs = isAscending ? logs.OrderBy(l => l.StartTime).ToList() : logs.OrderByDescending(l => l.StartTime).ToList();
+                        logs = isAscending
+                            ? logs.OrderBy(l => l.StartTime).ToList()
+                            : logs.OrderByDescending(l => l.StartTime).ToList();
                         break;
                     case "endtime":
-                        logs = isAscending ? logs.OrderBy(l => l.EndTime).ToList() : logs.OrderByDescending(l => l.EndTime).ToList();
+                        logs = isAscending
+                            ? logs.OrderBy(l => l.EndTime).ToList()
+                            : logs.OrderByDescending(l => l.EndTime).ToList();
                         break;
                     case "duration":
-                        logs = isAscending ? logs.OrderBy(l => l.Duration).ToList() : logs.OrderByDescending(l => l.Duration).ToList();
+                        logs = isAscending
+                            ? logs.OrderBy(l => l.Duration).ToList()
+                            : logs.OrderByDescending(l => l.Duration).ToList();
                         break;
                     default:
                         // 默认按创建时间降序排序
@@ -474,8 +556,7 @@ public class FileJobStorage : IJobStorage
 
             // 分页处理
             var totalCount = logs.Count;
-            var pagedLogs = logs
-                .Skip((queryDto.PageIndex - 1) * queryDto.PageSize)
+            var pagedLogs = logs.Skip((queryDto.PageIndex - 1) * queryDto.PageSize)
                 .Take(queryDto.PageSize)
                 .ToList();
 
@@ -485,7 +566,7 @@ public class FileJobStorage : IJobStorage
                 Items = pagedLogs,
                 TotalCount = totalCount,
                 PageIndex = queryDto.PageIndex,
-                PageSize = queryDto.PageSize
+                PageSize = queryDto.PageSize,
             };
         }
         catch (Exception ex)
@@ -501,7 +582,10 @@ public class FileJobStorage : IJobStorage
     /// <param name="daysToKeep">保留天数</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>清除的日志数量</returns>
-    public async Task<int> ClearExpiredLogsAsync(int daysToKeep, CancellationToken cancellationToken = default)
+    public async Task<int> ClearExpiredLogsAsync(
+        int daysToKeep,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -540,7 +624,10 @@ public class FileJobStorage : IJobStorage
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>清空成功返回true，失败返回false</returns>
-    public async Task<bool> ClearJobLogsAsync(QuartzJobLogQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<bool> ClearJobLogsAsync(
+        QuartzJobLogQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -549,44 +636,53 @@ public class FileJobStorage : IJobStorage
 
             // 找出需要删除的日志（即匹配查询条件的日志）
             var logsToDelete = logs.Where(log =>
-            {
-                // 应用与GetJobLogsAsync相同的过滤条件
-                bool match = true;
-
-                if (!string.IsNullOrEmpty(queryDto.JobName))
                 {
-                    match &= log.JobName.Contains(queryDto.JobName, StringComparison.OrdinalIgnoreCase);
-                }
+                    // 应用与GetJobLogsAsync相同的过滤条件
+                    bool match = true;
 
-                if (!string.IsNullOrEmpty(queryDto.JobGroup))
-                {
-                    match &= log.JobGroup.Contains(queryDto.JobGroup, StringComparison.OrdinalIgnoreCase);
-                }
+                    if (!string.IsNullOrEmpty(queryDto.JobName))
+                    {
+                        match &= log.JobName.Contains(
+                            queryDto.JobName,
+                            StringComparison.OrdinalIgnoreCase
+                        );
+                    }
 
-                if (queryDto.Status.HasValue)
-                {
-                    match &= log.Status == queryDto.Status.Value;
-                }
+                    if (!string.IsNullOrEmpty(queryDto.JobGroup))
+                    {
+                        match &= log.JobGroup.Contains(
+                            queryDto.JobGroup,
+                            StringComparison.OrdinalIgnoreCase
+                        );
+                    }
 
-                if (queryDto.StartTime.HasValue)
-                {
-                    match &= log.StartTime >= queryDto.StartTime.Value;
-                }
+                    if (queryDto.Status.HasValue)
+                    {
+                        match &= log.Status == queryDto.Status.Value;
+                    }
 
-                if (queryDto.EndTime.HasValue)
-                {
-                    match &= log.StartTime <= queryDto.EndTime.Value;
-                }
+                    if (queryDto.StartTime.HasValue)
+                    {
+                        match &= log.StartTime >= queryDto.StartTime.Value;
+                    }
 
-                return match;
-            }).ToList();
+                    if (queryDto.EndTime.HasValue)
+                    {
+                        match &= log.StartTime <= queryDto.EndTime.Value;
+                    }
+
+                    return match;
+                })
+                .ToList();
 
             // 如果没有指定查询条件，删除所有日志
-            if (string.IsNullOrEmpty(queryDto.JobName) &&
-                string.IsNullOrEmpty(queryDto.JobGroup) &&
-                !queryDto.Status.HasValue &&
-                !queryDto.StartTime.HasValue &&
-                !queryDto.EndTime.HasValue)
+            if (
+                string.IsNullOrEmpty(queryDto.JobName)
+                && string.IsNullOrEmpty(queryDto.JobGroup)
+                && !queryDto.Status.HasValue
+                && !queryDto.StartTime.HasValue
+                && !queryDto.EndTime.HasValue
+            )
             {
                 logsToDelete = logs;
             }
@@ -696,11 +792,22 @@ public class FileJobStorage : IJobStorage
                 }
 
                 // 使用FileStream并设置FileShare参数，允许并发读取
-                using (var stream = new FileStream(_jobsFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (
+                    var stream = new FileStream(
+                        _jobsFilePath,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.ReadWrite
+                    )
+                )
                 using (var reader = new StreamReader(stream))
                 {
                     var json = reader.ReadToEnd();
-                    var jobs = JsonSerializer.Deserialize<List<QuartzJobInfo>>(json, JsonSerializationConfig.JsonOptions()) ?? new List<QuartzJobInfo>();
+                    var jobs =
+                        JsonSerializer.Deserialize<List<QuartzJobInfo>>(
+                            json,
+                            JsonSerializationConfig.JsonOptions()
+                        ) ?? new List<QuartzJobInfo>();
 
                     return Task.FromResult(jobs);
                 }
@@ -734,7 +841,14 @@ public class FileJobStorage : IJobStorage
                 var json = JsonSerializer.Serialize(jobs, JsonSerializationConfig.JsonOptions());
 
                 // 使用FileStream并设置FileShare参数，写入时允许其他进程读取
-                using (var stream = new FileStream(_jobsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
+                using (
+                    var stream = new FileStream(
+                        _jobsFilePath,
+                        FileMode.Create,
+                        FileAccess.Write,
+                        FileShare.Read
+                    )
+                )
                 using (var writer = new StreamWriter(stream))
                 {
                     writer.Write(json);
@@ -763,11 +877,22 @@ public class FileJobStorage : IJobStorage
                 }
 
                 // 使用FileStream并设置FileShare参数，允许并发读取
-                using (var stream = new FileStream(_logsFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (
+                    var stream = new FileStream(
+                        _logsFilePath,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.ReadWrite
+                    )
+                )
                 using (var reader = new StreamReader(stream))
                 {
                     var json = reader.ReadToEnd();
-                    var logs = JsonSerializer.Deserialize<List<QuartzJobLog>>(json, JsonSerializationConfig.JsonOptions()) ?? new List<QuartzJobLog>();
+                    var logs =
+                        JsonSerializer.Deserialize<List<QuartzJobLog>>(
+                            json,
+                            JsonSerializationConfig.JsonOptions()
+                        ) ?? new List<QuartzJobLog>();
 
                     return Task.FromResult(logs);
                 }
@@ -790,7 +915,14 @@ public class FileJobStorage : IJobStorage
                 var json = JsonSerializer.Serialize(logs, JsonSerializationConfig.JsonOptions());
 
                 // 使用FileStream并设置FileShare参数，写入时允许其他进程读取
-                using (var stream = new FileStream(_logsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
+                using (
+                    var stream = new FileStream(
+                        _logsFilePath,
+                        FileMode.Create,
+                        FileAccess.Write,
+                        FileShare.Read
+                    )
+                )
                 using (var writer = new StreamWriter(stream))
                 {
                     writer.Write(json);
@@ -826,7 +958,8 @@ public class FileJobStorage : IJobStorage
 
             var fileName = Path.GetFileName(filePath);
             var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            var backupFileName = $"{Path.GetFileNameWithoutExtension(fileName)}_{timestamp}{Path.GetExtension(fileName)}";
+            var backupFileName =
+                $"{Path.GetFileNameWithoutExtension(fileName)}_{timestamp}{Path.GetExtension(fileName)}";
             var backupFilePath = Path.Combine(_options.FileBackupPath, backupFileName);
 
             File.Copy(filePath, backupFilePath, true);
@@ -847,7 +980,8 @@ public class FileJobStorage : IJobStorage
     {
         try
         {
-            var backupFiles = Directory.GetFiles(_options.FileBackupPath, "*.json")
+            var backupFiles = Directory
+                .GetFiles(_options.FileBackupPath, "*.json")
                 .OrderByDescending(f => File.GetCreationTime(f))
                 .ToList();
 
@@ -878,7 +1012,10 @@ public class FileJobStorage : IJobStorage
     /// <param name="queryDto"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<JobStatsDto> GetJobStatsAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<JobStatsDto> GetJobStatsAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -889,12 +1026,15 @@ public class FileJobStorage : IJobStorage
             var (startTime, endTime) = CalculateTimeRange(queryDto);
 
             // 过滤日志
-            var filteredLogs = logs.Where(log => log.StartTime >= startTime && log.StartTime <= endTime).ToList();
+            var filteredLogs = logs.Where(log =>
+                    log.StartTime >= startTime && log.StartTime <= endTime
+                )
+                .ToList();
 
             // 统计数据
             var successCount = filteredLogs.Count(l => l.Status == LogStatus.Success);
             var failedCount = filteredLogs.Count(l => l.Status == LogStatus.Failed);
-            
+
             var stats = new JobStatsDto
             {
                 TotalJobs = jobs.Count,
@@ -902,7 +1042,7 @@ public class FileJobStorage : IJobStorage
                 DisabledJobs = jobs.Count(j => !j.IsEnabled),
                 TotalExecutions = successCount + failedCount,
                 SuccessCount = successCount,
-                FailedCount = failedCount
+                FailedCount = failedCount,
             };
 
             return stats;
@@ -920,7 +1060,10 @@ public class FileJobStorage : IJobStorage
     /// <param name="queryDto"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<List<JobStatusDistributionDto>> GetJobStatusDistributionAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<List<JobStatusDistributionDto>> GetJobStatusDistributionAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -931,12 +1074,15 @@ public class FileJobStorage : IJobStorage
             var totalJobs = jobs.Count;
 
             // 转换为分布数据
-            var distribution = statusGroups.Select(group => new JobStatusDistributionDto
-            {
-                Status = group.Key.ToString(),
-                Count = group.Count(),
-                Percentage = totalJobs > 0 ? Math.Round((double)group.Count() / totalJobs * 100, 2) : 0
-            }).ToList();
+            var distribution = statusGroups
+                .Select(group => new JobStatusDistributionDto
+                {
+                    Status = group.Key.ToString(),
+                    Count = group.Count(),
+                    Percentage =
+                        totalJobs > 0 ? Math.Round((double)group.Count() / totalJobs * 100, 2) : 0,
+                })
+                .ToList();
 
             return distribution;
         }
@@ -953,7 +1099,10 @@ public class FileJobStorage : IJobStorage
     /// <param name="queryDto"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<List<JobExecutionTrendDto>> GetJobExecutionTrendAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<List<JobExecutionTrendDto>> GetJobExecutionTrendAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -963,19 +1112,34 @@ public class FileJobStorage : IJobStorage
             var (startTime, endTime) = CalculateTimeRange(queryDto);
 
             // 过滤日志
-            var filteredLogs = logs.Where(log => log.StartTime >= startTime && log.StartTime <= endTime).ToList();
+            var filteredLogs = logs.Where(log =>
+                    log.StartTime >= startTime && log.StartTime <= endTime
+                )
+                .ToList();
 
             // 按时间分组（小时）
-            var timeGroups = filteredLogs.GroupBy(l => new DateTime(l.StartTime.Year, l.StartTime.Month, l.StartTime.Day, l.StartTime.Hour, 0, 0)).ToList();
+            var timeGroups = filteredLogs
+                .GroupBy(l => new DateTime(
+                    l.StartTime.Year,
+                    l.StartTime.Month,
+                    l.StartTime.Day,
+                    l.StartTime.Hour,
+                    0,
+                    0
+                ))
+                .ToList();
 
             // 转换为趋势数据
-            var trend = timeGroups.Select(group => new JobExecutionTrendDto
-            {
-                Time = group.Key.ToString("yyyy-MM-dd HH:00"),
-                SuccessCount = group.Count(l => l.Status == LogStatus.Success),
-                FailedCount = group.Count(l => l.Status == LogStatus.Failed),
-                TotalCount = group.Count()
-            }).OrderBy(t => t.Time).ToList();
+            var trend = timeGroups
+                .Select(group => new JobExecutionTrendDto
+                {
+                    Time = group.Key.ToString("yyyy-MM-dd HH:00"),
+                    SuccessCount = group.Count(l => l.Status == LogStatus.Success),
+                    FailedCount = group.Count(l => l.Status == LogStatus.Failed),
+                    TotalCount = group.Count(),
+                })
+                .OrderBy(t => t.Time)
+                .ToList();
 
             return trend;
         }
@@ -992,7 +1156,10 @@ public class FileJobStorage : IJobStorage
     /// <param name="queryDto"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<List<JobTypeDistributionDto>> GetJobTypeDistributionAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<List<JobTypeDistributionDto>> GetJobTypeDistributionAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -1003,12 +1170,15 @@ public class FileJobStorage : IJobStorage
             var totalJobs = jobs.Count;
 
             // 转换为分布数据
-            var distribution = typeGroups.Select(group => new JobTypeDistributionDto
-            {
-                Type = group.Key.ToString(),
-                Count = group.Count(),
-                Percentage = totalJobs > 0 ? Math.Round((double)group.Count() / totalJobs * 100, 2) : 0
-            }).ToList();
+            var distribution = typeGroups
+                .Select(group => new JobTypeDistributionDto
+                {
+                    Type = group.Key.ToString(),
+                    Count = group.Count(),
+                    Percentage =
+                        totalJobs > 0 ? Math.Round((double)group.Count() / totalJobs * 100, 2) : 0,
+                })
+                .ToList();
 
             return distribution;
         }
@@ -1025,7 +1195,10 @@ public class FileJobStorage : IJobStorage
     /// <param name="queryDto"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<List<JobExecutionTimeDto>> GetJobExecutionTimeAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<List<JobExecutionTimeDto>> GetJobExecutionTimeAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -1035,7 +1208,12 @@ public class FileJobStorage : IJobStorage
             var (startTime, endTime) = CalculateTimeRange(queryDto);
 
             // 过滤日志
-            var filteredLogs = logs.Where(log => log.StartTime >= startTime && log.StartTime <= endTime && log.Status != LogStatus.Running).ToList();
+            var filteredLogs = logs.Where(log =>
+                    log.StartTime >= startTime
+                    && log.StartTime <= endTime
+                    && log.Status != LogStatus.Running
+                )
+                .ToList();
 
             // 按耗时分组
             var timeRangeGroups = new List<(string Range, Func<double, bool> Predicate)>
@@ -1046,15 +1224,19 @@ public class FileJobStorage : IJobStorage
                 ("10-30s", d => d >= 10 && d < 30),
                 ("30s-1m", d => d >= 30 && d < 60),
                 ("1-5m", d => d >= 60 && d < 300),
-                (">= 5m", d => d >= 300)
+                (">= 5m", d => d >= 300),
             };
 
             // 统计每个耗时区间的作业数
-            var executionTimeData = timeRangeGroups.Select(group => new JobExecutionTimeDto
-            {
-                TimeRange = group.Range,
-                Count = filteredLogs.Count(l => l.Duration.HasValue && group.Predicate(l.Duration.Value / 1000.0))
-            }).ToList();
+            var executionTimeData = timeRangeGroups
+                .Select(group => new JobExecutionTimeDto
+                {
+                    TimeRange = group.Range,
+                    Count = filteredLogs.Count(l =>
+                        l.Duration.HasValue && group.Predicate(l.Duration.Value / 1000.0)
+                    ),
+                })
+                .ToList();
 
             return executionTimeData;
         }
@@ -1072,10 +1254,15 @@ public class FileJobStorage : IJobStorage
     /// <returns>开始时间和结束时间</returns>
     private (DateTime StartTime, DateTime EndTime) CalculateTimeRange(StatsQueryDto queryDto)
     {
-        DateTime startTime, endTime;
+        DateTime startTime,
+            endTime;
 
         // 如果指定了自定义时间范围，使用自定义时间
-        if (queryDto.TimeRangeType == "custom" && queryDto.StartTime.HasValue && queryDto.EndTime.HasValue)
+        if (
+            queryDto.TimeRangeType == "custom"
+            && queryDto.StartTime.HasValue
+            && queryDto.EndTime.HasValue
+        )
         {
             startTime = queryDto.StartTime.Value;
             endTime = queryDto.EndTime.Value;
@@ -1091,8 +1278,22 @@ public class FileJobStorage : IJobStorage
                     startTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0);
                     break;
                 case "yesterday":
-                    startTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0).AddDays(-1);
-                    endTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0).AddMilliseconds(-1);
+                    startTime = new DateTime(
+                        endTime.Year,
+                        endTime.Month,
+                        endTime.Day,
+                        0,
+                        0,
+                        0
+                    ).AddDays(-1);
+                    endTime = new DateTime(
+                        endTime.Year,
+                        endTime.Month,
+                        endTime.Day,
+                        0,
+                        0,
+                        0
+                    ).AddMilliseconds(-1);
                     break;
                 case "thisWeek":
                     startTime = endTime.AddDays(-(int)endTime.DayOfWeek).Date;
@@ -1135,11 +1336,22 @@ public class FileJobStorage : IJobStorage
                     return Task.FromResult(new List<QuartzSetting>());
                 }
 
-                using (var stream = new FileStream(_settingsFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (
+                    var stream = new FileStream(
+                        _settingsFilePath,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.ReadWrite
+                    )
+                )
                 using (var reader = new StreamReader(stream))
                 {
                     var json = reader.ReadToEnd();
-                    var settings = JsonSerializer.Deserialize<List<QuartzSetting>>(json, JsonSerializationConfig.JsonOptions()) ?? new List<QuartzSetting>();
+                    var settings =
+                        JsonSerializer.Deserialize<List<QuartzSetting>>(
+                            json,
+                            JsonSerializationConfig.JsonOptions()
+                        ) ?? new List<QuartzSetting>();
 
                     return Task.FromResult(settings);
                 }
@@ -1169,9 +1381,19 @@ public class FileJobStorage : IJobStorage
                     CreateBackup(_settingsFilePath);
                 }
 
-                var json = JsonSerializer.Serialize(settings, JsonSerializationConfig.JsonOptions());
+                var json = JsonSerializer.Serialize(
+                    settings,
+                    JsonSerializationConfig.JsonOptions()
+                );
 
-                using (var stream = new FileStream(_settingsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
+                using (
+                    var stream = new FileStream(
+                        _settingsFilePath,
+                        FileMode.Create,
+                        FileAccess.Write,
+                        FileShare.Read
+                    )
+                )
                 using (var writer = new StreamWriter(stream))
                 {
                     writer.Write(json);
@@ -1208,11 +1430,22 @@ public class FileJobStorage : IJobStorage
                     return Task.FromResult(new List<QuartzNotification>());
                 }
 
-                using (var stream = new FileStream(_notificationsFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (
+                    var stream = new FileStream(
+                        _notificationsFilePath,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.ReadWrite
+                    )
+                )
                 using (var reader = new StreamReader(stream))
                 {
                     var json = reader.ReadToEnd();
-                    var notifications = JsonSerializer.Deserialize<List<QuartzNotification>>(json, JsonSerializationConfig.JsonOptions()) ?? new List<QuartzNotification>();
+                    var notifications =
+                        JsonSerializer.Deserialize<List<QuartzNotification>>(
+                            json,
+                            JsonSerializationConfig.JsonOptions()
+                        ) ?? new List<QuartzNotification>();
 
                     return Task.FromResult(notifications);
                 }
@@ -1242,9 +1475,19 @@ public class FileJobStorage : IJobStorage
                     CreateBackup(_notificationsFilePath);
                 }
 
-                var json = JsonSerializer.Serialize(notifications, JsonSerializationConfig.JsonOptions());
+                var json = JsonSerializer.Serialize(
+                    notifications,
+                    JsonSerializationConfig.JsonOptions()
+                );
 
-                using (var stream = new FileStream(_notificationsFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
+                using (
+                    var stream = new FileStream(
+                        _notificationsFilePath,
+                        FileMode.Create,
+                        FileAccess.Write,
+                        FileShare.Read
+                    )
+                )
                 using (var writer = new StreamWriter(stream))
                 {
                     writer.Write(json);
@@ -1270,7 +1513,10 @@ public class FileJobStorage : IJobStorage
     /// <param name="setting">设置信息</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>保存成功返回true，失败返回false</returns>
-    public async Task<bool> SaveSettingAsync(QuartzSetting setting, CancellationToken cancellationToken = default)
+    public async Task<bool> SaveSettingAsync(
+        QuartzSetting setting,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -1309,7 +1555,10 @@ public class FileJobStorage : IJobStorage
     /// <param name="key">设置键</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>设置信息，不存在返回null</returns>
-    public async Task<QuartzSetting?> GetSettingAsync(string key, CancellationToken cancellationToken = default)
+    public async Task<QuartzSetting?> GetSettingAsync(
+        string key,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -1328,7 +1577,9 @@ public class FileJobStorage : IJobStorage
     /// </summary>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>设置列表</returns>
-    public async Task<List<QuartzSetting>> GetAllSettingsAsync(CancellationToken cancellationToken = default)
+    public async Task<List<QuartzSetting>> GetAllSettingsAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -1347,7 +1598,10 @@ public class FileJobStorage : IJobStorage
     /// <param name="notification">通知消息</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>添加成功返回true，失败返回false</returns>
-    public async Task<bool> AddNotificationAsync(QuartzNotification notification, CancellationToken cancellationToken = default)
+    public async Task<bool> AddNotificationAsync(
+        QuartzNotification notification,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -1372,12 +1626,17 @@ public class FileJobStorage : IJobStorage
     /// <param name="notification">通知消息</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>更新成功返回true，失败返回false</returns>
-    public async Task<bool> UpdateNotificationAsync(QuartzNotification notification, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateNotificationAsync(
+        QuartzNotification notification,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
             var notifications = await LoadNotificationsAsync();
-            var existingNotification = notifications.FirstOrDefault(n => n.NotificationId == notification.NotificationId);
+            var existingNotification = notifications.FirstOrDefault(n =>
+                n.NotificationId == notification.NotificationId
+            );
 
             if (existingNotification == null)
             {
@@ -1411,7 +1670,10 @@ public class FileJobStorage : IJobStorage
     /// <param name="notificationId">通知ID</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>通知消息，不存在返回null</returns>
-    public async Task<QuartzNotification?> GetNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default)
+    public async Task<QuartzNotification?> GetNotificationAsync(
+        Guid notificationId,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -1431,7 +1693,10 @@ public class FileJobStorage : IJobStorage
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>分页通知消息列表</returns>
-    public async Task<PagedResponseDto<QuartzNotification>> GetNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<PagedResponseDto<QuartzNotification>> GetNotificationsAsync(
+        NotificationQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -1440,42 +1705,63 @@ public class FileJobStorage : IJobStorage
             // 应用过滤条件
             if (queryDto.Status.HasValue)
             {
-                notifications = notifications.Where(n => n.Status == queryDto.Status.Value).ToList();
+                notifications = notifications
+                    .Where(n => n.Status == queryDto.Status.Value)
+                    .ToList();
             }
 
             if (!string.IsNullOrEmpty(queryDto.TriggeredBy))
             {
-                notifications = notifications.Where(n => n.TriggeredBy?.Contains(queryDto.TriggeredBy, StringComparison.OrdinalIgnoreCase) ?? false).ToList();
+                notifications = notifications
+                    .Where(n =>
+                        n.TriggeredBy?.Contains(
+                            queryDto.TriggeredBy,
+                            StringComparison.OrdinalIgnoreCase
+                        ) ?? false
+                    )
+                    .ToList();
             }
 
             if (queryDto.StartTime.HasValue)
             {
-                notifications = notifications.Where(n => n.CreateTime >= queryDto.StartTime.Value).ToList();
+                notifications = notifications
+                    .Where(n => n.CreateTime >= queryDto.StartTime.Value)
+                    .ToList();
             }
 
             if (queryDto.EndTime.HasValue)
             {
-                notifications = notifications.Where(n => n.CreateTime <= queryDto.EndTime.Value).ToList();
+                notifications = notifications
+                    .Where(n => n.CreateTime <= queryDto.EndTime.Value)
+                    .ToList();
             }
 
             // 应用排序
-            if (!string.IsNullOrEmpty(queryDto.SortBy))
+            if (!string.IsNullOrEmpty(queryDto.SortBy) && !string.IsNullOrEmpty(queryDto.SortOrder))
             {
-                var isAscending = string.Equals(queryDto.SortOrder, "asc", StringComparison.OrdinalIgnoreCase);
+                var isAscending = queryDto.SortOrder.ToLower().StartsWith("asc");
 
                 switch (queryDto.SortBy.ToLower())
                 {
                     case "title":
-                        notifications = isAscending ? notifications.OrderBy(n => n.Title).ToList() : notifications.OrderByDescending(n => n.Title).ToList();
+                        notifications = isAscending
+                            ? notifications.OrderBy(n => n.Title).ToList()
+                            : notifications.OrderByDescending(n => n.Title).ToList();
                         break;
                     case "status":
-                        notifications = isAscending ? notifications.OrderBy(n => n.Status).ToList() : notifications.OrderByDescending(n => n.Status).ToList();
+                        notifications = isAscending
+                            ? notifications.OrderBy(n => n.Status).ToList()
+                            : notifications.OrderByDescending(n => n.Status).ToList();
                         break;
                     case "createtime":
-                        notifications = isAscending ? notifications.OrderBy(n => n.CreateTime).ToList() : notifications.OrderByDescending(n => n.CreateTime).ToList();
+                        notifications = isAscending
+                            ? notifications.OrderBy(n => n.CreateTime).ToList()
+                            : notifications.OrderByDescending(n => n.CreateTime).ToList();
                         break;
                     case "sendtime":
-                        notifications = isAscending ? notifications.OrderBy(n => n.SendTime).ToList() : notifications.OrderByDescending(n => n.SendTime).ToList();
+                        notifications = isAscending
+                            ? notifications.OrderBy(n => n.SendTime).ToList()
+                            : notifications.OrderByDescending(n => n.SendTime).ToList();
                         break;
                     default:
                         // 默认按创建时间降序排序
@@ -1502,7 +1788,7 @@ public class FileJobStorage : IJobStorage
                 Items = pagedNotifications,
                 TotalCount = totalCount,
                 PageIndex = queryDto.PageIndex,
-                PageSize = queryDto.PageSize
+                PageSize = queryDto.PageSize,
             };
         }
         catch (Exception ex)
@@ -1518,12 +1804,17 @@ public class FileJobStorage : IJobStorage
     /// <param name="notificationId">通知ID</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>删除成功返回true，失败返回false</returns>
-    public async Task<bool> DeleteNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteNotificationAsync(
+        Guid notificationId,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
             var notifications = await LoadNotificationsAsync();
-            var notificationToDelete = notifications.FirstOrDefault(n => n.NotificationId == notificationId);
+            var notificationToDelete = notifications.FirstOrDefault(n =>
+                n.NotificationId == notificationId
+            );
 
             if (notificationToDelete == null)
             {
@@ -1549,7 +1840,10 @@ public class FileJobStorage : IJobStorage
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>清空成功返回true，失败返回false</returns>
-    public async Task<bool> ClearNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<bool> ClearNotificationsAsync(
+        NotificationQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -1557,39 +1851,47 @@ public class FileJobStorage : IJobStorage
             var originalCount = notifications.Count;
 
             // 找出需要删除的通知（即匹配查询条件的通知）
-            var notificationsToDelete = notifications.Where(notification =>
-            {
-                // 应用过滤条件
-                bool match = true;
-
-                if (queryDto.Status.HasValue)
+            var notificationsToDelete = notifications
+                .Where(notification =>
                 {
-                    match &= notification.Status == queryDto.Status.Value;
-                }
+                    // 应用过滤条件
+                    bool match = true;
 
-                if (!string.IsNullOrEmpty(queryDto.TriggeredBy))
-                {
-                    match &= notification.TriggeredBy?.Contains(queryDto.TriggeredBy, StringComparison.OrdinalIgnoreCase) ?? false;
-                }
+                    if (queryDto.Status.HasValue)
+                    {
+                        match &= notification.Status == queryDto.Status.Value;
+                    }
 
-                if (queryDto.StartTime.HasValue)
-                {
-                    match &= notification.CreateTime >= queryDto.StartTime.Value;
-                }
+                    if (!string.IsNullOrEmpty(queryDto.TriggeredBy))
+                    {
+                        match &=
+                            notification.TriggeredBy?.Contains(
+                                queryDto.TriggeredBy,
+                                StringComparison.OrdinalIgnoreCase
+                            ) ?? false;
+                    }
 
-                if (queryDto.EndTime.HasValue)
-                {
-                    match &= notification.CreateTime <= queryDto.EndTime.Value;
-                }
+                    if (queryDto.StartTime.HasValue)
+                    {
+                        match &= notification.CreateTime >= queryDto.StartTime.Value;
+                    }
 
-                return match;
-            }).ToList();
+                    if (queryDto.EndTime.HasValue)
+                    {
+                        match &= notification.CreateTime <= queryDto.EndTime.Value;
+                    }
+
+                    return match;
+                })
+                .ToList();
 
             // 如果没有指定查询条件，删除所有通知
-            if (!queryDto.Status.HasValue &&
-                string.IsNullOrEmpty(queryDto.TriggeredBy) &&
-                !queryDto.StartTime.HasValue &&
-                !queryDto.EndTime.HasValue)
+            if (
+                !queryDto.Status.HasValue
+                && string.IsNullOrEmpty(queryDto.TriggeredBy)
+                && !queryDto.StartTime.HasValue
+                && !queryDto.EndTime.HasValue
+            )
             {
                 notificationsToDelete = notifications;
             }

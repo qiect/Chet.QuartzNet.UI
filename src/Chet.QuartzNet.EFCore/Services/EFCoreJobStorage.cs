@@ -78,13 +78,18 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="jobInfo">作业信息对象</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>添加成功返回 true，失败返回 false</returns>
-    public async Task<bool> AddJobAsync(QuartzJobInfo jobInfo, CancellationToken cancellationToken = default)
+    public async Task<bool> AddJobAsync(
+        QuartzJobInfo jobInfo,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
             // 检查是否已存在
-            var existingJob = await _dbContext.QuartzJobs
-                .FirstOrDefaultAsync(j => j.JobName == jobInfo.JobName && j.JobGroup == jobInfo.JobGroup, cancellationToken);
+            var existingJob = await _dbContext.QuartzJobs.FirstOrDefaultAsync(
+                j => j.JobName == jobInfo.JobName && j.JobGroup == jobInfo.JobGroup,
+                cancellationToken
+            );
 
             if (existingJob != null)
             {
@@ -111,12 +116,17 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="jobInfo">作业信息对象，包含更新后的作业数据</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>更新成功返回 true，失败返回 false</returns>
-    public async Task<bool> UpdateJobAsync(QuartzJobInfo jobInfo, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateJobAsync(
+        QuartzJobInfo jobInfo,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
-            var existingJob = await _dbContext.QuartzJobs
-                .FirstOrDefaultAsync(j => j.JobName == jobInfo.JobName && j.JobGroup == jobInfo.JobGroup, cancellationToken);
+            var existingJob = await _dbContext.QuartzJobs.FirstOrDefaultAsync(
+                j => j.JobName == jobInfo.JobName && j.JobGroup == jobInfo.JobGroup,
+                cancellationToken
+            );
 
             if (existingJob == null)
             {
@@ -159,12 +169,18 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="jobGroup">作业分组</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>删除成功返回 true，失败返回 false</returns>
-    public async Task<bool> DeleteJobAsync(string jobName, string jobGroup, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteJobAsync(
+        string jobName,
+        string jobGroup,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
-            var job = await _dbContext.QuartzJobs
-                .FirstOrDefaultAsync(j => j.JobName == jobName && j.JobGroup == jobGroup, cancellationToken);
+            var job = await _dbContext.QuartzJobs.FirstOrDefaultAsync(
+                j => j.JobName == jobName && j.JobGroup == jobGroup,
+                cancellationToken
+            );
 
             if (job == null)
             {
@@ -192,12 +208,18 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="jobGroup">作业分组</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>找到的作业信息对象，找不到则返回 null</returns>
-    public async Task<QuartzJobInfo?> GetJobAsync(string jobName, string jobGroup, CancellationToken cancellationToken = default)
+    public async Task<QuartzJobInfo?> GetJobAsync(
+        string jobName,
+        string jobGroup,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
-            return await _dbContext.QuartzJobs
-                .FirstOrDefaultAsync(j => j.JobName == jobName && j.JobGroup == jobGroup, cancellationToken);
+            return await _dbContext.QuartzJobs.FirstOrDefaultAsync(
+                j => j.JobName == jobName && j.JobGroup == jobGroup,
+                cancellationToken
+            );
         }
         catch (Exception ex)
         {
@@ -212,7 +234,10 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="queryDto">查询条件对象，包含分页参数、过滤条件和排序规则</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>包含分页信息和作业列表的响应对象</returns>
-    public async Task<PagedResponseDto<QuartzJobInfo>> GetJobsAsync(QuartzJobQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<PagedResponseDto<QuartzJobInfo>> GetJobsAsync(
+        QuartzJobQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -240,35 +265,51 @@ public class EFCoreJobStorage : IJobStorage
             }
 
             // 应用排序
-            if (!string.IsNullOrEmpty(queryDto.SortBy))
+            if (!string.IsNullOrEmpty(queryDto.SortBy) && !string.IsNullOrEmpty(queryDto.SortOrder))
             {
-                var isAscending = string.Equals(queryDto.SortOrder, "asc", StringComparison.OrdinalIgnoreCase);
+                var isAscending = queryDto.SortOrder.ToLower().StartsWith("asc");
 
                 switch (queryDto.SortBy.ToLower())
                 {
                     case "jobname":
-                        query = isAscending ? query.OrderBy(j => j.JobName) : query.OrderByDescending(j => j.JobName);
+                        query = isAscending
+                            ? query.OrderBy(j => j.JobName)
+                            : query.OrderByDescending(j => j.JobName);
                         break;
                     case "jobgroup":
-                        query = isAscending ? query.OrderBy(j => j.JobGroup) : query.OrderByDescending(j => j.JobGroup);
+                        query = isAscending
+                            ? query.OrderBy(j => j.JobGroup)
+                            : query.OrderByDescending(j => j.JobGroup);
                         break;
                     case "status":
-                        query = isAscending ? query.OrderBy(j => j.Status) : query.OrderByDescending(j => j.Status);
+                        query = isAscending
+                            ? query.OrderBy(j => j.Status)
+                            : query.OrderByDescending(j => j.Status);
                         break;
                     case "isenabled":
-                        query = isAscending ? query.OrderBy(j => j.IsEnabled) : query.OrderByDescending(j => j.IsEnabled);
+                        query = isAscending
+                            ? query.OrderBy(j => j.IsEnabled)
+                            : query.OrderByDescending(j => j.IsEnabled);
                         break;
                     case "createtime":
-                        query = isAscending ? query.OrderBy(j => j.CreateTime) : query.OrderByDescending(j => j.CreateTime);
+                        query = isAscending
+                            ? query.OrderBy(j => j.CreateTime)
+                            : query.OrderByDescending(j => j.CreateTime);
                         break;
                     case "updatetime":
-                        query = isAscending ? query.OrderBy(j => j.UpdateTime) : query.OrderByDescending(j => j.UpdateTime);
+                        query = isAscending
+                            ? query.OrderBy(j => j.UpdateTime)
+                            : query.OrderByDescending(j => j.UpdateTime);
                         break;
                     case "previousruntime":
-                        query = isAscending ? query.OrderBy(j => j.PreviousRunTime) : query.OrderByDescending(j => j.PreviousRunTime);
+                        query = isAscending
+                            ? query.OrderBy(j => j.PreviousRunTime)
+                            : query.OrderByDescending(j => j.PreviousRunTime);
                         break;
                     case "nextruntime":
-                        query = isAscending ? query.OrderBy(j => j.NextRunTime) : query.OrderByDescending(j => j.NextRunTime);
+                        query = isAscending
+                            ? query.OrderBy(j => j.NextRunTime)
+                            : query.OrderByDescending(j => j.NextRunTime);
                         break;
                     default:
                         // 默认按创建时间降序排序
@@ -294,7 +335,7 @@ public class EFCoreJobStorage : IJobStorage
                 Items = pagedJobs,
                 TotalCount = totalCount,
                 PageIndex = queryDto.PageIndex,
-                PageSize = queryDto.PageSize
+                PageSize = queryDto.PageSize,
             };
         }
         catch (Exception ex)
@@ -309,7 +350,9 @@ public class EFCoreJobStorage : IJobStorage
     /// </summary>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业列表</returns>
-    public async Task<List<QuartzJobInfo>> GetAllJobsAsync(CancellationToken cancellationToken = default)
+    public async Task<List<QuartzJobInfo>> GetAllJobsAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -330,12 +373,19 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="status">新的作业状态</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>更新成功返回 true，失败返回 false</returns>
-    public async Task<bool> UpdateJobStatusAsync(string jobName, string jobGroup, JobStatus status, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateJobStatusAsync(
+        string jobName,
+        string jobGroup,
+        JobStatus status,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
-            var job = await _dbContext.QuartzJobs
-                .FirstOrDefaultAsync(j => j.JobName == jobName && j.JobGroup == jobGroup, cancellationToken);
+            var job = await _dbContext.QuartzJobs.FirstOrDefaultAsync(
+                j => j.JobName == jobName && j.JobGroup == jobGroup,
+                cancellationToken
+            );
 
             if (job == null)
             {
@@ -348,7 +398,12 @@ public class EFCoreJobStorage : IJobStorage
 
             var result = await _dbContext.SaveChangesAsync(cancellationToken);
 
-            _logger.LogSuccess("更新作业", "作业: {JobKey}, 状态: {Status}", $"{jobGroup}.{jobName}", status);
+            _logger.LogSuccess(
+                "更新作业",
+                "作业: {JobKey}, 状态: {Status}",
+                $"{jobGroup}.{jobName}",
+                status
+            );
             return result > 0;
         }
         catch (Exception ex)
@@ -368,7 +423,10 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="jobLog">作业日志对象</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>添加成功返回 true，失败返回 false</returns>
-    public async Task<bool> AddJobLogAsync(QuartzJobLog jobLog, CancellationToken cancellationToken = default)
+    public async Task<bool> AddJobLogAsync(
+        QuartzJobLog jobLog,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -391,7 +449,10 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="queryDto">查询条件对象，包含分页参数、过滤条件和排序规则</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>包含分页信息和日志列表的响应对象</returns>
-    public async Task<PagedResponseDto<QuartzJobLog>> GetJobLogsAsync(QuartzJobLogQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<PagedResponseDto<QuartzJobLog>> GetJobLogsAsync(
+        QuartzJobLogQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -424,32 +485,46 @@ public class EFCoreJobStorage : IJobStorage
             }
 
             // 应用排序
-            if (!string.IsNullOrEmpty(queryDto.SortBy))
+            if (!string.IsNullOrEmpty(queryDto.SortBy) && !string.IsNullOrEmpty(queryDto.SortOrder))
             {
-                var isAscending = string.Equals(queryDto.SortOrder, "asc", StringComparison.OrdinalIgnoreCase);
+                var isAscending = queryDto.SortOrder.ToLower().StartsWith("asc");
 
                 switch (queryDto.SortBy.ToLower())
                 {
                     case "jobname":
-                        query = isAscending ? query.OrderBy(l => l.JobName) : query.OrderByDescending(l => l.JobName);
+                        query = isAscending
+                            ? query.OrderBy(l => l.JobName)
+                            : query.OrderByDescending(l => l.JobName);
                         break;
                     case "jobgroup":
-                        query = isAscending ? query.OrderBy(l => l.JobGroup) : query.OrderByDescending(l => l.JobGroup);
+                        query = isAscending
+                            ? query.OrderBy(l => l.JobGroup)
+                            : query.OrderByDescending(l => l.JobGroup);
                         break;
                     case "status":
-                        query = isAscending ? query.OrderBy(l => l.Status) : query.OrderByDescending(l => l.Status);
+                        query = isAscending
+                            ? query.OrderBy(l => l.Status)
+                            : query.OrderByDescending(l => l.Status);
                         break;
                     case "createtime":
-                        query = isAscending ? query.OrderBy(l => l.CreateTime) : query.OrderByDescending(l => l.CreateTime);
+                        query = isAscending
+                            ? query.OrderBy(l => l.CreateTime)
+                            : query.OrderByDescending(l => l.CreateTime);
                         break;
                     case "starttime":
-                        query = isAscending ? query.OrderBy(l => l.StartTime) : query.OrderByDescending(l => l.StartTime);
+                        query = isAscending
+                            ? query.OrderBy(l => l.StartTime)
+                            : query.OrderByDescending(l => l.StartTime);
                         break;
                     case "endtime":
-                        query = isAscending ? query.OrderBy(l => l.EndTime) : query.OrderByDescending(l => l.EndTime);
+                        query = isAscending
+                            ? query.OrderBy(l => l.EndTime)
+                            : query.OrderByDescending(l => l.EndTime);
                         break;
                     case "duration":
-                        query = isAscending ? query.OrderBy(l => l.Duration) : query.OrderByDescending(l => l.Duration);
+                        query = isAscending
+                            ? query.OrderBy(l => l.Duration)
+                            : query.OrderByDescending(l => l.Duration);
                         break;
                     default:
                         // 默认按创建时间降序排序
@@ -475,7 +550,7 @@ public class EFCoreJobStorage : IJobStorage
                 Items = pagedLogs,
                 TotalCount = totalCount,
                 PageIndex = queryDto.PageIndex,
-                PageSize = queryDto.PageSize
+                PageSize = queryDto.PageSize,
             };
         }
         catch (Exception ex)
@@ -491,14 +566,17 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="daysToKeep">保留天数</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>清除的日志数量</returns>
-    public async Task<int> ClearExpiredLogsAsync(int daysToKeep, CancellationToken cancellationToken = default)
+    public async Task<int> ClearExpiredLogsAsync(
+        int daysToKeep,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
             var cutoffDate = DateTime.Now.AddDays(-daysToKeep);
 
-            var expiredLogs = await _dbContext.QuartzJobLogs
-                .Where(l => l.CreateTime < cutoffDate)
+            var expiredLogs = await _dbContext
+                .QuartzJobLogs.Where(l => l.CreateTime < cutoffDate)
                 .ToListAsync(cancellationToken);
 
             var expiredCount = expiredLogs.Count;
@@ -526,7 +604,10 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="queryDto">查询条件对象，包含过滤条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>清空成功返回 true，失败返回 false</returns>
-    public async Task<bool> ClearJobLogsAsync(QuartzJobLogQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<bool> ClearJobLogsAsync(
+        QuartzJobLogQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -589,7 +670,10 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="queryDto">查询条件对象，包含时间范围等参数</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业统计数据</returns>
-    public async Task<JobStatsDto> GetJobStatsAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<JobStatsDto> GetJobStatsAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -598,15 +682,31 @@ public class EFCoreJobStorage : IJobStorage
 
             // 统计作业基本信息
             var totalJobs = await _dbContext.QuartzJobs.CountAsync(cancellationToken);
-            var enabledJobs = await _dbContext.QuartzJobs.CountAsync(j => j.IsEnabled, cancellationToken);
-            var disabledJobs = await _dbContext.QuartzJobs.CountAsync(j => !j.IsEnabled, cancellationToken);
+            var enabledJobs = await _dbContext.QuartzJobs.CountAsync(
+                j => j.IsEnabled,
+                cancellationToken
+            );
+            var disabledJobs = await _dbContext.QuartzJobs.CountAsync(
+                j => !j.IsEnabled,
+                cancellationToken
+            );
 
             // 统计日志信息
-            var successCount = await _dbContext.QuartzJobLogs
-                .CountAsync(l => l.Status == LogStatus.Success && l.StartTime >= startTime && l.StartTime <= endTime, cancellationToken);
+            var successCount = await _dbContext.QuartzJobLogs.CountAsync(
+                l =>
+                    l.Status == LogStatus.Success
+                    && l.StartTime >= startTime
+                    && l.StartTime <= endTime,
+                cancellationToken
+            );
 
-            var failedCount = await _dbContext.QuartzJobLogs
-                .CountAsync(l => l.Status == LogStatus.Failed && l.StartTime >= startTime && l.StartTime <= endTime, cancellationToken);
+            var failedCount = await _dbContext.QuartzJobLogs.CountAsync(
+                l =>
+                    l.Status == LogStatus.Failed
+                    && l.StartTime >= startTime
+                    && l.StartTime <= endTime,
+                cancellationToken
+            );
 
             // 统计数据
             var stats = new JobStatsDto
@@ -616,7 +716,7 @@ public class EFCoreJobStorage : IJobStorage
                 DisabledJobs = disabledJobs,
                 TotalExecutions = successCount + failedCount,
                 SuccessCount = successCount,
-                FailedCount = failedCount
+                FailedCount = failedCount,
             };
 
             return stats;
@@ -634,29 +734,31 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="queryDto">查询条件对象</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业状态分布数据列表</returns>
-    public async Task<List<JobStatusDistributionDto>> GetJobStatusDistributionAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<List<JobStatusDistributionDto>> GetJobStatusDistributionAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
             // 按状态分组统计
-            var statusGroups = await _dbContext.QuartzJobs
-                .GroupBy(j => j.Status)
-                .Select(group => new
-                {
-                    Status = group.Key,
-                    Count = group.Count()
-                })
+            var statusGroups = await _dbContext
+                .QuartzJobs.GroupBy(j => j.Status)
+                .Select(group => new { Status = group.Key, Count = group.Count() })
                 .ToListAsync(cancellationToken);
 
             var totalJobs = await _dbContext.QuartzJobs.CountAsync(cancellationToken);
 
             // 转换为分布数据
-            var distribution = statusGroups.Select(group => new JobStatusDistributionDto
-            {
-                Status = group.Status.ToString(),
-                Count = group.Count,
-                Percentage = totalJobs > 0 ? Math.Round((double)group.Count / totalJobs * 100, 2) : 0
-            }).ToList();
+            var distribution = statusGroups
+                .Select(group => new JobStatusDistributionDto
+                {
+                    Status = group.Status.ToString(),
+                    Count = group.Count,
+                    Percentage =
+                        totalJobs > 0 ? Math.Round((double)group.Count / totalJobs * 100, 2) : 0,
+                })
+                .ToList();
 
             return distribution;
         }
@@ -673,7 +775,10 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="queryDto">查询条件对象，包含时间范围等参数</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业执行趋势数据列表，按小时分组</returns>
-    public async Task<List<JobExecutionTrendDto>> GetJobExecutionTrendAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<List<JobExecutionTrendDto>> GetJobExecutionTrendAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -681,31 +786,39 @@ public class EFCoreJobStorage : IJobStorage
             var (startTime, endTime) = CalculateTimeRange(queryDto);
 
             // 获取所有符合条件的日志，然后在内存中分组
-            var logs = await _dbContext.QuartzJobLogs
-                .Where(l => l.StartTime >= startTime && l.StartTime <= endTime)
+            var logs = await _dbContext
+                .QuartzJobLogs.Where(l => l.StartTime >= startTime && l.StartTime <= endTime)
                 .ToListAsync(cancellationToken);
 
             // 在内存中按小时分组统计
-            var timeGroups = logs
-                .GroupBy(l => new DateTime(l.StartTime.Year, l.StartTime.Month, l.StartTime.Day, l.StartTime.Hour, 0, 0))
+            var timeGroups = logs.GroupBy(l => new DateTime(
+                    l.StartTime.Year,
+                    l.StartTime.Month,
+                    l.StartTime.Day,
+                    l.StartTime.Hour,
+                    0,
+                    0
+                ))
                 .Select(group => new
                 {
                     Time = group.Key,
                     SuccessCount = group.Count(l => l.Status == LogStatus.Success),
                     FailedCount = group.Count(l => l.Status == LogStatus.Failed),
-                    TotalCount = group.Count()
+                    TotalCount = group.Count(),
                 })
                 .OrderBy(g => g.Time)
                 .ToList();
 
             // 转换为趋势数据
-            var trend = timeGroups.Select(group => new JobExecutionTrendDto
-            {
-                Time = group.Time.ToString("yyyy-MM-dd HH:00"),
-                SuccessCount = group.SuccessCount,
-                FailedCount = group.FailedCount,
-                TotalCount = group.TotalCount
-            }).ToList();
+            var trend = timeGroups
+                .Select(group => new JobExecutionTrendDto
+                {
+                    Time = group.Time.ToString("yyyy-MM-dd HH:00"),
+                    SuccessCount = group.SuccessCount,
+                    FailedCount = group.FailedCount,
+                    TotalCount = group.TotalCount,
+                })
+                .ToList();
 
             return trend;
         }
@@ -722,29 +835,31 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="queryDto">查询条件对象</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业类型分布数据列表</returns>
-    public async Task<List<JobTypeDistributionDto>> GetJobTypeDistributionAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<List<JobTypeDistributionDto>> GetJobTypeDistributionAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
             // 按类型分组统计
-            var typeGroups = await _dbContext.QuartzJobs
-                .GroupBy(j => j.JobType)
-                .Select(group => new
-                {
-                    Type = group.Key,
-                    Count = group.Count()
-                })
+            var typeGroups = await _dbContext
+                .QuartzJobs.GroupBy(j => j.JobType)
+                .Select(group => new { Type = group.Key, Count = group.Count() })
                 .ToListAsync(cancellationToken);
 
             var totalJobs = await _dbContext.QuartzJobs.CountAsync(cancellationToken);
 
             // 转换为分布数据
-            var distribution = typeGroups.Select(group => new JobTypeDistributionDto
-            {
-                Type = group.Type.ToString(),
-                Count = group.Count,
-                Percentage = totalJobs > 0 ? Math.Round((double)group.Count / totalJobs * 100, 2) : 0
-            }).ToList();
+            var distribution = typeGroups
+                .Select(group => new JobTypeDistributionDto
+                {
+                    Type = group.Type.ToString(),
+                    Count = group.Count,
+                    Percentage =
+                        totalJobs > 0 ? Math.Round((double)group.Count / totalJobs * 100, 2) : 0,
+                })
+                .ToList();
 
             return distribution;
         }
@@ -761,7 +876,10 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="queryDto">查询条件对象，包含时间范围等参数</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>作业执行耗时分布数据列表</returns>
-    public async Task<List<JobExecutionTimeDto>> GetJobExecutionTimeAsync(StatsQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<List<JobExecutionTimeDto>> GetJobExecutionTimeAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -769,8 +887,12 @@ public class EFCoreJobStorage : IJobStorage
             var (startTime, endTime) = CalculateTimeRange(queryDto);
 
             // 获取所有符合条件的日志
-            var logs = await _dbContext.QuartzJobLogs
-                .Where(l => l.StartTime >= startTime && l.StartTime <= endTime && l.Status != LogStatus.Running)
+            var logs = await _dbContext
+                .QuartzJobLogs.Where(l =>
+                    l.StartTime >= startTime
+                    && l.StartTime <= endTime
+                    && l.Status != LogStatus.Running
+                )
                 .ToListAsync(cancellationToken);
 
             // 按耗时分组
@@ -782,15 +904,19 @@ public class EFCoreJobStorage : IJobStorage
                 ("10-30s", d => d >= 10 && d < 30),
                 ("30s-1m", d => d >= 30 && d < 60),
                 ("1-5m", d => d >= 60 && d < 300),
-                (">= 5m", d => d >= 300)
+                (">= 5m", d => d >= 300),
             };
 
             // 统计每个耗时区间的作业数
-            var executionTimeData = timeRangeGroups.Select(group => new JobExecutionTimeDto
-            {
-                TimeRange = group.Range,
-                Count = logs.Count(l => l.Duration.HasValue && group.Predicate(l.Duration.Value / 1000.0))
-            }).ToList();
+            var executionTimeData = timeRangeGroups
+                .Select(group => new JobExecutionTimeDto
+                {
+                    TimeRange = group.Range,
+                    Count = logs.Count(l =>
+                        l.Duration.HasValue && group.Predicate(l.Duration.Value / 1000.0)
+                    ),
+                })
+                .ToList();
 
             return executionTimeData;
         }
@@ -808,10 +934,15 @@ public class EFCoreJobStorage : IJobStorage
     /// <returns>开始时间和结束时间</returns>
     private (DateTime StartTime, DateTime EndTime) CalculateTimeRange(StatsQueryDto queryDto)
     {
-        DateTime startTime, endTime;
+        DateTime startTime,
+            endTime;
 
         // 如果指定了自定义时间范围，使用自定义时间
-        if (queryDto.TimeRangeType == "custom" && queryDto.StartTime.HasValue && queryDto.EndTime.HasValue)
+        if (
+            queryDto.TimeRangeType == "custom"
+            && queryDto.StartTime.HasValue
+            && queryDto.EndTime.HasValue
+        )
         {
             startTime = queryDto.StartTime.Value;
             endTime = queryDto.EndTime.Value;
@@ -827,8 +958,22 @@ public class EFCoreJobStorage : IJobStorage
                     startTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0);
                     break;
                 case "yesterday":
-                    startTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0).AddDays(-1);
-                    endTime = new DateTime(endTime.Year, endTime.Month, endTime.Day, 0, 0, 0).AddMilliseconds(-1);
+                    startTime = new DateTime(
+                        endTime.Year,
+                        endTime.Month,
+                        endTime.Day,
+                        0,
+                        0,
+                        0
+                    ).AddDays(-1);
+                    endTime = new DateTime(
+                        endTime.Year,
+                        endTime.Month,
+                        endTime.Day,
+                        0,
+                        0,
+                        0
+                    ).AddMilliseconds(-1);
                     break;
                 case "thisWeek":
                     startTime = endTime.AddDays(-(int)endTime.DayOfWeek).Date;
@@ -858,13 +1003,18 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="setting">设置信息</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>保存成功返回true，失败返回false</returns>
-    public async Task<bool> SaveSettingAsync(QuartzSetting setting, CancellationToken cancellationToken = default)
+    public async Task<bool> SaveSettingAsync(
+        QuartzSetting setting,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
             // 检查是否已存在
-            var existingSetting = await _dbContext.QuartzSettings
-                .FirstOrDefaultAsync(s => s.Key == setting.Key, cancellationToken);
+            var existingSetting = await _dbContext.QuartzSettings.FirstOrDefaultAsync(
+                s => s.Key == setting.Key,
+                cancellationToken
+            );
 
             if (existingSetting != null)
             {
@@ -898,12 +1048,17 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="key">设置键</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>设置信息，不存在返回null</returns>
-    public async Task<QuartzSetting?> GetSettingAsync(string key, CancellationToken cancellationToken = default)
+    public async Task<QuartzSetting?> GetSettingAsync(
+        string key,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
-            return await _dbContext.QuartzSettings
-                .FirstOrDefaultAsync(s => s.Key == key, cancellationToken);
+            return await _dbContext.QuartzSettings.FirstOrDefaultAsync(
+                s => s.Key == key,
+                cancellationToken
+            );
         }
         catch (Exception ex)
         {
@@ -917,7 +1072,9 @@ public class EFCoreJobStorage : IJobStorage
     /// </summary>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>设置列表</returns>
-    public async Task<List<QuartzSetting>> GetAllSettingsAsync(CancellationToken cancellationToken = default)
+    public async Task<List<QuartzSetting>> GetAllSettingsAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -936,7 +1093,10 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="notification">通知消息</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>添加成功返回true，失败返回false</returns>
-    public async Task<bool> AddNotificationAsync(QuartzNotification notification, CancellationToken cancellationToken = default)
+    public async Task<bool> AddNotificationAsync(
+        QuartzNotification notification,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -957,16 +1117,25 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="notification">通知消息</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>更新成功返回true，失败返回false</returns>
-    public async Task<bool> UpdateNotificationAsync(QuartzNotification notification, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateNotificationAsync(
+        QuartzNotification notification,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
-            var existingNotification = await _dbContext.QuartzNotifications
-                .FirstOrDefaultAsync(n => n.NotificationId == notification.NotificationId, cancellationToken);
+            var existingNotification = await _dbContext.QuartzNotifications.FirstOrDefaultAsync(
+                n => n.NotificationId == notification.NotificationId,
+                cancellationToken
+            );
 
             if (existingNotification == null)
             {
-                _logger.LogWarn("更新通知消息", "通知不存在 {NotificationId}", notification.NotificationId);
+                _logger.LogWarn(
+                    "更新通知消息",
+                    "通知不存在 {NotificationId}",
+                    notification.NotificationId
+                );
                 return false;
             }
 
@@ -987,12 +1156,17 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="notificationId">通知ID</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>通知消息，不存在返回null</returns>
-    public async Task<QuartzNotification?> GetNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default)
+    public async Task<QuartzNotification?> GetNotificationAsync(
+        Guid notificationId,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
-            return await _dbContext.QuartzNotifications
-                .FirstOrDefaultAsync(n => n.NotificationId == notificationId, cancellationToken);
+            return await _dbContext.QuartzNotifications.FirstOrDefaultAsync(
+                n => n.NotificationId == notificationId,
+                cancellationToken
+            );
         }
         catch (Exception ex)
         {
@@ -1007,7 +1181,10 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>分页通知消息列表</returns>
-    public async Task<PagedResponseDto<QuartzNotification>> GetNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<PagedResponseDto<QuartzNotification>> GetNotificationsAsync(
+        NotificationQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -1021,7 +1198,9 @@ public class EFCoreJobStorage : IJobStorage
 
             if (!string.IsNullOrEmpty(queryDto.TriggeredBy))
             {
-                query = query.Where(n => EF.Functions.Like(n.TriggeredBy, $"%{queryDto.TriggeredBy}%"));
+                query = query.Where(n =>
+                    EF.Functions.Like(n.TriggeredBy, $"%{queryDto.TriggeredBy}%")
+                );
             }
 
             if (queryDto.StartTime.HasValue)
@@ -1035,23 +1214,31 @@ public class EFCoreJobStorage : IJobStorage
             }
 
             // 应用排序
-            if (!string.IsNullOrEmpty(queryDto.SortBy))
+            if (!string.IsNullOrEmpty(queryDto.SortBy) && !string.IsNullOrEmpty(queryDto.SortOrder))
             {
-                var isAscending = string.Equals(queryDto.SortOrder, "asc", StringComparison.OrdinalIgnoreCase);
+                var isAscending = queryDto.SortOrder.ToLower().StartsWith("asc");
 
                 switch (queryDto.SortBy.ToLower())
                 {
                     case "title":
-                        query = isAscending ? query.OrderBy(n => n.Title) : query.OrderByDescending(n => n.Title);
+                        query = isAscending
+                            ? query.OrderBy(n => n.Title)
+                            : query.OrderByDescending(n => n.Title);
                         break;
                     case "status":
-                        query = isAscending ? query.OrderBy(n => n.Status) : query.OrderByDescending(n => n.Status);
+                        query = isAscending
+                            ? query.OrderBy(n => n.Status)
+                            : query.OrderByDescending(n => n.Status);
                         break;
                     case "createtime":
-                        query = isAscending ? query.OrderBy(n => n.CreateTime) : query.OrderByDescending(n => n.CreateTime);
+                        query = isAscending
+                            ? query.OrderBy(n => n.CreateTime)
+                            : query.OrderByDescending(n => n.CreateTime);
                         break;
                     case "sendtime":
-                        query = isAscending ? query.OrderBy(n => n.SendTime) : query.OrderByDescending(n => n.SendTime);
+                        query = isAscending
+                            ? query.OrderBy(n => n.SendTime)
+                            : query.OrderByDescending(n => n.SendTime);
                         break;
                     default:
                         // 默认按创建时间降序排序
@@ -1077,7 +1264,7 @@ public class EFCoreJobStorage : IJobStorage
                 Items = pagedNotifications,
                 TotalCount = totalCount,
                 PageIndex = queryDto.PageIndex,
-                PageSize = queryDto.PageSize
+                PageSize = queryDto.PageSize,
             };
         }
         catch (Exception ex)
@@ -1093,12 +1280,17 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="notificationId">通知ID</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>删除成功返回true，失败返回false</returns>
-    public async Task<bool> DeleteNotificationAsync(Guid notificationId, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteNotificationAsync(
+        Guid notificationId,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
-            var notification = await _dbContext.QuartzNotifications
-                .FirstOrDefaultAsync(n => n.NotificationId == notificationId, cancellationToken);
+            var notification = await _dbContext.QuartzNotifications.FirstOrDefaultAsync(
+                n => n.NotificationId == notificationId,
+                cancellationToken
+            );
 
             if (notification == null)
             {
@@ -1123,7 +1315,10 @@ public class EFCoreJobStorage : IJobStorage
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>清空成功返回true，失败返回false</returns>
-    public async Task<bool> ClearNotificationsAsync(NotificationQueryDto queryDto, CancellationToken cancellationToken = default)
+    public async Task<bool> ClearNotificationsAsync(
+        NotificationQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -1137,7 +1332,9 @@ public class EFCoreJobStorage : IJobStorage
 
             if (!string.IsNullOrEmpty(queryDto.TriggeredBy))
             {
-                query = query.Where(n => EF.Functions.Like(n.TriggeredBy, $"%{queryDto.TriggeredBy}%"));
+                query = query.Where(n =>
+                    EF.Functions.Like(n.TriggeredBy, $"%{queryDto.TriggeredBy}%")
+                );
             }
 
             if (queryDto.StartTime.HasValue)
