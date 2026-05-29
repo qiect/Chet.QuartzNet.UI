@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive, h } from 'vue';
-// 导入日期格式化工具
 import { formatDateTime } from '@vben/utils';
 import { Page } from '@vben/common-ui';
 import {
@@ -17,20 +16,17 @@ import {
   Card,
   Row,
   Col,
-  Dropdown,
-  Menu,
+  Tooltip,
+  InputNumber,
   Typography,
   Alert,
 } from 'ant-design-vue';
 import type { FormInstance, PaginationProps } from 'ant-design-vue';
 
-// 定义SortOrder类型
 type SortOrder = 'ascend' | 'descend' | undefined;
 
-// 导入i18n
 import { $t } from '#/locales';
 
-// 导入通知API服务
 import {
   NotificationStatusEnum,
   getPushPlusConfig,
@@ -96,6 +92,7 @@ const configForm = reactive<PushPlusConfigDto>({
 });
 
 const formRef = ref<FormInstance>();
+const advancedVisible = ref(false);
 
 // Option 动态占位符（根据渠道变化）
 const optionPlaceholder = computed(() => {
@@ -107,13 +104,20 @@ const optionPlaceholder = computed(() => {
   return placeholders[configForm.channel] || '';
 });
 
-// 时间戳输入（字符串形式展示，转换为数字存储）
-const timestampInput = computed({
-  get: () => configForm.timestamp?.toString() || '',
-  set: (val: string) => {
-    const num = Number(val);
-    configForm.timestamp = val && !isNaN(num) ? num : undefined;
-  },
+// 是否显示渠道参数区域
+const showChannelParams = computed(() => {
+  return ['webhook', 'cp', 'mail', 'wechat'].includes(configForm.channel);
+});
+
+// 渠道提示信息
+const channelTipMessage = computed(() => {
+  const tips: Record<string, string> = {
+    webhook: $t('page.quartz.notificationPage.channelTipWebhook'),
+    cp: $t('page.quartz.notificationPage.channelTipCp'),
+    mail: $t('page.quartz.notificationPage.channelTipMail'),
+    wechat: $t('page.quartz.notificationPage.channelTipWechat'),
+  };
+  return tips[configForm.channel] || '';
 });
 
 // 列配置
@@ -132,6 +136,7 @@ const columns = computed(() => [
     title: $t('page.quartz.notificationPage.status'),
     dataIndex: 'status',
     ellipsis: true,
+    width: 100,
     customRender: ({ record }: { record: QuartzNotificationDto }) => {
       const status = notificationStatusMap[record.status];
       return {
@@ -159,6 +164,7 @@ const columns = computed(() => [
     title: $t('page.quartz.notificationPage.duration'),
     dataIndex: 'duration',
     ellipsis: true,
+    width: 100,
     sorter: true,
     sortOrder: sortBy.value === 'duration' ? sortOrder.value : undefined,
   },
@@ -177,53 +183,22 @@ const columns = computed(() => [
   {
     title: $t('page.quartz.notificationPage.action'),
     key: 'action',
-    width: 80,
+    width: 100,
     fixed: 'right',
     customRender: ({ record }: { record: QuartzNotificationDto }) => {
-      // 创建详情菜单项
-      const detailMenuItem = h(
-        Menu.Item,
-        {
-          onClick: () => handleDetail(record),
-        },
-        $t('page.quartz.notificationPage.detail'),
-      );
-
-      // 创建删除菜单项
-      const deleteMenuItem = h(
-        Menu.Item,
-        {
-          onClick: () => handleDelete(record),
-          danger: true,
-        },
-        $t('page.quartz.notificationPage.delete'),
-      );
-
-      // 创建菜单
-      const menu = h(Menu, null, [detailMenuItem, deleteMenuItem]);
-
-      // 创建按钮
-      const button = h(
-        Button,
-        {
-          type: 'primary',
-          disabled: loading.value,
-        },
-        $t('page.quartz.notificationPage.action'),
-      );
-
-      // 创建下拉菜单
-      const dropdown = h(
-        Dropdown,
-        {
-          trigger: ['click'],
-          overlay: menu,
-        },
-        () => button,
-      );
-
       return {
-        children: dropdown,
+        children: h(Space, { size: 4 }, [
+          h(
+            Tooltip,
+            { title: $t('page.quartz.notificationPage.detail') },
+            () => h(Button, { type: 'link', size: 'small', onClick: () => handleDetail(record) }, () => $t('page.quartz.notificationPage.detail')),
+          ),
+          h(
+            Tooltip,
+            { title: $t('page.quartz.notificationPage.delete') },
+            () => h(Button, { type: 'link', size: 'small', danger: true, onClick: () => handleDelete(record) }, () => $t('page.quartz.notificationPage.delete')),
+          ),
+        ]),
       };
     },
   },
@@ -242,7 +217,6 @@ const pagination = computed<PaginationProps>(() => ({
 
 // 表格变化事件处理
 const handleTableChange = (pagination: any, _filters: any, sorter: any) => {
-  // 处理分页变化
   if (pagination.current !== undefined) {
     currentPage.value = pagination.current;
   }
@@ -250,7 +224,6 @@ const handleTableChange = (pagination: any, _filters: any, sorter: any) => {
     pageSize.value = pagination.pageSize;
   }
 
-  // 处理排序变化
   if (sorter.field !== undefined) {
     sortBy.value = sorter.field;
     sortOrder.value =
@@ -261,7 +234,6 @@ const handleTableChange = (pagination: any, _filters: any, sorter: any) => {
           : undefined;
   }
 
-  // 重新加载数据
   loadNotificationList();
 };
 
@@ -291,7 +263,6 @@ const loadNotificationList = async () => {
 // 处理搜索
 const handleSearch = async () => {
   if (searchFormRef.value) {
-    // 触发表单验证
     await searchFormRef.value.validateFields();
   }
   currentPage.value = 1;
@@ -311,9 +282,7 @@ const handleReset = () => {
 // 打开配置对话框
 const handleOpenConfigModal = async () => {
   try {
-    // 获取当前配置
     const response = await getPushPlusConfig();
-    // 正确处理API响应，获取data字段
     Object.assign(configForm, response.data);
     configModalVisible.value = true;
   } catch (error) {
@@ -339,7 +308,7 @@ const handleSaveConfig = async () => {
     }
   } catch (error: any) {
     if (error.errorFields) {
-      return; // 表单验证错误已显示
+      return;
     }
     const errorMessage = error.message || $t('page.quartz.notificationPage.saveConfigFailed');
     message.error(errorMessage);
@@ -476,23 +445,24 @@ onMounted(() => {
             <Button danger @click="handleClearNotifications">{{ $t('page.quartz.notificationPage.clearAll') }}</Button>
           </Space>
         </div>
-        <!-- 通知列表 -->
         <Table :columns="columns" :data-source="dataSource" :pagination="pagination" :loading="loading"
           :rowKey="(record) => record.notificationId" @change="handleTableChange" size="middle"
           :scroll="{ x: 'max-content' }" />
       </Card>
 
       <!-- 配置对话框 -->
-      <Modal v-model:open="configModalVisible" :title="$t('page.quartz.notificationPage.notificationConfig')" width="680px" destroyOnClose
+      <Modal v-model:open="configModalVisible" :title="$t('page.quartz.notificationPage.notificationConfig')" width="720px" destroyOnClose
         @cancel="configModalVisible = false" centered>
         <div class="config-modal-content">
-          <Alert :message="$t('page.quartz.notificationPage.configPushPlus')" :description="$t('page.quartz.notificationPage.configPushPlusDesc')" type="info" show-icon
-            class="mb-6" />
+          <div class="config-tip">
+            <span class="tip-icon">ⓘ</span>
+            <span>{{ $t('page.quartz.notificationPage.configPushPlusDesc') }}</span>
+          </div>
 
-          <Form ref="formRef" :model="configForm" layout="vertical" class="custom-form">
+          <Form ref="formRef" :model="configForm" layout="vertical" class="custom-form" size="small">
+            <!-- 基础配置 -->
             <section class="form-section">
               <div class="section-header">
-                <span class="icon">⚙️</span>
                 <span class="title">{{ $t('page.quartz.notificationPage.basicConfig') }}</span>
                 <div class="header-action">
                   <span class="label">{{ $t('page.quartz.notificationPage.serviceEnableStatus') }}</span>
@@ -500,14 +470,19 @@ onMounted(() => {
                 </div>
               </div>
 
-              <Row :gutter="24">
-                <Col :span="24">
+              <Row :gutter="12" align="middle">
+                <Col :span="16">
                   <Form.Item label="PushPlus Token" name="token"
                     :rules="[{ required: configForm.enable, message: $t('page.quartz.notificationPage.tokenRequired') }]">
-                    <Input v-model:value="configForm.token" :placeholder="$t('page.quartz.notificationPage.tokenPlaceholder')" />
+                    <Input.Password v-model:value="configForm.token" :placeholder="$t('page.quartz.notificationPage.tokenPlaceholder')" autocomplete="off" />
                   </Form.Item>
                 </Col>
-                <Col :span="12">
+                <Col :span="8">
+                  <Form.Item :label="$t('page.quartz.notificationPage.topicLabel')" name="topic">
+                    <Input v-model:value="configForm.topic" :placeholder="$t('page.quartz.notificationPage.topicPlaceholder')" />
+                  </Form.Item>
+                </Col>
+                <Col :span="8">
                   <Form.Item :label="$t('page.quartz.notificationPage.pushChannel')" name="channel">
                     <Select v-model:value="configForm.channel">
                       <Select.Option value="wechat">{{ $t('page.quartz.notificationPage.channelWechat') }}</Select.Option>
@@ -521,7 +496,7 @@ onMounted(() => {
                     </Select>
                   </Form.Item>
                 </Col>
-                <Col :span="12">
+                <Col :span="8">
                   <Form.Item :label="$t('page.quartz.notificationPage.messageTemplate')" name="template">
                     <Select v-model:value="configForm.template">
                       <Select.Option value="html">{{ $t('page.quartz.notificationPage.templateHtml') }}</Select.Option>
@@ -531,48 +506,25 @@ onMounted(() => {
                     </Select>
                   </Form.Item>
                 </Col>
-                <Col :span="24">
-                  <Form.Item :label="$t('page.quartz.notificationPage.topicLabel')" name="topic">
-                    <Input v-model:value="configForm.topic" :placeholder="$t('page.quartz.notificationPage.topicPlaceholder')" />
-                  </Form.Item>
-                </Col>
-                <Col :span="24" v-if="['webhook', 'cp', 'mail'].includes(configForm.channel)">
+                <Col v-if="['webhook', 'cp', 'mail'].includes(configForm.channel)" :span="8">
                   <Form.Item :label="$t('page.quartz.notificationPage.optionLabel')" name="option"
                     :rules="[{ required: ['webhook', 'cp'].includes(configForm.channel), message: $t('page.quartz.notificationPage.optionRequired') }]">
                     <Input v-model:value="configForm.option" :placeholder="optionPlaceholder" />
                   </Form.Item>
                 </Col>
-                <Col :span="24" v-if="['wechat', 'cp'].includes(configForm.channel)">
+                <Col v-if="['wechat', 'cp'].includes(configForm.channel)" :span="8">
                   <Form.Item :label="$t('page.quartz.notificationPage.toLabel')" name="to">
                     <Input v-model:value="configForm.to" :placeholder="$t('page.quartz.notificationPage.toPlaceholder')" />
                   </Form.Item>
                 </Col>
               </Row>
+
+              <Alert v-if="showChannelParams" :message="channelTipMessage" type="warning" show-icon class="channel-tip" />
             </section>
 
-            <section class="form-section">
-              <div class="section-header">
-                <span class="icon">🔗</span>
-                <span class="title">{{ $t('page.quartz.notificationPage.advancedConfig') }}</span>
-              </div>
-
-              <Row :gutter="24">
-                <Col :span="24">
-                  <Form.Item :label="$t('page.quartz.notificationPage.callbackUrlLabel')" name="callbackUrl">
-                    <Input v-model:value="configForm.callbackUrl" :placeholder="$t('page.quartz.notificationPage.callbackUrlPlaceholder')" />
-                  </Form.Item>
-                </Col>
-                <Col :span="12">
-                  <Form.Item :label="$t('page.quartz.notificationPage.timestampLabel')" name="timestamp">
-                    <Input v-model:value="timestampInput" :placeholder="$t('page.quartz.notificationPage.timestampPlaceholder')" />
-                  </Form.Item>
-                </Col>
-              </Row>
-            </section>
-
+            <!-- 通知策略 -->
             <section class="form-section last">
               <div class="section-header">
-                <span class="icon">🔔</span>
                 <span class="title">{{ $t('page.quartz.notificationPage.notificationStrategy') }}</span>
               </div>
 
@@ -602,6 +554,29 @@ onMounted(() => {
                 </div>
               </div>
             </section>
+
+            <!-- 高级配置 -->
+            <div class="advanced-section">
+              <div class="section-header" @click="advancedVisible = !advancedVisible">
+                <span class="title">{{ $t('page.quartz.notificationPage.advancedConfig') }}</span>
+                <span class="toggle-icon" :class="{ expanded: advancedVisible }">›</span>
+              </div>
+              <div v-show="advancedVisible" class="advanced-body">
+                <Row :gutter="12">
+                  <Col :span="16">
+                    <Form.Item :label="$t('page.quartz.notificationPage.callbackUrlLabel')" name="callbackUrl">
+                      <Input v-model:value="configForm.callbackUrl" :placeholder="$t('page.quartz.notificationPage.callbackUrlPlaceholder')" />
+                    </Form.Item>
+                  </Col>
+                  <Col :span="8">
+                    <Form.Item :label="$t('page.quartz.notificationPage.timestampLabel')" name="timestamp">
+                      <InputNumber v-model:value="configForm.timestamp" :placeholder="$t('page.quartz.notificationPage.timestampPlaceholder')"
+                        :precision="0" :min="0" style="width: 100%" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+              </div>
+            </div>
           </Form>
         </div>
 
@@ -629,7 +604,6 @@ onMounted(() => {
               </Tag>
             </div>
 
-            <!-- 基本信息行 -->
             <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
               <div class="info-item flex items-center gap-2 p-2 rounded">
                 <span class="font-semibold text-sm opacity-80">{{ $t('page.quartz.notificationPage.triggerSource') }}</span>
@@ -660,7 +634,6 @@ onMounted(() => {
 
           <!-- 内容区域 -->
           <div class="detail-content space-y-6">
-            <!-- 通知内容 -->
             <div class="content-section">
               <Typography.Title :level="5" class="mb-3">{{ $t('page.quartz.notificationPage.notificationContent') }}</Typography.Title>
               <div class="content-card info-card rounded-lg p-4">
@@ -668,7 +641,6 @@ onMounted(() => {
               </div>
             </div>
 
-            <!-- 错误信息 -->
             <div v-if="currentNotification.errorMessage" class="content-section">
               <Typography.Title :level="5" class="mb-3">{{ $t('page.quartz.notificationPage.errorInfo') }}</Typography.Title>
               <div class="content-card error-card rounded-lg p-4">
@@ -679,7 +651,6 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- 底部按钮 -->
         <div class="mt-6 flex justify-end">
           <Button @click="detailModalVisible = false" type="primary" size="large" class="px-6">
             {{ $t('page.quartz.notificationPage.close') }}
@@ -691,7 +662,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* 暗色主题兼容样式 */
 .detail-header {
   background: var(--color-bg-container) !important;
   border: 1px solid var(--color-border) !important;
@@ -714,7 +684,6 @@ onMounted(() => {
   }
 }
 
-/* 内容区域样式 */
 .content-card {
   background: var(--color-bg-container) !important;
   border: 1px solid var(--color-border) !important;
@@ -727,19 +696,16 @@ onMounted(() => {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
-/* 错误信息区域 */
 .error-card {
   background: rgba(var(--color-error-rgb), 0.1) !important;
   border: 1px solid var(--color-error-light) !important;
 }
 
-/* 信息区域 */
 .info-card {
   background: rgba(var(--color-success-rgb), 0.1) !important;
   border: 1px solid var(--color-success-light) !important;
 }
 
-/* 代码块样式 */
 .code-block {
   color: var(--color-text) !important;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
@@ -751,40 +717,43 @@ onMounted(() => {
   max-height: 400px;
 }
 
-/* 错误信息的代码块样式 */
 .error-card :deep(.code-block) {
   color: #ff4d4f !important;
 }
 </style>
 
-
-
 <style scoped lang="less">
 .config-modal-content {
   margin-top: -8px;
 
+  :deep(.ant-form-item) {
+    margin-bottom: 12px;
+  }
+
+  :deep(.ant-form-item-label) {
+    padding-bottom: 2px;
+  }
+
+  :deep(.ant-form-item-label > label) {
+    font-size: 13px;
+  }
+
   .form-section {
-    padding: 16px;
-    // 使用内置变量：第四级填充色（浅色时微灰，暗色时微黑）
+    padding: 12px;
     background: var(--ant-color-fill-quaternary);
     border-radius: 8px;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     border: 1px solid var(--ant-color-border-secondary);
 
     .section-header {
       display: flex;
       align-items: center;
-      margin-bottom: 16px;
-      padding-bottom: 12px;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
       border-bottom: 1px solid var(--ant-color-border-split);
 
-      .icon {
-        margin-right: 8px;
-        font-size: 18px;
-      }
-
       .title {
-        font-size: 15px;
+        font-size: 14px;
         font-weight: 600;
         flex: 1;
         color: var(--ant-color-text);
@@ -801,33 +770,111 @@ onMounted(() => {
         }
       }
     }
+
+    &.last {
+      margin-bottom: 0;
+    }
+  }
+
+  .channel-tip {
+    border-radius: 6px;
+    margin-top: 4px;
+  }
+
+  .config-tip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--ant-color-info-bg);
+    border: 1px solid var(--ant-color-info-border);
+    border-radius: 6px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: var(--ant-color-text-description);
+
+    .tip-icon {
+      flex-shrink: 0;
+      font-size: 14px;
+      color: var(--ant-color-primary);
+    }
+  }
+
+  .advanced-section {
+    margin-top: 12px;
+    background: var(--ant-color-fill-quaternary);
+    border-radius: 8px;
+    border: 1px solid var(--ant-color-border-secondary);
+    overflow: hidden;
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s;
+
+      &:hover {
+        background: var(--ant-color-fill-tertiary);
+      }
+
+      .title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ant-color-text-description);
+      }
+
+      .toggle-icon {
+        margin-left: 6px;
+        font-size: 16px;
+        color: var(--ant-color-text-description);
+        transition: transform 0.2s ease;
+        display: inline-block;
+        line-height: 1;
+
+        &.expanded {
+          transform: rotate(90deg);
+        }
+      }
+    }
+
+    .advanced-body {
+      padding: 0 12px 12px;
+      border-top: 1px solid var(--ant-color-border-secondary);
+    }
   }
 
   .strategy-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
 
     .strategy-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 12px 16px;
-      // 策略项背景使用组件级背景色
+      padding: 8px 10px;
       background: var(--ant-component-background);
       border: 1px solid var(--ant-color-border-secondary);
       border-radius: 6px;
+      transition: all 0.2s ease;
+
+      &:hover {
+        border-color: var(--ant-color-primary-border);
+      }
 
       .strategy-info {
         .name {
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 500;
           color: var(--ant-color-text);
         }
 
         .desc {
-          font-size: 12px;
+          font-size: 11px;
           color: var(--ant-color-text-description);
+          margin-top: 1px;
         }
       }
     }
@@ -841,22 +888,30 @@ onMounted(() => {
   gap: 12px;
 }
 
-// 针对 Vben 暗色模式的微调补丁
-:where(.dark) {
+::where(.dark) {
   .config-modal-content {
     .form-section {
-      background: rgba(255, 255, 255, 0.04); // 暗色下稍微亮一点点区分层级
+      background: rgba(255, 255, 255, 0.04);
+      border-color: #303030;
+    }
+
+    .advanced-section {
+      background: rgba(255, 255, 255, 0.04);
       border-color: #303030;
     }
 
     .strategy-item {
       background: #141414 !important;
       border-color: #303030 !important;
+
+      &:hover {
+        border-color: var(--ant-color-primary) !important;
+      }
     }
   }
 }
 
-.mb-6 {
-  margin-bottom: 24px;
+.mb-3 {
+  margin-bottom: 12px;
 }
 </style>
