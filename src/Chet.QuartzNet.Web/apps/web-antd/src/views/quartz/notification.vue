@@ -784,7 +784,7 @@ onMounted(() => {
 }
 
 // 针对 Vben 暗色模式的微调补丁
-::where(.dark) {
+:where(.dark) {
   .config-modal-content {
     .form-section {
       background: rgba(255, 255, 255, 0.04); // 暗色下稍微亮一点点区分层级
