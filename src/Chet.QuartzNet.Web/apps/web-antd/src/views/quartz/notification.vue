@@ -454,10 +454,7 @@ onMounted(() => {
       <Modal v-model:open="configModalVisible" :title="$t('page.quartz.notificationPage.notificationConfig')" width="720px" destroyOnClose
         @cancel="configModalVisible = false" centered>
         <div class="config-modal-content">
-          <div class="config-tip">
-            <span class="tip-icon">ⓘ</span>
-            <span>{{ $t('page.quartz.notificationPage.configPushPlusDesc') }}</span>
-          </div>
+          <Alert :message="$t('page.quartz.notificationPage.configPushPlusDesc')" type="info" show-icon class="config-tip-alert" />
 
           <Form ref="formRef" :model="configForm" layout="vertical" class="custom-form" size="small">
             <!-- 基础配置 -->
@@ -781,23 +778,8 @@ onMounted(() => {
     margin-top: 4px;
   }
 
-  .config-tip {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 10px;
-    background: var(--ant-color-info-bg);
-    border: 1px solid var(--ant-color-info-border);
-    border-radius: 6px;
+  .config-tip-alert {
     margin-bottom: 12px;
-    font-size: 12px;
-    color: var(--ant-color-text-description);
-
-    .tip-icon {
-      flex-shrink: 0;
-      font-size: 14px;
-      color: var(--ant-color-primary);
-    }
   }
 
   .advanced-section {

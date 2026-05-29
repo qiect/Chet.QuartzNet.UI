@@ -679,6 +679,12 @@ public static class ServiceCollectionExtensions
 
             try
             {
+                if (options.StorageType != StorageType.Database)
+                {
+                    _logger.LogWarn("文件数据迁移", "当前存储类型不是数据库，跳过迁移。请将 StorageType 设置为 Database 后重试");
+                    return;
+                }
+
                 // 创建 FileJobStorage 实例直接读取文件数据
                 var fileStorageLoggerFactory = LoggerFactory.Create(builder =>
                     builder.AddConsole()

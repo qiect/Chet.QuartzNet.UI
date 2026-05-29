@@ -525,6 +525,12 @@ public class QuartzJobService : IQuartzJobService
                 cancellationToken
             );
 
+            // 删除该作业的日志
+            await _jobStorage.ClearJobLogsAsync(
+                new QuartzJobLogQueryDto { JobName = jobName, JobGroup = jobGroup },
+                cancellationToken
+            );
+
             _logger.LogSuccess("DeleteJob", $"{jobGroup}.{jobName}");
             return ApiResponseDto<bool>.SuccessResponse(true, "作业删除成功");
         }
@@ -571,6 +577,12 @@ public class QuartzJobService : IQuartzJobService
                     var storageResult = await _jobStorage.DeleteJobAsync(
                         jobName,
                         jobGroup,
+                        cancellationToken
+                    );
+
+                    // 删除该作业的日志
+                    await _jobStorage.ClearJobLogsAsync(
+                        new QuartzJobLogQueryDto { JobName = jobName, JobGroup = jobGroup },
                         cancellationToken
                     );
 
