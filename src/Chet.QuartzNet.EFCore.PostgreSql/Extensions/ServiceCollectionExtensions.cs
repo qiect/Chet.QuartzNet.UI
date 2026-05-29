@@ -20,14 +20,20 @@ public static class ServiceCollectionExtensions
     /// <param name="services">服务集合</param>
     /// <param name="connectionString">数据库连接字符串</param>
     /// <returns>服务集合</returns>
-    public static IServiceCollection AddQuartzUIPostgreSQL(this IServiceCollection services, string connectionString)
+    public static IServiceCollection AddQuartzUIPostgreSQL(
+        this IServiceCollection services,
+        string connectionString
+    )
     {
         services.AddDbContext<QuartzDbContext>(options =>
         {
-            options.UseNpgsql(connectionString, npgsqlOptions =>
-            {
-                npgsqlOptions.MigrationsAssembly("Chet.QuartzNet.EFCore.PostgreSQL");
-            });
+            options.UseNpgsql(
+                connectionString,
+                npgsqlOptions =>
+                {
+                    npgsqlOptions.MigrationsAssembly("Chet.QuartzNet.EFCore.PostgreSQL");
+                }
+            );
         });
 
         services.Replace(ServiceDescriptor.Scoped<IJobStorage, EFCoreJobStorage>());
@@ -40,7 +46,10 @@ public static class ServiceCollectionExtensions
     /// <param name="services">服务集合</param>
     /// <param name="configuration">配置</param>
     /// <returns>服务集合</returns>
-    public static IServiceCollection AddQuartzUIPostgreSQL(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddQuartzUIPostgreSQL(
+        this IServiceCollection services,
+        IConfiguration configuration
+    )
     {
         var quartzUIOptions = configuration.GetSection("QuartzUI").Get<QuartzUIOptions>();
 

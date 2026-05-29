@@ -22,7 +22,8 @@ public interface IEmailNotificationService
         string message,
         long duration,
         string? errorMessage = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 发送调度器异常通知
@@ -31,7 +32,8 @@ public interface IEmailNotificationService
     /// <param name="cancellationToken">取消令牌</param>
     Task SendSchedulerErrorNotificationAsync(
         Exception exception,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 发送自定义通知
@@ -44,7 +46,8 @@ public interface IEmailNotificationService
         string subject,
         string content,
         bool isHtml = false,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>
     /// 测试邮件配置

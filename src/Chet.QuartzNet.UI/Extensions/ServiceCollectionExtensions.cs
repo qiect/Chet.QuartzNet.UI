@@ -1,3 +1,4 @@
+using System.Reflection;
 using Chet.QuartzNet.Core.Configuration;
 using Chet.QuartzNet.Core.Helpers;
 using Chet.QuartzNet.Core.Interfaces;
@@ -10,7 +11,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Quartz;
 using Quartz.Impl.Matchers;
-using System.Reflection;
 
 namespace Chet.QuartzNet.UI.Extensions;
 
@@ -27,9 +27,12 @@ public static class ServiceCollectionExtensions
     /// <param name="services">服务集合</param>
     /// <param name="configuration">配置（读取 QuartzUI 节与 ConnectionStrings:QuartzUI）</param>
     /// <param name="configureOptions">可选：追加/覆写配置</param>
-    public static IServiceCollection AddQuartzUI(this IServiceCollection services, IConfiguration configuration, Action<QuartzUIOptions>? configureOptions = null)
+    public static IServiceCollection AddQuartzUI(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        Action<QuartzUIOptions>? configureOptions = null
+    )
     {
-
         // 获取或创建日志记录器
         var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
         _logger = loggerFactory.CreateLogger("Chet.QuartzNet.UI");
@@ -41,7 +44,6 @@ public static class ServiceCollectionExtensions
         {
             services.PostConfigure(configureOptions);
         }
-
 
         // 存储注册
         if (options.StorageType == StorageType.Database)
@@ -71,7 +73,10 @@ public static class ServiceCollectionExtensions
     /// <param name="configuration"></param>
     /// <param name="configureOptions"></param>
     /// <returns></returns>
-    private static QuartzUIOptions BindQuartzOptions(IConfiguration configuration, Action<QuartzUIOptions>? configureOptions)
+    private static QuartzUIOptions BindQuartzOptions(
+        IConfiguration configuration,
+        Action<QuartzUIOptions>? configureOptions
+    )
     {
         var options = new QuartzUIOptions();
         configuration.GetSection("QuartzUI").Bind(options);
@@ -97,20 +102,50 @@ public static class ServiceCollectionExtensions
     /// <param name="options"></param>
     /// <exception cref="ArgumentException"></exception>
     /// <exception cref="InvalidOperationException"></exception>
-    private static void RegisterDatabaseStorage(IServiceCollection services, IConfiguration configuration, QuartzUIOptions options)
+    private static void RegisterDatabaseStorage(
+        IServiceCollection services,
+        IConfiguration configuration,
+        QuartzUIOptions options
+    )
     {
         var connectionString = configuration.GetConnectionString("QuartzUI");
         if (string.IsNullOrWhiteSpace(connectionString))
         {
-            throw new ArgumentException("未找到 QuartzUI 数据库连接字符串 (ConnectionStrings:QuartzUI)");
+            throw new ArgumentException(
+                "未找到 QuartzUI 数据库连接字符串 (ConnectionStrings:QuartzUI)"
+            );
         }
 
         var providerMap = new Dictionary<DatabaseProvider, (string TypeName, string MethodName)>
         {
-            { DatabaseProvider.MySql, ("Chet.QuartzNet.EFCore.MySQL.Extensions.ServiceCollectionExtensions, Chet.QuartzNet.EFCore.MySQL", "AddQuartzUIMySql") },
-            { DatabaseProvider.PostgreSql, ("Chet.QuartzNet.EFCore.PostgreSQL.Extensions.ServiceCollectionExtensions, Chet.QuartzNet.EFCore.PostgreSQL", "AddQuartzUIPostgreSQL") },
-            { DatabaseProvider.SqlServer, ("Chet.QuartzNet.EFCore.SqlServer.Extensions.ServiceCollectionExtensions, Chet.QuartzNet.EFCore.SqlServer", "AddQuartzUISqlServer") },
-            { DatabaseProvider.SQLite, ("Chet.QuartzNet.EFCore.SQLite.Extensions.ServiceCollectionExtensions, Chet.QuartzNet.EFCore.SQLite", "AddQuartzUISQLite") },
+            {
+                DatabaseProvider.MySql,
+                (
+                    "Chet.QuartzNet.EFCore.MySQL.Extensions.ServiceCollectionExtensions, Chet.QuartzNet.EFCore.MySQL",
+                    "AddQuartzUIMySql"
+                )
+            },
+            {
+                DatabaseProvider.PostgreSql,
+                (
+                    "Chet.QuartzNet.EFCore.PostgreSQL.Extensions.ServiceCollectionExtensions, Chet.QuartzNet.EFCore.PostgreSQL",
+                    "AddQuartzUIPostgreSQL"
+                )
+            },
+            {
+                DatabaseProvider.SqlServer,
+                (
+                    "Chet.QuartzNet.EFCore.SqlServer.Extensions.ServiceCollectionExtensions, Chet.QuartzNet.EFCore.SqlServer",
+                    "AddQuartzUISqlServer"
+                )
+            },
+            {
+                DatabaseProvider.SQLite,
+                (
+                    "Chet.QuartzNet.EFCore.SQLite.Extensions.ServiceCollectionExtensions, Chet.QuartzNet.EFCore.SQLite",
+                    "AddQuartzUISQLite"
+                )
+            },
         };
 
         if (!providerMap.TryGetValue(options.DatabaseProvider, out var providerMeta))
@@ -121,19 +156,24 @@ public static class ServiceCollectionExtensions
         var providerType = Type.GetType(providerMeta.TypeName, throwOnError: false);
         if (providerType == null)
         {
-            throw new InvalidOperationException($"未找到数据库提供程序程序集，请确保已引用对应 NuGet 包：{providerMeta.TypeName}");
+            throw new InvalidOperationException(
+                $"未找到数据库提供程序程序集，请确保已引用对应 NuGet 包：{providerMeta.TypeName}"
+            );
         }
 
         var methods = providerType.GetMethods(BindingFlags.Public | BindingFlags.Static);
         var method = methods.FirstOrDefault(m =>
-            m.Name == providerMeta.MethodName &&
-            m.GetParameters().Length >= 2 &&
-            m.GetParameters()[0].ParameterType == typeof(IServiceCollection) &&
-            m.GetParameters()[1].ParameterType == typeof(string));
+            m.Name == providerMeta.MethodName
+            && m.GetParameters().Length >= 2
+            && m.GetParameters()[0].ParameterType == typeof(IServiceCollection)
+            && m.GetParameters()[1].ParameterType == typeof(string)
+        );
 
         if (method == null)
         {
-            throw new InvalidOperationException($"在 {providerType.FullName} 中未找到合适的 {providerMeta.MethodName} 方法，请更新对应数据库包版本。");
+            throw new InvalidOperationException(
+                $"在 {providerType.FullName} 中未找到合适的 {providerMeta.MethodName} 方法，请更新对应数据库包版本。"
+            );
         }
 
         // 根据方法参数数量传递相应的参数
@@ -198,41 +238,53 @@ public static class ServiceCollectionExtensions
     /// </summary>
     /// <param name="services"></param>
     /// <param name="options"></param>
-    private static void AddQuartzUIAuthentication(IServiceCollection services, QuartzUIOptions options)
+    private static void AddQuartzUIAuthentication(
+        IServiceCollection services,
+        QuartzUIOptions options
+    )
     {
         if (!options.EnableJwtAuth)
         {
             return;
         }
 
-        services.AddAuthentication(authOptions =>
-        {
-            authOptions.DefaultAuthenticateScheme = "QuartzUIJwt";
-            authOptions.DefaultChallengeScheme = "QuartzUIJwt";
-        })
-        .AddJwtBearer("QuartzUIJwt", bearerOptions =>
-        {
-            bearerOptions.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+        services
+            .AddAuthentication(authOptions =>
             {
-                ValidateIssuer = true,
-                ValidateAudience = true,
-                ValidateLifetime = true,
-                ValidateIssuerSigningKey = true,
-                ValidIssuer = options.JwtIssuer,
-                ValidAudience = options.JwtAudience,
-                IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
-                    System.Text.Encoding.UTF8.GetBytes(options.JwtSecret)
-                )
-            };
-        });
+                authOptions.DefaultAuthenticateScheme = "QuartzUIJwt";
+                authOptions.DefaultChallengeScheme = "QuartzUIJwt";
+            })
+            .AddJwtBearer(
+                "QuartzUIJwt",
+                bearerOptions =>
+                {
+                    bearerOptions.TokenValidationParameters =
+                        new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+                        {
+                            ValidateIssuer = true,
+                            ValidateAudience = true,
+                            ValidateLifetime = true,
+                            ValidateIssuerSigningKey = true,
+                            ValidIssuer = options.JwtIssuer,
+                            ValidAudience = options.JwtAudience,
+                            IssuerSigningKey =
+                                new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
+                                    System.Text.Encoding.UTF8.GetBytes(options.JwtSecret)
+                                ),
+                        };
+                }
+            );
 
         services.AddAuthorization(authOptions =>
         {
-            authOptions.AddPolicy("QuartzUIPolicy", policy =>
-            {
-                policy.AuthenticationSchemes.Add("QuartzUIJwt");
-                policy.RequireAuthenticatedUser();
-            });
+            authOptions.AddPolicy(
+                "QuartzUIPolicy",
+                policy =>
+                {
+                    policy.AuthenticationSchemes.Add("QuartzUIJwt");
+                    policy.RequireAuthenticatedUser();
+                }
+            );
         });
     }
 
@@ -256,7 +308,10 @@ public static class ServiceCollectionExtensions
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<ClassJobInitializer> _logger;
 
-        public ClassJobInitializer(IServiceScopeFactory scopeFactory, ILogger<ClassJobInitializer> logger)
+        public ClassJobInitializer(
+            IServiceScopeFactory scopeFactory,
+            ILogger<ClassJobInitializer> logger
+        )
         {
             _scopeFactory = scopeFactory;
             _logger = logger;
@@ -270,7 +325,8 @@ public static class ServiceCollectionExtensions
 
                 // 获取所有标记了QuartzJobAttribute特性的作业类型
                 var attributeType = typeof(Chet.QuartzNet.Core.Attributes.QuartzJobAttribute);
-                var jobTypes = AppDomain.CurrentDomain.GetAssemblies()
+                var jobTypes = AppDomain
+                    .CurrentDomain.GetAssemblies()
                     .SelectMany(a =>
                     {
                         try
@@ -279,7 +335,11 @@ public static class ServiceCollectionExtensions
                         }
                         catch (ReflectionTypeLoadException ex)
                         {
-                            _logger.LogWarning(ex, "无法加载程序集 {AssemblyName} 中的类型", a.FullName);
+                            _logger.LogWarning(
+                                ex,
+                                "无法加载程序集 {AssemblyName} 中的类型",
+                                a.FullName
+                            );
                             return ex.Types.Where(t => t != null);
                         }
                     })
@@ -287,7 +347,11 @@ public static class ServiceCollectionExtensions
                     .Where(t => t.GetCustomAttributes(attributeType, false)?.Any() == true)
                     .ToList();
 
-                _logger.LogInfo("ClassJob初始化", "找到 {JobCount} 个标记了QuartzJobAttribute特性的作业类型", jobTypes.Count);
+                _logger.LogInfo(
+                    "ClassJob初始化",
+                    "找到 {JobCount} 个标记了QuartzJobAttribute特性的作业类型",
+                    jobTypes.Count
+                );
 
                 // 创建一个作用域来获取IJobStorage
                 using (var scope = _scopeFactory.CreateScope())
@@ -296,19 +360,35 @@ public static class ServiceCollectionExtensions
 
                     foreach (var jobType in jobTypes)
                     {
-                        var attributes = jobType.GetCustomAttributes(attributeType, false) ?? Array.Empty<object>();
-                        var attribute = attributes.FirstOrDefault() as Chet.QuartzNet.Core.Attributes.QuartzJobAttribute;
+                        var attributes =
+                            jobType.GetCustomAttributes(attributeType, false)
+                            ?? Array.Empty<object>();
+                        var attribute =
+                            attributes.FirstOrDefault()
+                            as Chet.QuartzNet.Core.Attributes.QuartzJobAttribute;
                         if (attribute == null)
                         {
-                            _logger.LogWarn("ClassJob初始化", "无法获取QuartzJobAttribute特性: {JobType}", jobType.FullName);
+                            _logger.LogWarn(
+                                "ClassJob初始化",
+                                "无法获取QuartzJobAttribute特性: {JobType}",
+                                jobType.FullName
+                            );
                             continue;
                         }
 
                         // 检查作业是否已经存在于存储中
-                        var existingJob = await jobStorage.GetJobAsync(attribute.Name, attribute.Group, cancellationToken);
+                        var existingJob = await jobStorage.GetJobAsync(
+                            attribute.Name,
+                            attribute.Group,
+                            cancellationToken
+                        );
                         if (existingJob != null)
                         {
-                            _logger.LogInfo("ClassJob初始化", "作业已存在于存储中，跳过: {JobKey}", $"{attribute.Name}.{attribute.Group}");
+                            _logger.LogInfo(
+                                "ClassJob初始化",
+                                "作业已存在于存储中，跳过: {JobKey}",
+                                $"{attribute.Name}.{attribute.Group}"
+                            );
                             continue;
                         }
 
@@ -325,39 +405,59 @@ public static class ServiceCollectionExtensions
                             JobClassOrApi = jobType.FullName ?? string.Empty,
                             Status = JobStatus.Normal,
                             IsEnabled = attribute.Enabled, // 使用特性中配置的启用状态
-                            CreateTime = DateTime.Now
+                            CreateTime = DateTime.Now,
                         };
 
                         await jobStorage.AddJobAsync(jobInfo, cancellationToken);
-                        _logger.LogSuccess("ClassJob初始化", "ClassJob添加到存储: {JobKey}, 启用状态: {IsEnabled}, Cron表达式: {CronExpression}",
-                                $"{attribute.Name}.{attribute.Group}", attribute.Enabled, attribute.CronExpression);
+                        _logger.LogSuccess(
+                            "ClassJob初始化",
+                            "ClassJob添加到存储: {JobKey}, 启用状态: {IsEnabled}, Cron表达式: {CronExpression}",
+                            $"{attribute.Name}.{attribute.Group}",
+                            attribute.Enabled,
+                            attribute.CronExpression
+                        );
 
                         // 立即调度作业到Quartz调度器，只有启用状态的作业才调度
                         if (attribute.Enabled)
                         {
                             try
                             {
-                                var jobService = scope.ServiceProvider.GetRequiredService<IQuartzJobService>();
+                                var jobService =
+                                    scope.ServiceProvider.GetRequiredService<IQuartzJobService>();
                                 var jobServiceImpl = jobService as QuartzJobService;
                                 if (jobServiceImpl != null)
                                 {
-                                    var scheduleMethod = typeof(QuartzJobService).GetMethod("ScheduleJobAsync",
-                                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                                    var scheduleMethod = typeof(QuartzJobService).GetMethod(
+                                        "ScheduleJobAsync",
+                                        System.Reflection.BindingFlags.NonPublic
+                                            | System.Reflection.BindingFlags.Instance
+                                    );
 
                                     if (scheduleMethod != null)
                                     {
-                                        var result = scheduleMethod.Invoke(jobServiceImpl, new object[] { jobInfo, cancellationToken });
+                                        var result = scheduleMethod.Invoke(
+                                            jobServiceImpl,
+                                            new object[] { jobInfo, cancellationToken }
+                                        );
                                         if (result is Task task)
                                         {
                                             await task;
-                                            _logger.LogSuccess("ClassJob初始化", "ClassJob调度成功: {JobKey}", $"{attribute.Name}.{attribute.Group}");
+                                            _logger.LogSuccess(
+                                                "ClassJob初始化",
+                                                "ClassJob调度成功: {JobKey}",
+                                                $"{attribute.Name}.{attribute.Group}"
+                                            );
                                         }
                                     }
                                 }
                             }
                             catch (Exception ex)
                             {
-                                _logger.LogFailure("ClassJob初始化", $"ClassJob调度失败: {attribute.Name}.{attribute.Group}", ex);
+                                _logger.LogFailure(
+                                    "ClassJob初始化",
+                                    $"ClassJob调度失败: {attribute.Name}.{attribute.Group}",
+                                    ex
+                                );
                             }
                         }
                     }
@@ -383,7 +483,10 @@ public static class ServiceCollectionExtensions
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<JobSchedulerInitializer> _logger;
 
-        public JobSchedulerInitializer(IServiceScopeFactory scopeFactory, ILogger<JobSchedulerInitializer> logger)
+        public JobSchedulerInitializer(
+            IServiceScopeFactory scopeFactory,
+            ILogger<JobSchedulerInitializer> logger
+        )
         {
             _scopeFactory = scopeFactory;
             _logger = logger;
@@ -411,33 +514,47 @@ public static class ServiceCollectionExtensions
                         {
                             // 检查作业是否已经有触发器
                             var jobKey = new JobKey(jobInfo.JobName, jobInfo.JobGroup);
-                            var triggers = await scheduler.GetTriggersOfJob(jobKey, cancellationToken);
+                            var triggers = await scheduler.GetTriggersOfJob(
+                                jobKey,
+                                cancellationToken
+                            );
 
                             if (triggers.Any())
                             {
-                                _logger.LogInfo("作业调度", "作业 {JobKey} 已存在 {TriggerCount} 个触发器，跳过调度",
-                                    $"{jobInfo.JobGroup}.{jobInfo.JobName}", triggers.Count);
+                                _logger.LogInfo(
+                                    "作业调度",
+                                    "作业 {JobKey} 已存在 {TriggerCount} 个触发器，跳过调度",
+                                    $"{jobInfo.JobGroup}.{jobInfo.JobName}",
+                                    triggers.Count
+                                );
                                 continue;
                             }
 
                             // 检查作业是否被禁用，如果是禁用状态，不重新调度
                             if (!jobInfo.IsEnabled)
                             {
-                                _logger.LogWarn("作业调度", "作业 {JobKey} 处于禁用状态，跳过调度",
-                                    $"{jobInfo.JobGroup}.{jobInfo.JobName}");
+                                _logger.LogWarn(
+                                    "作业调度",
+                                    "作业 {JobKey} 处于禁用状态，跳过调度",
+                                    $"{jobInfo.JobGroup}.{jobInfo.JobName}"
+                                );
                                 continue;
                             }
 
                             // 检查作业状态，如果是暂停状态，不重新调度
                             if (jobInfo.Status == Chet.QuartzNet.Models.Entities.JobStatus.Paused)
                             {
-                                _logger.LogWarn("作业调度", "作业 {JobKey} 处于暂停状态，跳过调度",
-                                    $"{jobInfo.JobGroup}.{jobInfo.JobName}");
+                                _logger.LogWarn(
+                                    "作业调度",
+                                    "作业 {JobKey} 处于暂停状态，跳过调度",
+                                    $"{jobInfo.JobGroup}.{jobInfo.JobName}"
+                                );
                                 continue;
                             }
 
                             // 获取QuartzJobService实例来调用ScheduleJobAsync
-                            var jobService = scope.ServiceProvider.GetRequiredService<IQuartzJobService>();
+                            var jobService =
+                                scope.ServiceProvider.GetRequiredService<IQuartzJobService>();
 
                             // 调用ScheduleJobAsync方法重新调度作业
                             // 由于ScheduleJobAsync是私有方法，我们需要使用反射来调用
@@ -446,16 +563,25 @@ public static class ServiceCollectionExtensions
                             {
                                 // 调用ScheduleJobAsync方法重新调度作业
                                 // 由于ScheduleJobAsync是私有方法，我们需要使用反射来调用
-                                var scheduleMethod = typeof(QuartzJobService).GetMethod("ScheduleJobAsync",
-                                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                                var scheduleMethod = typeof(QuartzJobService).GetMethod(
+                                    "ScheduleJobAsync",
+                                    System.Reflection.BindingFlags.NonPublic
+                                        | System.Reflection.BindingFlags.Instance
+                                );
 
                                 if (scheduleMethod != null)
                                 {
-                                    var result = scheduleMethod.Invoke(jobServiceImpl, new object[] { jobInfo, cancellationToken });
+                                    var result = scheduleMethod.Invoke(
+                                        jobServiceImpl,
+                                        new object[] { jobInfo, cancellationToken }
+                                    );
                                     if (result is Task task)
                                     {
                                         await task;
-                                        _logger.LogSuccess("作业调度", $"{jobInfo.JobGroup}.{jobInfo.JobName}");
+                                        _logger.LogSuccess(
+                                            "作业调度",
+                                            $"{jobInfo.JobGroup}.{jobInfo.JobName}"
+                                        );
                                     }
                                 }
                                 else
@@ -466,7 +592,11 @@ public static class ServiceCollectionExtensions
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogFailure("调度作业: {JobKey}", $"{jobInfo.JobGroup}.{jobInfo.JobName}", ex);
+                            _logger.LogFailure(
+                                "调度作业: {JobKey}",
+                                $"{jobInfo.JobGroup}.{jobInfo.JobName}",
+                                ex
+                            );
                         }
                     }
                 }
@@ -483,4 +613,3 @@ public static class ServiceCollectionExtensions
         }
     }
 }
-

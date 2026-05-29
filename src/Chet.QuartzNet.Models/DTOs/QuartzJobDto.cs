@@ -1,5 +1,5 @@
-using Chet.QuartzNet.Models.Entities;
 using System.ComponentModel.DataAnnotations;
+using Chet.QuartzNet.Models.Entities;
 
 namespace Chet.QuartzNet.Models.DTOs;
 
@@ -11,7 +11,13 @@ public class ConditionalRangeAttribute : RangeAttribute
     private readonly string _dependentProperty;
     private readonly object _targetValue;
 
-    public ConditionalRangeAttribute(double minimum, double maximum, string dependentProperty, object targetValue) : base(minimum, maximum)
+    public ConditionalRangeAttribute(
+        double minimum,
+        double maximum,
+        string dependentProperty,
+        object targetValue
+    )
+        : base(minimum, maximum)
     {
         _dependentProperty = dependentProperty;
         _targetValue = targetValue;
@@ -20,7 +26,9 @@ public class ConditionalRangeAttribute : RangeAttribute
     protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
     {
         // 获取依赖属性的值
-        var dependentPropertyValue = validationContext.ObjectType.GetProperty(_dependentProperty)?.GetValue(validationContext.ObjectInstance);
+        var dependentPropertyValue = validationContext
+            .ObjectType.GetProperty(_dependentProperty)
+            ?.GetValue(validationContext.ObjectInstance);
 
         // 只有当依赖属性的值等于目标值时，才进行范围验证
         if (dependentPropertyValue != null && dependentPropertyValue.Equals(_targetValue))
@@ -152,7 +160,13 @@ public class QuartzJobDto
     /// <summary>
     /// API超时时间（秒）
     /// </summary>
-    [ConditionalRange(1, 99999, nameof(JobType), JobTypeEnum.API, ErrorMessage = "API超时时间必须在1秒到99999秒之间")]
+    [ConditionalRange(
+        1,
+        99999,
+        nameof(JobType),
+        JobTypeEnum.API,
+        ErrorMessage = "API超时时间必须在1秒到99999秒之间"
+    )]
     public int ApiTimeout { get; set; } = 60; // 默认60秒
 
     /// <summary>
@@ -348,7 +362,6 @@ public class QuartzJobResponseDto
     public DateTime? PreviousRunTime { get; set; }
 }
 
-
 /// <summary>
 /// 作业删除请求DTO
 /// </summary>
@@ -364,4 +377,3 @@ public class BatchDeleteRequest
     /// </summary>
     public string JobGroup { get; set; }
 }
-

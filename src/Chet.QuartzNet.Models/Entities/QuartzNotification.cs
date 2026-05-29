@@ -78,7 +78,7 @@ public enum NotificationStatus
     /// <summary>
     /// 发送失败
     /// </summary>
-    Failed = 2
+    Failed = 2,
 }
 
 /// <summary>

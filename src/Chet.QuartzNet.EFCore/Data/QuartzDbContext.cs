@@ -1,7 +1,7 @@
+using System.Reflection;
 using Chet.QuartzNet.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using System.Reflection;
 
 namespace Chet.QuartzNet.EFCore.Data;
 
@@ -12,10 +12,13 @@ public class QuartzDbContext : DbContext
 {
     private readonly bool _isPostgreSql;
 
-    public QuartzDbContext(DbContextOptions<QuartzDbContext> options) : base(options)
+    public QuartzDbContext(DbContextOptions<QuartzDbContext> options)
+        : base(options)
     {
         // 检测当前是否使用PostgreSQL数据库
-        _isPostgreSql = options.Extensions.Any(ext => ext.GetType().FullName?.Contains("Npgsql") == true);
+        _isPostgreSql = options.Extensions.Any(ext =>
+            ext.GetType().FullName?.Contains("Npgsql") == true
+        );
     }
 
     /// <summary>
@@ -55,7 +58,12 @@ public class QuartzDbContext : DbContext
                 foreach (var property in entityType.GetProperties())
                 {
                     // 如果属性类型是时间类型（DateTime 或 DateTimeOffset）
-                    if (property.ClrType == typeof(DateTime) || property.ClrType == typeof(DateTime?) || property.ClrType == typeof(DateTimeOffset) || property.ClrType == typeof(DateTimeOffset?))
+                    if (
+                        property.ClrType == typeof(DateTime)
+                        || property.ClrType == typeof(DateTime?)
+                        || property.ClrType == typeof(DateTimeOffset)
+                        || property.ClrType == typeof(DateTimeOffset?)
+                    )
                     {
                         // 设置为 PostgreSQL 兼容的时间类型
                         property.SetColumnType("timestamp without time zone");
@@ -77,114 +85,98 @@ public class QuartzJobInfoConfiguration : IEntityTypeConfiguration<QuartzJobInfo
 
         builder.HasKey(j => new { j.JobName, j.JobGroup });
 
-        builder.Property(j => j.JobName)
-            .HasMaxLength(100)
-            .IsRequired()
-            .HasComment("作业名称");
+        builder.Property(j => j.JobName).HasMaxLength(100).IsRequired().HasComment("作业名称");
 
-        builder.Property(j => j.JobGroup)
+        builder
+            .Property(j => j.JobGroup)
             .HasMaxLength(100)
             .IsRequired()
             .HasDefaultValue("DEFAULT")
             .HasComment("作业分组");
 
-        builder.Property(j => j.TriggerName)
+        builder
+            .Property(j => j.TriggerName)
             .HasMaxLength(100)
             .IsRequired()
             .HasComment("触发器名称");
 
-        builder.Property(j => j.TriggerGroup)
+        builder
+            .Property(j => j.TriggerGroup)
             .HasMaxLength(100)
             .IsRequired()
             .HasDefaultValue("DEFAULT")
             .HasComment("触发器分组");
 
-        builder.Property(j => j.CronExpression)
+        builder
+            .Property(j => j.CronExpression)
             .HasMaxLength(200)
             .IsRequired()
             .HasComment("Cron表达式");
 
-        builder.Property(j => j.Description)
-            .HasMaxLength(500)
-            .HasComment("作业描述");
+        builder.Property(j => j.Description).HasMaxLength(500).HasComment("作业描述");
 
-        builder.Property(j => j.JobType)
-            .IsRequired()
-            .HasComment("作业类型");
+        builder.Property(j => j.JobType).IsRequired().HasComment("作业类型");
 
-        builder.Property(j => j.JobClassOrApi)
+        builder
+            .Property(j => j.JobClassOrApi)
             .HasMaxLength(500)
             .IsRequired()
             .HasComment("作业类名或API URL");
 
-        builder.Property(j => j.JobData)
-            .HasColumnType("text")
-            .HasComment("作业数据(JSON格式)");
+        builder.Property(j => j.JobData).HasColumnType("text").HasComment("作业数据(JSON格式)");
 
         // API相关字段配置
-        builder.Property(j => j.ApiMethod)
+        builder
+            .Property(j => j.ApiMethod)
             .HasMaxLength(10)
             .HasDefaultValue("GET")
             .HasComment("API请求方法");
 
-        builder.Property(j => j.ApiHeaders)
-            .HasColumnType("text")
-            .HasComment("API请求头(JSON格式)");
+        builder.Property(j => j.ApiHeaders).HasColumnType("text").HasComment("API请求头(JSON格式)");
 
-        builder.Property(j => j.ApiBody)
-            .HasColumnType("text")
-            .HasComment("API请求体(JSON格式)");
+        builder.Property(j => j.ApiBody).HasColumnType("text").HasComment("API请求体(JSON格式)");
 
-        builder.Property(j => j.ApiTimeout)
+        builder
+            .Property(j => j.ApiTimeout)
             .IsRequired()
             .HasDefaultValue(30000)
             .HasComment("API超时时间(毫秒)");
 
-        builder.Property(j => j.SkipSslValidation)
+        builder
+            .Property(j => j.SkipSslValidation)
             .IsRequired()
             .HasDefaultValue(false)
             .HasComment("是否跳过SSL验证");
 
-        builder.Property(j => j.StartTime)
-            .HasComment("开始时间");
+        builder.Property(j => j.StartTime).HasComment("开始时间");
 
-        builder.Property(j => j.EndTime)
-            .HasComment("结束时间");
+        builder.Property(j => j.EndTime).HasComment("结束时间");
 
-        builder.Property(j => j.NextRunTime)
-            .HasComment("下次执行时间");
+        builder.Property(j => j.NextRunTime).HasComment("下次执行时间");
 
-        builder.Property(j => j.PreviousRunTime)
-            .HasComment("上次执行时间");
+        builder.Property(j => j.PreviousRunTime).HasComment("上次执行时间");
 
-        builder.Property(j => j.IsEnabled)
+        builder
+            .Property(j => j.IsEnabled)
             .IsRequired()
             .HasDefaultValue(true)
             .HasComment("是否启用");
 
-        builder.Property(j => j.Status)
+        builder
+            .Property(j => j.Status)
             .IsRequired()
             .HasDefaultValue(JobStatus.Normal)
             .HasComment("作业状态");
 
-        builder.Property(j => j.CreateTime)
-            .IsRequired()
-            .HasComment("创建时间");
+        builder.Property(j => j.CreateTime).IsRequired().HasComment("创建时间");
 
-        builder.Property(j => j.CreateBy)
-            .HasMaxLength(100)
-            .HasComment("创建人");
+        builder.Property(j => j.CreateBy).HasMaxLength(100).HasComment("创建人");
 
-        builder.Property(j => j.UpdateTime)
-            .HasComment("更新时间");
+        builder.Property(j => j.UpdateTime).HasComment("更新时间");
 
-        builder.Property(j => j.UpdateBy)
-            .HasMaxLength(100)
-            .HasComment("更新人");
+        builder.Property(j => j.UpdateBy).HasMaxLength(100).HasComment("更新人");
 
-        builder.Property(j => j.Remark)
-            .HasMaxLength(500)
-            .HasComment("备注");
+        builder.Property(j => j.Remark).HasMaxLength(500).HasComment("备注");
 
         // 索引配置
         builder.HasIndex(j => j.Status).HasDatabaseName("idx_job_status");
@@ -205,74 +197,55 @@ public class QuartzJobLogConfiguration : IEntityTypeConfiguration<QuartzJobLog>
 
         builder.HasKey(l => l.LogId);
 
-        builder.Property(l => l.LogId)
-            .IsRequired()
-            .HasComment("日志ID");
+        builder.Property(l => l.LogId).IsRequired().HasComment("日志ID");
 
-        builder.Property(l => l.JobName)
-            .HasMaxLength(100)
-            .IsRequired()
-            .HasComment("作业名称");
+        builder.Property(l => l.JobName).HasMaxLength(100).IsRequired().HasComment("作业名称");
 
-        builder.Property(l => l.JobGroup)
+        builder
+            .Property(l => l.JobGroup)
             .HasMaxLength(100)
             .IsRequired()
             .HasDefaultValue("DEFAULT")
             .HasComment("作业分组");
 
-        builder.Property(l => l.TriggerName)
+        builder
+            .Property(l => l.TriggerName)
             .HasMaxLength(100)
             .IsRequired()
             .HasComment("触发器名称");
 
-        builder.Property(l => l.TriggerGroup)
+        builder
+            .Property(l => l.TriggerGroup)
             .HasMaxLength(100)
             .IsRequired()
             .HasDefaultValue("DEFAULT")
             .HasComment("触发器分组");
 
-        builder.Property(l => l.Status)
+        builder
+            .Property(l => l.Status)
             .IsRequired()
             .HasDefaultValue(LogStatus.Running)
             .HasComment("日志状态");
 
-        builder.Property(l => l.StartTime)
-            .IsRequired()
-            .HasComment("开始时间");
+        builder.Property(l => l.StartTime).IsRequired().HasComment("开始时间");
 
-        builder.Property(l => l.EndTime)
-            .HasComment("结束时间");
+        builder.Property(l => l.EndTime).HasComment("结束时间");
 
-        builder.Property(l => l.Duration)
-            .HasComment("执行耗时(毫秒)");
+        builder.Property(l => l.Duration).HasComment("执行耗时(毫秒)");
 
-        builder.Property(l => l.Message)
-            .HasColumnType("text")
-            .HasComment("执行结果消息");
+        builder.Property(l => l.Message).HasColumnType("text").HasComment("执行结果消息");
 
-        builder.Property(l => l.Exception)
-            .HasColumnType("text")
-            .HasComment("异常信息");
+        builder.Property(l => l.Exception).HasColumnType("text").HasComment("异常信息");
 
-        builder.Property(l => l.Result)
-            .HasColumnType("text")
-            .HasComment("执行结果");
+        builder.Property(l => l.Result).HasColumnType("text").HasComment("执行结果");
 
-        builder.Property(l => l.ErrorMessage)
-            .HasColumnType("text")
-            .HasComment("错误信息");
+        builder.Property(l => l.ErrorMessage).HasColumnType("text").HasComment("错误信息");
 
-        builder.Property(l => l.ErrorStackTrace)
-            .HasColumnType("text")
-            .HasComment("错误堆栈");
+        builder.Property(l => l.ErrorStackTrace).HasColumnType("text").HasComment("错误堆栈");
 
-        builder.Property(l => l.JobData)
-            .HasColumnType("text")
-            .HasComment("执行参数");
+        builder.Property(l => l.JobData).HasColumnType("text").HasComment("执行参数");
 
-        builder.Property(l => l.CreateTime)
-            .IsRequired()
-            .HasComment("创建时间");
+        builder.Property(l => l.CreateTime).IsRequired().HasComment("创建时间");
 
         // 索引配置
         builder.HasIndex(l => new { l.JobName, l.JobGroup }).HasDatabaseName("idx_log_job");
@@ -293,35 +266,19 @@ public class QuartzSettingConfiguration : IEntityTypeConfiguration<QuartzSetting
 
         builder.HasKey(s => s.SettingId);
 
-        builder.Property(s => s.SettingId)
-            .IsRequired()
-            .HasComment("设置ID");
+        builder.Property(s => s.SettingId).IsRequired().HasComment("设置ID");
 
-        builder.Property(s => s.Key)
-            .HasMaxLength(100)
-            .IsRequired()
-            .HasComment("设置键");
+        builder.Property(s => s.Key).HasMaxLength(100).IsRequired().HasComment("设置键");
 
-        builder.Property(s => s.Value)
-            .HasColumnType("text")
-            .IsRequired()
-            .HasComment("设置值");
+        builder.Property(s => s.Value).HasColumnType("text").IsRequired().HasComment("设置值");
 
-        builder.Property(s => s.Description)
-            .HasMaxLength(500)
-            .HasComment("设置描述");
+        builder.Property(s => s.Description).HasMaxLength(500).HasComment("设置描述");
 
-        builder.Property(s => s.Enabled)
-            .IsRequired()
-            .HasDefaultValue(true)
-            .HasComment("是否启用");
+        builder.Property(s => s.Enabled).IsRequired().HasDefaultValue(true).HasComment("是否启用");
 
-        builder.Property(s => s.CreateTime)
-            .IsRequired()
-            .HasComment("创建时间");
+        builder.Property(s => s.CreateTime).IsRequired().HasComment("创建时间");
 
-        builder.Property(s => s.UpdateTime)
-            .HasComment("更新时间");
+        builder.Property(s => s.UpdateTime).HasComment("更新时间");
 
         // 索引配置
         builder.HasIndex(s => s.Key).IsUnique().HasDatabaseName("idx_setting_key");
@@ -339,42 +296,27 @@ public class QuartzNotificationConfiguration : IEntityTypeConfiguration<QuartzNo
 
         builder.HasKey(n => n.NotificationId);
 
-        builder.Property(n => n.NotificationId)
-            .IsRequired()
-            .HasComment("通知ID");
+        builder.Property(n => n.NotificationId).IsRequired().HasComment("通知ID");
 
-        builder.Property(n => n.Title)
-            .HasMaxLength(200)
-            .IsRequired()
-            .HasComment("通知标题");
+        builder.Property(n => n.Title).HasMaxLength(200).IsRequired().HasComment("通知标题");
 
-        builder.Property(n => n.Content)
-            .HasColumnType("text")
-            .IsRequired()
-            .HasComment("通知内容");
+        builder.Property(n => n.Content).HasColumnType("text").IsRequired().HasComment("通知内容");
 
-        builder.Property(n => n.Status)
+        builder
+            .Property(n => n.Status)
             .IsRequired()
             .HasDefaultValue(NotificationStatus.Pending)
             .HasComment("发送状态");
 
-        builder.Property(n => n.ErrorMessage)
-            .HasColumnType("text")
-            .HasComment("错误信息");
+        builder.Property(n => n.ErrorMessage).HasColumnType("text").HasComment("错误信息");
 
-        builder.Property(n => n.TriggeredBy)
-            .HasMaxLength(100)
-            .HasComment("触发来源");
+        builder.Property(n => n.TriggeredBy).HasMaxLength(100).HasComment("触发来源");
 
-        builder.Property(n => n.CreateTime)
-            .IsRequired()
-            .HasComment("创建时间");
+        builder.Property(n => n.CreateTime).IsRequired().HasComment("创建时间");
 
-        builder.Property(n => n.SendTime)
-            .HasComment("发送时间");
+        builder.Property(n => n.SendTime).HasComment("发送时间");
 
-        builder.Property(n => n.Duration)
-            .HasComment("发送耗时(毫秒)");
+        builder.Property(n => n.Duration).HasComment("发送耗时(毫秒)");
 
         // 索引配置
         builder.HasIndex(n => n.Status).HasDatabaseName("idx_notification_status");

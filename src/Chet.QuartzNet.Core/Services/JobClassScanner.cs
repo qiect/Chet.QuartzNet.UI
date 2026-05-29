@@ -1,5 +1,5 @@
-using Quartz;
 using System.Reflection;
+using Quartz;
 
 namespace Chet.QuartzNet.Core.Services;
 
@@ -34,24 +34,32 @@ public class JobClassScanner
                     try
                     {
                         // 跳过系统程序集和第三方程序集
-                        if (assembly.IsDynamic ||
-                            assembly.FullName?.StartsWith("System.") == true ||
-                            assembly.FullName?.StartsWith("Microsoft.") == true ||
-                            assembly.FullName?.StartsWith("Quartz") == true ||
-                            assembly.FullName?.StartsWith("Newtonsoft.") == true ||
-                            assembly.FullName?.StartsWith("AntDesign") == true ||
-                            assembly.FullName?.StartsWith("Vue") == true)
+                        if (
+                            assembly.IsDynamic
+                            || assembly.FullName?.StartsWith("System.") == true
+                            || assembly.FullName?.StartsWith("Microsoft.") == true
+                            || assembly.FullName?.StartsWith("Quartz") == true
+                            || assembly.FullName?.StartsWith("Newtonsoft.") == true
+                            || assembly.FullName?.StartsWith("AntDesign") == true
+                            || assembly.FullName?.StartsWith("Vue") == true
+                        )
                         {
                             continue;
                         }
 
                         // 查找实现了IJob接口的非抽象类，只排除核心库中的类
-                        var types = assembly.GetTypes()
-                            .Where(t => typeof(IJob).IsAssignableFrom(t) &&
-                                       !t.IsAbstract &&
-                                       !t.IsInterface &&
-                                       t.IsPublic &&
-                                       !(t.Namespace?.StartsWith("Chet.QuartzNet.Core") == true || t.Namespace?.StartsWith("Chet.QuartzNet.UI") == true))
+                        var types = assembly
+                            .GetTypes()
+                            .Where(t =>
+                                typeof(IJob).IsAssignableFrom(t)
+                                && !t.IsAbstract
+                                && !t.IsInterface
+                                && t.IsPublic
+                                && !(
+                                    t.Namespace?.StartsWith("Chet.QuartzNet.Core") == true
+                                    || t.Namespace?.StartsWith("Chet.QuartzNet.UI") == true
+                                )
+                            )
                             .Select(t => t.FullName)
                             .Where(name => !string.IsNullOrEmpty(name))
                             .Select(name => name!)

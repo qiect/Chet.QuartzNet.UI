@@ -1,8 +1,8 @@
+using System.Net;
+using System.Net.Mail;
 using Chet.QuartzNet.Core.Configuration;
 using Chet.QuartzNet.Core.Interfaces;
 using Microsoft.Extensions.Logging;
-using System.Net;
-using System.Net.Mail;
 
 namespace Chet.QuartzNet.Core.Services;
 
@@ -13,7 +13,8 @@ public class EmailNotificationService : IEmailNotificationService
 
     public EmailNotificationService(
         EmailOptions emailOptions,
-        ILogger<EmailNotificationService> logger)
+        ILogger<EmailNotificationService> logger
+    )
     {
         _emailOptions = emailOptions ?? throw new ArgumentNullException(nameof(emailOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -26,16 +27,29 @@ public class EmailNotificationService : IEmailNotificationService
         string message,
         long duration,
         string? errorMessage,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         // 根据成功/失败状态决定是否发送通知
-        if (!_emailOptions.Enabled || (success && !_emailOptions.NotifyOnSuccess) || (!success && !_emailOptions.NotifyOnFailure))
+        if (
+            !_emailOptions.Enabled
+            || (success && !_emailOptions.NotifyOnSuccess)
+            || (!success && !_emailOptions.NotifyOnFailure)
+        )
             return;
 
         try
         {
-            var subject = $"{_emailOptions.SubjectPrefix} 作业执行{(success ? "成功" : "失败")} - {jobName}";
-            var content = GenerateJobExecutionEmailContent(jobName, jobGroup, success, message, duration, errorMessage);
+            var subject =
+                $"{_emailOptions.SubjectPrefix} 作业执行{(success ? "成功" : "失败")} - {jobName}";
+            var content = GenerateJobExecutionEmailContent(
+                jobName,
+                jobGroup,
+                success,
+                message,
+                duration,
+                errorMessage
+            );
 
             await SendEmailAsync(subject, content, true, cancellationToken);
         }
@@ -47,7 +61,8 @@ public class EmailNotificationService : IEmailNotificationService
 
     public async Task SendSchedulerErrorNotificationAsync(
         Exception exception,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         if (!_emailOptions.Enabled || !_emailOptions.NotifyOnSchedulerError)
             return;
@@ -69,7 +84,8 @@ public class EmailNotificationService : IEmailNotificationService
         string subject,
         string content,
         bool isHtml = false,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         if (!_emailOptions.Enabled)
             return;
@@ -85,7 +101,9 @@ public class EmailNotificationService : IEmailNotificationService
         }
     }
 
-    public async Task<bool> TestEmailConfigurationAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> TestEmailConfigurationAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         if (!_emailOptions.Enabled)
         {
@@ -95,9 +113,14 @@ public class EmailNotificationService : IEmailNotificationService
 
         try
         {
-            _logger.LogInformation("开始测试邮件配置：SMTP服务器={SmtpServer}:{SmtpPort}, SSL={EnableSsl}, 发件人={SenderEmail}, 收件人={Recipients}",
-                _emailOptions.SmtpServer, _emailOptions.SmtpPort, _emailOptions.EnableSsl, _emailOptions.SenderEmail,
-                string.Join(", ", _emailOptions.GetRecipientList()));
+            _logger.LogInformation(
+                "开始测试邮件配置：SMTP服务器={SmtpServer}:{SmtpPort}, SSL={EnableSsl}, 发件人={SenderEmail}, 收件人={Recipients}",
+                _emailOptions.SmtpServer,
+                _emailOptions.SmtpPort,
+                _emailOptions.EnableSsl,
+                _emailOptions.SenderEmail,
+                string.Join(", ", _emailOptions.GetRecipientList())
+            );
 
             // 验证配置
             if (string.IsNullOrEmpty(_emailOptions.SmtpServer))
@@ -125,33 +148,41 @@ public class EmailNotificationService : IEmailNotificationService
             }
 
             var subject = $"{_emailOptions.SubjectPrefix} 邮件配置测试";
-            var content = $"这是一封测试邮件，用于验证邮件配置是否正确。\n\n" +
-                         $"配置信息：\n" +
-                         $"SMTP服务器：{_emailOptions.SmtpServer}:{_emailOptions.SmtpPort}\n" +
-                         $"SSL/TLS：{(_emailOptions.EnableSsl ? "启用" : "禁用")}\n" +
-                         $"发件人：{_emailOptions.SenderEmail}\n" +
-                         $"测试时间：{DateTime.Now:yyyy-MM-dd HH:mm:ss}\n\n" +
-                         $"如果您收到此邮件，说明邮件配置正常。";
+            var content =
+                $"这是一封测试邮件，用于验证邮件配置是否正确。\n\n"
+                + $"配置信息：\n"
+                + $"SMTP服务器：{_emailOptions.SmtpServer}:{_emailOptions.SmtpPort}\n"
+                + $"SSL/TLS：{(_emailOptions.EnableSsl ? "启用" : "禁用")}\n"
+                + $"发件人：{_emailOptions.SenderEmail}\n"
+                + $"测试时间：{DateTime.Now:yyyy-MM-dd HH:mm:ss}\n\n"
+                + $"如果您收到此邮件，说明邮件配置正常。";
 
             await SendEmailAsync(subject, content, false, cancellationToken);
 
             _logger.LogInformation("邮件配置测试成功");
             return true;
         }
-        catch (SmtpException ex) when (ex.Message.Contains("authentication failed") || ex.Message.Contains("需要认证"))
+        catch (SmtpException ex)
+            when (ex.Message.Contains("authentication failed") || ex.Message.Contains("需要认证"))
         {
-            _logger.LogError(ex, "邮件配置测试失败：认证失败。对于163邮箱，请确认：\n" +
-                "1. 使用授权码而不是邮箱密码\n" +
-                "2. 授权码是否正确\n" +
-                "3. 发件人邮箱是否已开启SMTP服务");
+            _logger.LogError(
+                ex,
+                "邮件配置测试失败：认证失败。对于163邮箱，请确认：\n"
+                    + "1. 使用授权码而不是邮箱密码\n"
+                    + "2. 授权码是否正确\n"
+                    + "3. 发件人邮箱是否已开启SMTP服务"
+            );
             return false;
         }
         catch (SmtpException ex) when (ex.Message.Contains("Syntax error, command unrecognized"))
         {
-            _logger.LogError(ex, "邮件配置测试失败：SMTP连接错误。请确认：\n" +
-                "1. 端口配置是否正确（587推荐）\n" +
-                "2. SSL/TLS设置是否正确\n" +
-                "3. 网络连接是否正常");
+            _logger.LogError(
+                ex,
+                "邮件配置测试失败：SMTP连接错误。请确认：\n"
+                    + "1. 端口配置是否正确（587推荐）\n"
+                    + "2. SSL/TLS设置是否正确\n"
+                    + "3. 网络连接是否正常"
+            );
             return false;
         }
         catch (Exception ex)
@@ -161,7 +192,12 @@ public class EmailNotificationService : IEmailNotificationService
         }
     }
 
-    private async Task SendEmailAsync(string subject, string content, bool isHtml, CancellationToken cancellationToken)
+    private async Task SendEmailAsync(
+        string subject,
+        string content,
+        bool isHtml,
+        CancellationToken cancellationToken
+    )
     {
         var recipients = _emailOptions.GetRecipientList();
         if (!recipients.Any())
@@ -172,9 +208,14 @@ public class EmailNotificationService : IEmailNotificationService
 
         try
         {
-            _logger.LogInformation("正在发送邮件：SMTP服务器={SmtpServer}:{SmtpPort}, SSL={EnableSsl}, 发件人={SenderEmail}, 收件人={Recipients}",
-                _emailOptions.SmtpServer, _emailOptions.SmtpPort, _emailOptions.EnableSsl, _emailOptions.SenderEmail,
-                string.Join(", ", recipients));
+            _logger.LogInformation(
+                "正在发送邮件：SMTP服务器={SmtpServer}:{SmtpPort}, SSL={EnableSsl}, 发件人={SenderEmail}, 收件人={Recipients}",
+                _emailOptions.SmtpServer,
+                _emailOptions.SmtpPort,
+                _emailOptions.EnableSsl,
+                _emailOptions.SenderEmail,
+                string.Join(", ", recipients)
+            );
 
             using var smtpClient = new SmtpClient();
 
@@ -183,7 +224,10 @@ public class EmailNotificationService : IEmailNotificationService
             smtpClient.Port = _emailOptions.SmtpPort;
             smtpClient.EnableSsl = _emailOptions.EnableSsl;
             smtpClient.UseDefaultCredentials = false;
-            smtpClient.Credentials = new NetworkCredential(_emailOptions.SenderEmail, _emailOptions.SenderPassword);
+            smtpClient.Credentials = new NetworkCredential(
+                _emailOptions.SenderEmail,
+                _emailOptions.SenderPassword
+            );
             smtpClient.DeliveryMethod = SmtpDeliveryMethod.Network;
 
             // 设置超时时间
@@ -196,7 +240,7 @@ public class EmailNotificationService : IEmailNotificationService
                 Body = content,
                 IsBodyHtml = isHtml,
                 SubjectEncoding = System.Text.Encoding.UTF8,
-                BodyEncoding = System.Text.Encoding.UTF8
+                BodyEncoding = System.Text.Encoding.UTF8,
             };
 
             foreach (var recipient in recipients)
@@ -206,22 +250,37 @@ public class EmailNotificationService : IEmailNotificationService
 
             await smtpClient.SendMailAsync(mailMessage, cancellationToken);
 
-            _logger.LogInformation("邮件发送成功: {Subject}, 收件人: {Recipients}",
-                subject, string.Join(", ", recipients));
+            _logger.LogInformation(
+                "邮件发送成功: {Subject}, 收件人: {Recipients}",
+                subject,
+                string.Join(", ", recipients)
+            );
         }
         catch (SmtpException ex) when (ex.Message.Contains("Syntax error, command unrecognized"))
         {
-            _logger.LogError(ex, "SMTP连接失败，可能是SSL/TLS配置问题。对于163邮箱，请确认：\n" +
-                "1. 使用授权码而不是邮箱密码\n" +
-                "2. 端口587 + EnableSsl=true（推荐）\n" +
-                "3. 端口465 + EnableSsl=true（需要SSL）\n" +
-                "4. 发件人邮箱已开启SMTP服务");
-            throw new InvalidOperationException($"SMTP连接失败：{ex.Message}。请检查SSL/TLS配置和邮箱设置。", ex);
+            _logger.LogError(
+                ex,
+                "SMTP连接失败，可能是SSL/TLS配置问题。对于163邮箱，请确认：\n"
+                    + "1. 使用授权码而不是邮箱密码\n"
+                    + "2. 端口587 + EnableSsl=true（推荐）\n"
+                    + "3. 端口465 + EnableSsl=true（需要SSL）\n"
+                    + "4. 发件人邮箱已开启SMTP服务"
+            );
+            throw new InvalidOperationException(
+                $"SMTP连接失败：{ex.Message}。请检查SSL/TLS配置和邮箱设置。",
+                ex
+            );
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "邮件发送失败，请检查配置：SMTP服务器={SmtpServer}:{SmtpPort}, SSL={EnableSsl}, 发件人={SenderEmail}",
-                _emailOptions.SmtpServer, _emailOptions.SmtpPort, _emailOptions.EnableSsl, _emailOptions.SenderEmail);
+            _logger.LogError(
+                ex,
+                "邮件发送失败，请检查配置：SMTP服务器={SmtpServer}:{SmtpPort}, SSL={EnableSsl}, 发件人={SenderEmail}",
+                _emailOptions.SmtpServer,
+                _emailOptions.SmtpPort,
+                _emailOptions.EnableSsl,
+                _emailOptions.SenderEmail
+            );
             throw;
         }
     }
@@ -232,12 +291,16 @@ public class EmailNotificationService : IEmailNotificationService
         bool success,
         string message,
         long duration,
-        string? errorMessage)
+        string? errorMessage
+    )
     {
         var status = success ? "成功" : "失败";
         var statusColor = success ? "#28a745" : "#dc3545";
 
-        var errorRow = (success || string.IsNullOrEmpty(errorMessage)) ? "" : $@"
+        var errorRow =
+            (success || string.IsNullOrEmpty(errorMessage))
+                ? ""
+                : $@"
             <tr>
                 <td style='padding: 10px; border-bottom: 1px solid #dee2e6;'><strong>错误信息：</strong></td>
                 <td style='padding: 10px; border-bottom: 1px solid #dee2e6; color: #dc3545;'>{errorMessage}</td>

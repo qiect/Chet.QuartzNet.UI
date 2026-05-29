@@ -130,7 +130,7 @@ public enum StorageType
     /// <summary>
     /// 数据库存储
     /// </summary>
-    Database = 1
+    Database = 1,
 }
 
 /// <summary>
@@ -156,5 +156,5 @@ public enum DatabaseProvider
     /// <summary>
     /// SQLite
     /// </summary>
-    SQLite = 3
+    SQLite = 3,
 }

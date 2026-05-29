@@ -38,7 +38,13 @@ namespace Chet.QuartzNet.Core.Attributes
         /// <param name="group">作业分组</param>
         /// <param name="cronExpression">Cron表达式</param>
         /// <param name="description">作业描述</param>
-        public QuartzJobAttribute(string name, string group, string cronExpression, string description = "", bool enabled = true)
+        public QuartzJobAttribute(
+            string name,
+            string group,
+            string cronExpression,
+            string description = "",
+            bool enabled = true
+        )
         {
             Name = name;
             Group = group;
