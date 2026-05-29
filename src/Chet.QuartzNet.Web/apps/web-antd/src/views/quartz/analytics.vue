@@ -385,7 +385,7 @@ onMounted(fetchData);
 }
 
 /* 暗色模式卡片底色 */
-::where(.dark) .stat-card {
+:where(.dark) .stat-card {
   background-color: #1f1f1f !important;
   border-color: #303030 !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -412,7 +412,7 @@ onMounted(fetchData);
   margin-bottom: 6px;
 }
 
-::where(.dark) .stat-title {
+:where(.dark) .stat-title {
   color: rgba(255, 255, 255, 0.45);
 }
 
@@ -422,7 +422,7 @@ onMounted(fetchData);
   color: #262626;
 }
 
-::where(.dark) .stat-number {
+:where(.dark) .stat-number {
   color: rgba(255, 255, 255, 0.85);
 }
 
@@ -445,7 +445,7 @@ onMounted(fetchData);
   margin-left: 4px;
 }
 
-::where(.dark) .dll-val b {
+:where(.dark) .dll-val b {
   color: #9254de;
 }
 
@@ -455,7 +455,7 @@ onMounted(fetchData);
   margin-left: 4px;
 }
 
-::where(.dark) .api-val b {
+:where(.dark) .api-val b {
   color: #14e1e1;
 }
 
@@ -486,19 +486,19 @@ onMounted(fetchData);
   background: #f9f0ff;
 }
 
-::where(.dark) .stat-icon.blue {
+:where(.dark) .stat-icon.blue {
   background: rgba(24, 144, 255, 0.15);
 }
 
-::where(.dark) .stat-icon.green {
+:where(.dark) .stat-icon.green {
   background: rgba(82, 196, 26, 0.15);
 }
 
-::where(.dark) .stat-icon.orange {
+:where(.dark) .stat-icon.orange {
   background: rgba(250, 173, 20, 0.15);
 }
 
-::where(.dark) .stat-icon.purple {
+:where(.dark) .stat-icon.purple {
   background: rgba(114, 46, 209, 0.15);
 }
 
@@ -524,7 +524,7 @@ onMounted(fetchData);
   color: #595959;
 }
 
-::where(.dark) .sub-value {
+:where(.dark) .sub-value {
   color: rgba(255, 255, 255, 0.65);
 }
 
@@ -539,7 +539,7 @@ onMounted(fetchData);
 }
 
 /* 暗色模式下进度条槽的颜色 */
-::where(.dark) .mini-bar-bg {
+:where(.dark) .mini-bar-bg {
   background: #333333 !important;
 }
 
@@ -571,7 +571,7 @@ onMounted(fetchData);
 }
 
 /* 暗色模式下，DLL的白色分割线也要变深 */
-::where(.dark) .mini-bar-fill.purple {
+:where(.dark) .mini-bar-fill.purple {
   border-right-color: #1f1f1f;
 }
 </style>
