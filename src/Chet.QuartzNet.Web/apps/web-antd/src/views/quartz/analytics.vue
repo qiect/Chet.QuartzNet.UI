@@ -8,6 +8,9 @@ import type { EChartsOption } from 'echarts';
 import type { EchartsUIType } from '@vben/plugins/echarts';
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
+// 导入i18n
+import { $t } from '#/locales';
+
 // 导入API和类型
 import {
   getSchedulerStatus,
@@ -88,14 +91,14 @@ const getExecutionTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: hasData ? data.map(i => i.time) : ['无数据'],
+      data: hasData ? data.map(i => i.time) : [$t('page.quartz.analyticsPage.noData')],
       axisLine: { lineStyle: { color: '#f0f0f0' } },
       axisLabel: { color: '#8c8c8c' }
     },
     yAxis: { type: 'value', splitLine: { lineStyle: { color: '#f5f5f5' } } },
     series: [
       {
-        name: '成功',
+        name: $t('page.quartz.analyticsPage.success'),
         type: 'line',
         smooth: 0.4,
         showSymbol: false,
@@ -109,7 +112,7 @@ const getExecutionTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
         }
       },
       {
-        name: '失败',
+        name: $t('page.quartz.analyticsPage.failed'),
         type: 'line',
         smooth: 0.4,
         showSymbol: false,
@@ -123,7 +126,7 @@ const getExecutionTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
         }
       },
       {
-        name: '总数',
+        name: $t('page.quartz.analyticsPage.total'),
         type: 'line',
         smooth: 0.4,
         showSymbol: false,
@@ -136,7 +139,7 @@ const getExecutionTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
 };
 
 const getExecutionTimeOption = (data: JobExecutionTime[]): EChartsOption => {
-  const xAxisData = data.length > 0 ? data.map(i => i.timeRange) : ['无数据'];
+  const xAxisData = data.length > 0 ? data.map(i => i.timeRange) : [$t('page.quartz.analyticsPage.noData')];
   // 检测是否为暗色模式，用于调整文字颜色
   const isDark = document.documentElement.classList.contains('dark');
 
@@ -163,14 +166,14 @@ const getExecutionTimeOption = (data: JobExecutionTime[]): EChartsOption => {
       axisLabel: { color: isDark ? 'rgba(255,255,255,0.45)' : '#8c8c8c' }
     },
     series: [{
-      name: '作业数量',
+      name: $t('page.quartz.analyticsPage.jobCount'),
       type: 'bar',
       barWidth: 22,
       data: data.map(i => i.count),
       itemStyle: {
         borderRadius: [4, 4, 0, 0],
         color: (params: any) => {
-          // 根据数据索引或耗时档位计算“紧张程度”
+          // 根据数据索引或耗时档位计算"紧张程度"
           // 假设 xAxisData 是按耗时从小到大排列的
           const ratio = params.dataIndex / (xAxisData.length - 1 || 1);
 
@@ -256,13 +259,13 @@ onMounted(fetchData);
         <Card class="stat-card" :loading="loading" :bordered="false">
           <div class="stat-content">
             <div class="stat-main">
-              <span class="stat-title">总作业数量</span>
-              <span class="stat-number">{{ statsOverview.totalJobs }}<small>个</small></span>
+              <span class="stat-title">{{ $t('page.quartz.analyticsPage.totalJobs') }}</span>
+              <span class="stat-number">{{ statsOverview.totalJobs }}<small>{{ $t('page.quartz.analyticsPage.unit') }}</small></span>
             </div>
             <div class="stat-icon blue">🗂️</div>
           </div>
           <div class="stat-sub">
-            <span class="sub-label">启用/禁用</span>
+            <span class="sub-label">{{ $t('page.quartz.analyticsPage.enabledDisabled') }}</span>
             <span class="sub-value">{{ statsOverview.enabledJobs }}/{{ statsOverview.disabledJobs }}</span>
             <div class="mini-bar-bg">
               <div class="mini-bar-fill blue"
@@ -276,13 +279,13 @@ onMounted(fetchData);
         <Card class="stat-card" :loading="loading" :bordered="false">
           <div class="stat-content">
             <div class="stat-main">
-              <span class="stat-title">累计执行量</span>
-              <span class="stat-number">{{ statsOverview.totalExecutions }}<small>次</small></span>
+              <span class="stat-title">{{ $t('page.quartz.analyticsPage.totalExecutions') }}</span>
+              <span class="stat-number">{{ statsOverview.totalExecutions }}<small>{{ $t('page.quartz.analyticsPage.times') }}</small></span>
             </div>
             <div class="stat-icon green">🚀</div>
           </div>
           <div class="stat-sub">
-            <span class="sub-label">成功率</span>
+            <span class="sub-label">{{ $t('page.quartz.analyticsPage.successRate') }}</span>
             <span class="sub-value success">{{ ((statsOverview.successCount / (statsOverview.totalExecutions || 1)) *
               100).toFixed(1) }}%</span>
             <div class="mini-bar-bg">
@@ -298,14 +301,14 @@ onMounted(fetchData);
         <Card class="stat-card" :loading="loading" :bordered="false">
           <div class="stat-content">
             <div class="stat-main">
-              <span class="stat-title">正常运行数</span>
+              <span class="stat-title">{{ $t('page.quartz.analyticsPage.normalRunning') }}</span>
               <span class="stat-number">{{jobStatusDistribution.find(d => d.status === 'Normal')?.count || 0
-                }}<small>个</small></span>
+                }}<small>{{ $t('page.quartz.analyticsPage.unit') }}</small></span>
             </div>
             <div class="stat-icon orange">💗</div>
           </div>
           <div class="stat-sub">
-            <span class="sub-label">正常/暂停</span>
+            <span class="sub-label">{{ $t('page.quartz.analyticsPage.normalPaused') }}</span>
             <span class="sub-value">
               {{jobStatusDistribution.find(d => d.status === 'Normal')?.count || 0}}/{{jobStatusDistribution.find(d =>
                 d.status === 'Paused')?.count || 0}}
@@ -323,7 +326,7 @@ onMounted(fetchData);
         <Card class="stat-card" :loading="loading" :bordered="false">
           <div class="stat-content">
             <div class="stat-main">
-              <span class="stat-title">作业类型分布</span>
+              <span class="stat-title">{{ $t('page.quartz.analyticsPage.jobTypeDistribution') }}</span>
               <div class="dual-numbers">
                 <span class="dll-val">DLL <b>{{jobTypeDistribution.find(d => d.type === 'DLL')?.count || 0
                     }}</b></span>
@@ -349,7 +352,7 @@ onMounted(fetchData);
       </Col>
 
       <Col :span="24">
-        <Card title="近30天作业执行趋势" class="chart-card">
+        <Card :title="$t('page.quartz.analyticsPage.executionTrend')" class="chart-card">
           <Skeleton :loading="loading" active :paragraph="{ rows: 8 }">
             <EchartsUI ref="executionTrendChartRef" style="height: 400px" />
           </Skeleton>
@@ -357,7 +360,7 @@ onMounted(fetchData);
       </Col>
 
       <Col :span="24">
-        <Card title="近30天作业执行耗时" class="chart-card">
+        <Card :title="$t('page.quartz.analyticsPage.executionTime')" class="chart-card">
           <Skeleton :loading="loading" active :paragraph="{ rows: 8 }">
             <EchartsUI ref="executionTimeChartRef" style="height: 400px" />
           </Skeleton>
@@ -382,7 +385,7 @@ onMounted(fetchData);
 }
 
 /* 暗色模式卡片底色 */
-:where(.dark) .stat-card {
+::where(.dark) .stat-card {
   background-color: #1f1f1f !important;
   border-color: #303030 !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -409,7 +412,7 @@ onMounted(fetchData);
   margin-bottom: 6px;
 }
 
-:where(.dark) .stat-title {
+::where(.dark) .stat-title {
   color: rgba(255, 255, 255, 0.45);
 }
 
@@ -419,7 +422,7 @@ onMounted(fetchData);
   color: #262626;
 }
 
-:where(.dark) .stat-number {
+::where(.dark) .stat-number {
   color: rgba(255, 255, 255, 0.85);
 }
 
@@ -442,7 +445,7 @@ onMounted(fetchData);
   margin-left: 4px;
 }
 
-:where(.dark) .dll-val b {
+::where(.dark) .dll-val b {
   color: #9254de;
 }
 
@@ -452,7 +455,7 @@ onMounted(fetchData);
   margin-left: 4px;
 }
 
-:where(.dark) .api-val b {
+::where(.dark) .api-val b {
   color: #14e1e1;
 }
 
@@ -483,19 +486,19 @@ onMounted(fetchData);
   background: #f9f0ff;
 }
 
-:where(.dark) .stat-icon.blue {
+::where(.dark) .stat-icon.blue {
   background: rgba(24, 144, 255, 0.15);
 }
 
-:where(.dark) .stat-icon.green {
+::where(.dark) .stat-icon.green {
   background: rgba(82, 196, 26, 0.15);
 }
 
-:where(.dark) .stat-icon.orange {
+::where(.dark) .stat-icon.orange {
   background: rgba(250, 173, 20, 0.15);
 }
 
-:where(.dark) .stat-icon.purple {
+::where(.dark) .stat-icon.purple {
   background: rgba(114, 46, 209, 0.15);
 }
 
@@ -521,7 +524,7 @@ onMounted(fetchData);
   color: #595959;
 }
 
-:where(.dark) .sub-value {
+::where(.dark) .sub-value {
   color: rgba(255, 255, 255, 0.65);
 }
 
@@ -536,7 +539,7 @@ onMounted(fetchData);
 }
 
 /* 暗色模式下进度条槽的颜色 */
-:where(.dark) .mini-bar-bg {
+::where(.dark) .mini-bar-bg {
   background: #333333 !important;
 }
 
@@ -568,7 +571,7 @@ onMounted(fetchData);
 }
 
 /* 暗色模式下，DLL的白色分割线也要变深 */
-:where(.dark) .mini-bar-fill.purple {
+::where(.dark) .mini-bar-fill.purple {
   border-right-color: #1f1f1f;
 }
 </style>

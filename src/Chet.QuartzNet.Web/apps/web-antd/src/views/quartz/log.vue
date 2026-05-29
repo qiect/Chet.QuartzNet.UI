@@ -27,6 +27,9 @@ import type {
 } from 'ant-design-vue';
 import type { Dayjs } from 'dayjs';
 
+// 导入i18n
+import { $t } from '#/locales';
+
 // 导入日志相关类型和API
 import {
   LogStatusEnum,
@@ -39,9 +42,9 @@ import type { ProColumns } from '@vben/common-ui';
 
 // 日志状态映射
 const logStatusMap = {
-  [LogStatusEnum.SUCCESS]: { text: '成功', status: 'success' },
-  [LogStatusEnum.ERROR]: { text: '失败', status: 'error' },
-  [LogStatusEnum.RUNNING]: { text: '运行中', status: 'processing' },
+  [LogStatusEnum.SUCCESS]: { text: () => $t('page.quartz.logPage.statusSuccess'), status: 'success' },
+  [LogStatusEnum.ERROR]: { text: () => $t('page.quartz.logPage.statusError'), status: 'error' },
+  [LogStatusEnum.RUNNING]: { text: () => $t('page.quartz.logPage.statusRunning'), status: 'processing' },
 };
 
 // 响应式数据
@@ -68,7 +71,7 @@ const isSearchExpanded = ref(false);
 
 // 详情对话框
 const detailModalVisible = ref(false);
-const detailModalTitle = ref('日志详情');
+const detailModalTitle = ref('logDetail');
 const logDetail = ref<LogResponseDto | null>(null);
 
 // 排序配置
@@ -78,31 +81,27 @@ const sortOrder = ref<string>('');
 // 列配置（使用computed属性，当排序状态变化时自动更新）
 const columns = computed<ColumnsType<LogResponseDto>[]>(() => [
   {
-    title: '作业名称',
+    title: $t('page.quartz.logPage.jobName'),
     dataIndex: 'jobName',
     ellipsis: true,
-    // fixed: 'left',
-    // width: 300,
   },
   {
-    title: '作业分组',
+    title: $t('page.quartz.logPage.jobGroup'),
     dataIndex: 'jobGroup',
     ellipsis: true,
-    // fixed: 'left',
-    // width: 300,
   },
   {
-    title: '状态',
+    title: $t('page.quartz.logPage.status'),
     dataIndex: 'status',
     customRender: ({ record }) => {
       const status = logStatusMap[record.status];
       return h(Tag, { color: status.status }, {
-        default: () => status?.text || '未知'
+        default: () => status?.text?.() || $t('page.quartz.logPage.unknown')
       });
     },
   },
   {
-    title: '开始时间',
+    title: $t('page.quartz.logPage.startTime'),
     dataIndex: 'startTime',
     ellipsis: true,
     sorter: true,
@@ -112,7 +111,7 @@ const columns = computed<ColumnsType<LogResponseDto>[]>(() => [
     },
   },
   {
-    title: '结束时间',
+    title: $t('page.quartz.logPage.endTime'),
     dataIndex: 'endTime',
     ellipsis: true,
     sorter: true,
@@ -122,7 +121,7 @@ const columns = computed<ColumnsType<LogResponseDto>[]>(() => [
     },
   },
   {
-    title: '执行时长(ms)',
+    title: $t('page.quartz.logPage.duration'),
     dataIndex: 'duration',
     ellipsis: true,
     sorter: true,
@@ -136,7 +135,7 @@ const columns = computed<ColumnsType<LogResponseDto>[]>(() => [
         : undefined,
   },
   {
-    title: '操作',
+    title: $t('page.quartz.logPage.action'),
     width: 80,
     key: 'action',
     fixed: 'right',
@@ -148,7 +147,7 @@ const columns = computed<ColumnsType<LogResponseDto>[]>(() => [
             onClick: () => handleDetail(record),
             disabled: loading.value,
           }, {
-            default: () => '详情',
+            default: () => $t('page.quartz.logPage.detail'),
           }),
         ],
       });
@@ -163,7 +162,7 @@ const pagination = computed<PaginationProps>(() => ({
   total: total.value,
   showSizeChanger: true,
   showQuickJumper: true,
-  showTotal: (total, range) => `${range[0]}-${range[1]} 共 ${total} 条`,
+  showTotal: (total, range) => $t('page.quartz.logPage.paginationTotal', { start: range[0], end: range[1], total }),
   pageSizeOptions: ['10', '20', '50', '100'],
 }));
 
@@ -196,18 +195,18 @@ const loadLogList = async () => {
     } else {
       // 处理错误情况，包括可能的errorCode
       const errorMsg = response.errorCode
-        ? `${response.message || '获取日志列表失败'} (错误码: ${response.errorCode})`
-        : response.message || '获取日志列表失败';
+        ? `${response.message || $t('page.quartz.logPage.loadListFailed')} (${$t('page.quartz.logPage.errorCode')}: ${response.errorCode})`
+        : response.message || $t('page.quartz.logPage.loadListFailed');
       message.error(errorMsg);
       dataSource.value = [];
       total.value = 0;
     }
   } catch (error) {
-    console.log('获取日志列表时发生错误:', error);
+    console.log($t('page.quartz.logPage.loadListFailed'), error);
     message.error(
       typeof error === 'object' && error !== null && 'message' in error
         ? String(error.message)
-        : '获取日志列表失败',
+        : $t('page.quartz.logPage.loadListFailed'),
     );
     dataSource.value = [];
     total.value = 0;
@@ -231,9 +230,9 @@ const handleTableChange = (pagination: any, filters: any, sorter: any) => {
     sortBy.value = sorter.field;
     sortOrder.value =
       sorter.order === 'ascend'
-        ? 'ascend'
+        ? 'asc'
         : sorter.order === 'descend'
-          ? 'descend'
+          ? 'desc'
           : undefined;
   }
 
@@ -264,8 +263,8 @@ const handleReset = () => {
 // 清空日志
 const handleClear = () => {
   Modal.confirm({
-    title: '确认清空',
-    content: '确定要清空日志吗？此操作不可恢复！',
+    title: $t('page.quartz.logPage.confirmClear'),
+    content: $t('page.quartz.logPage.confirmClearContent'),
     onOk: async () => {
       try {
         // 传递空的查询参数，清空所有日志，而不是使用当前搜索条件
@@ -277,15 +276,15 @@ const handleClear = () => {
           endTime: undefined,
         });
         if (response.success) {
-          message.success('日志清空成功');
+          message.success($t('page.quartz.logPage.clearSuccess'));
           // 清空后重新加载日志列表
           await loadLogList();
         } else {
-          message.error(response.message || '日志清空失败');
+          message.error(response.message || $t('page.quartz.logPage.clearFailed'));
         }
       } catch (error: any) {
-        console.error('清空日志失败:', error);
-        message.error(error.message || '日志清空失败');
+        console.error($t('page.quartz.logPage.clearFailed'), error);
+        message.error(error.message || $t('page.quartz.logPage.clearFailed'));
       }
     },
   });
@@ -297,8 +296,8 @@ const handleDetail = (log: LogResponseDto) => {
     logDetail.value = log;
     detailModalVisible.value = true;
   } catch (error) {
-    message.error('显示详情失败');
-    console.log('显示详情失败:', error);
+    message.error($t('page.quartz.logPage.showDetailFailed'));
+    console.log($t('page.quartz.logPage.showDetailFailed'), error);
   }
 };
 
@@ -319,32 +318,32 @@ initData();
           <Row :gutter="16">
             <!-- 默认显示的3个搜索条件 -->
             <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="4">
-              <Form.Item label="作业名称" name="jobName">
-                <Input v-model:value="searchForm.jobName" placeholder="请输入作业名称" />
+              <Form.Item :label="$t('page.quartz.logPage.jobName')" name="jobName">
+                <Input v-model:value="searchForm.jobName" :placeholder="$t('page.quartz.logPage.placeholderJobName')" />
               </Form.Item>
             </Col>
             <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="4">
-              <Form.Item label="作业分组" name="jobGroup">
-                <Input v-model:value="searchForm.jobGroup" placeholder="请输入作业分组" />
+              <Form.Item :label="$t('page.quartz.logPage.jobGroup')" name="jobGroup">
+                <Input v-model:value="searchForm.jobGroup" :placeholder="$t('page.quartz.logPage.placeholderJobGroup')" />
               </Form.Item>
             </Col>
             <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="4">
-              <Form.Item label="执行状态" name="status">
-                <Select v-model:value="searchForm.status" placeholder="请选择状态" allowClear>
-                  <Select.Option :value="LogStatusEnum.SUCCESS">成功</Select.Option>
-                  <Select.Option :value="LogStatusEnum.ERROR">失败</Select.Option>
-                  <Select.Option :value="LogStatusEnum.RUNNING">运行中</Select.Option>
+              <Form.Item :label="$t('page.quartz.logPage.executionStatus')" name="status">
+                <Select v-model:value="searchForm.status" :placeholder="$t('page.quartz.logPage.placeholderStatus')" allowClear>
+                  <Select.Option :value="LogStatusEnum.SUCCESS">{{ $t('page.quartz.logPage.statusSuccess') }}</Select.Option>
+                  <Select.Option :value="LogStatusEnum.ERROR">{{ $t('page.quartz.logPage.statusError') }}</Select.Option>
+                  <Select.Option :value="LogStatusEnum.RUNNING">{{ $t('page.quartz.logPage.statusRunning') }}</Select.Option>
                 </Select>
               </Form.Item>
             </Col>
             <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="4">
-              <Form.Item label="开始时间" name="startTime">
-                <DatePicker v-model:value="searchForm.startTime" showTime placeholder="选择开始时间" />
+              <Form.Item :label="$t('page.quartz.logPage.startTime')" name="startTime">
+                <DatePicker v-model:value="searchForm.startTime" showTime :placeholder="$t('page.quartz.logPage.selectStartTime')" />
               </Form.Item>
             </Col>
             <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="4">
-              <Form.Item label="结束时间" name="endTime">
-                <DatePicker v-model:value="searchForm.endTime" showTime placeholder="选择结束时间" />
+              <Form.Item :label="$t('page.quartz.logPage.endTime')" name="endTime">
+                <DatePicker v-model:value="searchForm.endTime" showTime :placeholder="$t('page.quartz.logPage.selectEndTime')" />
               </Form.Item>
             </Col>
             <!-- 展开显示的搜索条件 -->
@@ -355,11 +354,8 @@ initData();
             <!-- 搜索按钮和展开/收起按钮 -->
             <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="4" class="text-right">
               <Space>
-                <Button type="primary" @click="handleSearch"> 搜索 </Button>
-                <Button @click="handleReset"> 重置 </Button>
-                <!-- <Button type="link" @click="isSearchExpanded = !isSearchExpanded">
-                  {{ isSearchExpanded ? '收起' : '展开' }}
-                </Button> -->
+                <Button type="primary" @click="handleSearch"> {{ $t('page.quartz.logPage.search') }} </Button>
+                <Button @click="handleReset"> {{ $t('page.quartz.logPage.reset') }} </Button>
               </Space>
             </Col>
           </Row>
@@ -369,7 +365,7 @@ initData();
       <Card>
         <div class="mb-4 flex items-center justify-end">
           <Space>
-            <Button danger @click="handleClear">清空日志</Button>
+            <Button danger @click="handleClear">{{ $t('page.quartz.logPage.clearLogs') }}</Button>
           </Space>
         </div>
         <!-- 日志列表 -->
@@ -379,7 +375,7 @@ initData();
       </Card>
 
       <!-- 详情对话框 -->
-      <Modal v-model:open="detailModalVisible" :title="detailModalTitle" width="80%" :max-width="1200" :footer="null"
+      <Modal v-model:open="detailModalVisible" :title="$t('page.quartz.logPage.logDetail')" width="80%" :max-width="1200" :footer="null"
         :destroyOnClose="true">
         <div v-if="logDetail" class="log-detail">
           <!-- 头部信息 -->
@@ -389,22 +385,22 @@ initData();
                 {{ logDetail.jobName }} - {{ logDetail.jobGroup }}
               </Typography.Title>
               <Tag :color="logStatusMap[logDetail.status].status" class="text-lg px-4 py-1 text-base">
-                {{ logStatusMap[logDetail.status].text }}
+                {{ logStatusMap[logDetail.status].text() }}
               </Tag>
             </div>
 
             <!-- 基本信息行 -->
             <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <div class="info-item flex items-center gap-2 p-2 rounded">
-                <span class="font-semibold text-sm opacity-80">执行时长:</span>
+                <span class="font-semibold text-sm opacity-80">{{ $t('page.quartz.logPage.executionDuration') }}</span>
                 <span class="text-sm font-medium">{{ logDetail.duration || 0 }} ms</span>
               </div>
               <div class="info-item flex items-center gap-2 p-2 rounded">
-                <span class="font-semibold text-sm opacity-80">开始时间:</span>
+                <span class="font-semibold text-sm opacity-80">{{ $t('page.quartz.logPage.startDateTime') }}</span>
                 <span class="text-sm">{{ formatDateTime(logDetail.startTime) }}</span>
               </div>
               <div class="info-item flex items-center gap-2 p-2 rounded">
-                <span class="font-semibold text-sm opacity-80">结束时间:</span>
+                <span class="font-semibold text-sm opacity-80">{{ $t('page.quartz.logPage.endDateTime') }}</span>
                 <span class="text-sm">{{
                   logDetail.endTime ? formatDateTime(logDetail.endTime) : '-'
                   }}</span>
@@ -416,16 +412,16 @@ initData();
           <div class="detail-content space-y-6">
             <!-- 执行信息 -->
             <div class="content-section">
-              <Typography.Title :level="5" class="mb-3">执行信息</Typography.Title>
+              <Typography.Title :level="5" class="mb-3">{{ $t('page.quartz.logPage.executionInfo') }}</Typography.Title>
               <div class="content-card exec-info-card rounded-lg p-4">
-                <pre class="code-block word-break-break-word m-0 whitespace-pre-wrap text-sm">{{ logDetail.message || '暂无执行信息'
+                <pre class="code-block word-break-break-word m-0 whitespace-pre-wrap text-sm">{{ logDetail.message || $t('page.quartz.logPage.noExecutionInfo')
                 }}</pre>
               </div>
             </div>
 
             <!-- 错误信息 -->
             <div v-if="logDetail.errorMessage" class="content-section">
-              <Typography.Title :level="5" class="mb-3">错误信息</Typography.Title>
+              <Typography.Title :level="5" class="mb-3">{{ $t('page.quartz.logPage.errorInfo') }}</Typography.Title>
               <div class="content-card error-card rounded-lg p-4">
                 <pre class="code-block word-break-break-word m-0 whitespace-pre-wrap text-sm">{{ logDetail.errorMessage }}
           </pre>
@@ -434,7 +430,7 @@ initData();
 
             <!-- 异常信息 -->
             <div v-if="logDetail.exception" class="content-section">
-              <Typography.Title :level="5" class="mb-3">异常</Typography.Title>
+              <Typography.Title :level="5" class="mb-3">{{ $t('page.quartz.logPage.exceptionInfo') }}</Typography.Title>
               <div class="content-card error-card rounded-lg p-4">
                 <pre
                   class="code-block word-break-break-word m-0 whitespace-pre-wrap text-sm">{{ logDetail.exception }}</pre>
@@ -443,7 +439,7 @@ initData();
 
             <!-- 执行结果 -->
             <div v-if="logDetail.result" class="content-section">
-              <Typography.Title :level="5" class="mb-3">执行结果</Typography.Title>
+              <Typography.Title :level="5" class="mb-3">{{ $t('page.quartz.logPage.executionResult') }}</Typography.Title>
               <div class="content-card success-card rounded-lg p-4">
                 <pre class="code-block word-break-break-word m-0 whitespace-pre-wrap text-sm">{{ typeof logDetail.result ===
                   'string' ?
@@ -453,7 +449,7 @@ initData();
 
             <!-- 作业数据 -->
             <div v-if="logDetail.jobData" class="content-section">
-              <Typography.Title :level="5" class="mb-3">作业数据</Typography.Title>
+              <Typography.Title :level="5" class="mb-3">{{ $t('page.quartz.logPage.jobData') }}</Typography.Title>
               <div class="content-card info-card rounded-lg p-4">
                 <pre class="code-block word-break-break-word m-0 whitespace-pre-wrap text-sm">{{ typeof logDetail.jobData ===
                   'string' ?
@@ -466,7 +462,7 @@ initData();
         <!-- 底部按钮 -->
         <div class="mt-6 flex justify-end">
           <Button @click="detailModalVisible = false" type="primary" size="large" class="px-6">
-            关闭
+            {{ $t('page.quartz.logPage.close') }}
           </Button>
         </div>
       </Modal>
