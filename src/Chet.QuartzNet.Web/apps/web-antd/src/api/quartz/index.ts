@@ -1,2 +1,10 @@
 export * from './job';
-export * from './log';
+export {
+  clearLogs,
+  getLogDetail,
+  getLogList,
+  getLogStatistics,
+  type LogQueryParams,
+  type LogResponseDto,
+  LogStatusEnum,
+} from './log';

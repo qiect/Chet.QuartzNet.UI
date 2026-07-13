@@ -9,7 +9,7 @@ export interface ApiResponse<T> {
   /** 响应数据 */
   data?: T;
   /** 错误代码 */
-  errorCode?: string | null;
+  errorCode?: null | string;
 }
 
 // 分页响应类型
@@ -28,9 +28,9 @@ export interface PageResponse<T> {
 
 // 日志状态枚举
 export enum LogStatusEnum {
+  ERROR = 2,
   RUNNING = 0,
   SUCCESS = 1,
-  ERROR = 2,
 }
 
 // 日志查询参数
@@ -51,6 +51,10 @@ export interface LogQueryParams {
   startTime?: string;
   /** 结束时间 */
   endTime?: string;
+  /** 排序字段 */
+  sortBy?: string;
+  /** 排序方向 */
+  sortOrder?: string;
 }
 
 // 日志响应DTO
@@ -68,17 +72,17 @@ export interface LogResponseDto {
   /** 开始时间 */
   startTime: string;
   /** 结束时间 */
-  endTime?: string | null;
+  endTime?: null | string;
   /** 执行时长(毫秒) */
-  duration?: number | null;
+  duration?: null | number;
   /** 执行消息 */
-  message?: string | null;
+  message?: null | string;
   /** 异常信息 */
-  exception?: string | null;
+  exception?: null | string;
   /** 错误信息 */
-  errorMessage?: string | null;
+  errorMessage?: null | string;
   /** 异常栈跟踪 */
-  errorStackTrace?: string | null;
+  errorStackTrace?: null | string;
   /** 执行结果 */
   result?: any | null;
   /** 作业数据 */
@@ -97,7 +101,7 @@ export interface LogResponseDto {
  * @returns 日志列表分页数据
  */
 export async function getLogList(
-  params: LogQueryParams
+  params: LogQueryParams,
 ): Promise<ApiResponse<PageResponse<LogResponseDto>>> {
   return requestClient.post('/api/quartz/GetJobLogs', params);
 }
@@ -112,10 +116,10 @@ export async function getLogDetail(logId: string): Promise<LogResponseDto> {
   // 暂时返回模拟数据
   console.warn('后端未提供日志详情接口');
   return {
-    logId: logId,
+    logId,
     jobName: '模拟作业',
     jobGroup: 'DEFAULT',
-    triggerName: 'trigger-' + logId,
+    triggerName: `trigger-${logId}`,
     triggerGroup: 'DEFAULT',
     fireTime: new Date().toISOString(),
     startTime: new Date().toISOString(),
@@ -126,14 +130,14 @@ export async function getLogDetail(logId: string): Promise<LogResponseDto> {
   };
 }
 
-
-
 /**
  * 清除日志
  * @param params 查询参数
  * @returns 清除结果
  */
-export async function clearLogs(params: any = {}): Promise<ApiResponse<boolean>> {
+export async function clearLogs(
+  params: any = {},
+): Promise<ApiResponse<boolean>> {
   const response = await requestClient.post('/api/quartz/ClearLogs', params);
   return response;
 }
@@ -141,15 +145,17 @@ export async function clearLogs(params: any = {}): Promise<ApiResponse<boolean>>
 /**
  * 获取日志统计信息
  * 注：此接口在后端未实现，暂时返回模拟数据
- * @param params 查询参数
  * @returns 统计信息
  */
-export async function getLogStatistics(params?: { startTime?: string; endTime?: string }): Promise<{
-  totalLogs: number;
-  successCount: number;
+export async function getLogStatistics(_params?: {
+  endTime?: string;
+  startTime?: string;
+}): Promise<{
+  cancelledCount: number;
   failureCount: number;
   runningCount: number;
-  cancelledCount: number;
+  successCount: number;
+  totalLogs: number;
 }> {
   // 暂时返回模拟数据
   console.warn('后端未提供日志统计接口，返回模拟数据');
@@ -161,5 +167,3 @@ export async function getLogStatistics(params?: { startTime?: string; endTime?: 
     cancelledCount: 0,
   };
 }
-
-

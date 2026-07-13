@@ -1,52 +1,70 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive, h } from 'vue';
-import { formatDateTime } from '@vben/utils';
+import type {
+  FormInstance,
+  PaginationProps,
+  TableColumnsType,
+} from 'ant-design-vue';
+
+import type {
+  NotificationQueryDto,
+  PushPlusConfigDto,
+  QuartzNotificationDto,
+} from '../../api/quartz/notification';
+
+import { computed, h, onMounted, reactive, ref } from 'vue';
+
 import { Page } from '@vben/common-ui';
+import { formatDateTime } from '@vben/utils';
+
 import {
+  Alert,
+  Badge,
   Button,
+  Card,
+  Col,
+  Empty,
+  Form,
   Input,
+  InputNumber,
+  message,
+  Modal,
+  Row,
   Select,
   Space,
-  Modal,
-  Form,
   Switch,
-  message,
-  Tag,
   Table,
-  Card,
-  Row,
-  Col,
   Tooltip,
-  InputNumber,
   Typography,
-  Alert,
 } from 'ant-design-vue';
-import type { FormInstance, PaginationProps } from 'ant-design-vue';
-
-type SortOrder = 'ascend' | 'descend' | undefined;
 
 import { $t } from '#/locales';
 
 import {
-  NotificationStatusEnum,
+  clearNotifications,
+  deleteNotification,
+  getNotifications,
   getPushPlusConfig,
+  NotificationStatusEnum,
   savePushPlusConfig,
   sendTestNotification,
-  getNotifications,
-  deleteNotification,
-  clearNotifications,
 } from '../../api/quartz/notification';
-import type {
-  PushPlusConfigDto,
-  QuartzNotificationDto,
-  NotificationQueryDto,
-} from '../../api/quartz/notification';
+
+type SortOrder = 'ascend' | 'descend' | undefined;
 
 // 通知状态映射
 const notificationStatusMap = {
-  [NotificationStatusEnum.Pending]: { text: () => $t('page.quartz.notificationPage.statusPending'), status: 'default' },
-  [NotificationStatusEnum.Sent]: { text: () => $t('page.quartz.notificationPage.statusSent'), status: 'success' },
-  [NotificationStatusEnum.Failed]: { text: () => $t('page.quartz.notificationPage.statusFailed'), status: 'error' },
+  [NotificationStatusEnum.Pending]: {
+    text: () => $t('page.quartz.notificationPage.statusPending'),
+    status: 'default' as const,
+  },
+  [NotificationStatusEnum.Sent]: {
+    text: () => $t('page.quartz.notificationPage.statusSent'),
+    status: 'success' as const,
+  },
+  [NotificationStatusEnum.Failed]: {
+    text: () => $t('page.quartz.notificationPage.statusFailed'),
+    status: 'error' as const,
+  },
 };
 
 // 响应式数据
@@ -57,9 +75,22 @@ const total = ref(0);
 const currentPage = ref(1);
 const pageSize = ref(20);
 
+// 统计数据
+const stats = computed(() => {
+  const items = dataSource.value;
+  return {
+    total: total.value,
+    sent: items.filter((i) => i.status === NotificationStatusEnum.Sent).length,
+    failed: items.filter((i) => i.status === NotificationStatusEnum.Failed)
+      .length,
+    pending: items.filter((i) => i.status === NotificationStatusEnum.Pending)
+      .length,
+  };
+});
+
 // 详情对话框
 const detailModalVisible = ref(false);
-const currentNotification = ref<QuartzNotificationDto | null>(null);
+const currentNotification = ref<null | QuartzNotificationDto>(null);
 
 // 搜索条件
 const searchFormRef = ref<FormInstance>();
@@ -106,7 +137,7 @@ const optionPlaceholder = computed(() => {
 
 // 是否显示渠道参数区域
 const showChannelParams = computed(() => {
-  return ['webhook', 'cp', 'mail', 'wechat'].includes(configForm.channel);
+  return ['cp', 'mail', 'webhook', 'wechat'].includes(configForm.channel);
 });
 
 // 渠道提示信息
@@ -121,7 +152,7 @@ const channelTipMessage = computed(() => {
 });
 
 // 列配置
-const columns = computed(() => [
+const columns = computed<TableColumnsType>(() => [
   {
     title: $t('page.quartz.notificationPage.title'),
     dataIndex: 'title',
@@ -136,16 +167,16 @@ const columns = computed(() => [
     title: $t('page.quartz.notificationPage.status'),
     dataIndex: 'status',
     ellipsis: true,
-    width: 100,
+    width: 110,
     customRender: ({ record }: { record: QuartzNotificationDto }) => {
       const status = notificationStatusMap[record.status];
-      return {
-        children: h(
-          Tag,
-          { color: status?.status || 'default' },
-          status?.text?.() || record.status || $t('page.quartz.notificationPage.unknown'),
-        ),
-      };
+      return h(Badge, {
+        status: status?.status || 'default',
+        text:
+          status?.text?.() ||
+          record.status ||
+          $t('page.quartz.notificationPage.unknown'),
+      });
     },
   },
   {
@@ -155,9 +186,7 @@ const columns = computed(() => [
     sorter: true,
     sortOrder: sortBy.value === 'sendTime' ? sortOrder.value : undefined,
     customRender: ({ record }: { record: QuartzNotificationDto }) => {
-      return {
-        children: record.sendTime ? formatDateTime(record.sendTime) : '-',
-      };
+      return record.sendTime ? formatDateTime(record.sendTime) : '-';
     },
   },
   {
@@ -175,9 +204,7 @@ const columns = computed(() => [
     sorter: true,
     sortOrder: sortBy.value === 'createTime' ? sortOrder.value : undefined,
     customRender: ({ record }: { record: QuartzNotificationDto }) => {
-      return {
-        children: record.createTime ? formatDateTime(record.createTime) : '-',
-      };
+      return record.createTime ? formatDateTime(record.createTime) : '-';
     },
   },
   {
@@ -186,20 +213,31 @@ const columns = computed(() => [
     width: 100,
     fixed: 'right',
     customRender: ({ record }: { record: QuartzNotificationDto }) => {
-      return {
-        children: h(Space, { size: 4 }, [
+      return h(Space, { size: 4 }, [
+        h(Tooltip, { title: $t('page.quartz.notificationPage.detail') }, () =>
           h(
-            Tooltip,
-            { title: $t('page.quartz.notificationPage.detail') },
-            () => h(Button, { type: 'link', size: 'small', onClick: () => handleDetail(record) }, () => $t('page.quartz.notificationPage.detail')),
+            Button,
+            {
+              type: 'link',
+              size: 'small',
+              onClick: () => handleDetail(record),
+            },
+            () => $t('page.quartz.notificationPage.detail'),
           ),
+        ),
+        h(Tooltip, { title: $t('page.quartz.notificationPage.delete') }, () =>
           h(
-            Tooltip,
-            { title: $t('page.quartz.notificationPage.delete') },
-            () => h(Button, { type: 'link', size: 'small', danger: true, onClick: () => handleDelete(record) }, () => $t('page.quartz.notificationPage.delete')),
+            Button,
+            {
+              type: 'link',
+              size: 'small',
+              danger: true,
+              onClick: () => handleDelete(record),
+            },
+            () => $t('page.quartz.notificationPage.delete'),
           ),
-        ]),
-      };
+        ),
+      ]);
     },
   },
 ]);
@@ -211,7 +249,12 @@ const pagination = computed<PaginationProps>(() => ({
   total: total.value,
   showSizeChanger: true,
   showQuickJumper: true,
-  showTotal: (total, range) => $t('page.quartz.notificationPage.paginationTotal', { start: range[0], end: range[1], total }),
+  showTotal: (total, range) =>
+    $t('page.quartz.notificationPage.paginationTotal', {
+      start: range[0],
+      end: range[1],
+      total,
+    }),
   pageSizeOptions: ['10', '20', '50', '100'],
 }));
 
@@ -283,7 +326,7 @@ const handleReset = () => {
 const handleOpenConfigModal = async () => {
   try {
     const response = await getPushPlusConfig();
-    Object.assign(configForm, response.data);
+    Object.assign(configForm, response);
     configModalVisible.value = true;
   } catch (error) {
     message.error($t('page.quartz.notificationPage.getConfigFailed'));
@@ -304,13 +347,16 @@ const handleSaveConfig = async () => {
       message.success($t('page.quartz.notificationPage.saveConfigSuccess'));
       configModalVisible.value = false;
     } else {
-      message.error(response.message || $t('page.quartz.notificationPage.saveConfigFailed'));
+      message.error(
+        response.message || $t('page.quartz.notificationPage.saveConfigFailed'),
+      );
     }
   } catch (error: any) {
     if (error.errorFields) {
       return;
     }
-    const errorMessage = error.message || $t('page.quartz.notificationPage.saveConfigFailed');
+    const errorMessage =
+      error.message || $t('page.quartz.notificationPage.saveConfigFailed');
     message.error(errorMessage);
     console.error($t('page.quartz.notificationPage.saveConfigFailed'), error);
   } finally {
@@ -327,7 +373,9 @@ const handleSendTest = async () => {
       message.success($t('page.quartz.notificationPage.testSendSuccess'));
       loadNotificationList();
     } else {
-      message.error(response.message || $t('page.quartz.notificationPage.testSendFailed'));
+      message.error(
+        response.message || $t('page.quartz.notificationPage.testSendFailed'),
+      );
     }
   } catch (error) {
     message.error($t('page.quartz.notificationPage.testSendFailed'));
@@ -358,7 +406,9 @@ const handleDelete = (notification: QuartzNotificationDto) => {
           message.success($t('page.quartz.notificationPage.deleteSuccess'));
           loadNotificationList();
         } else {
-          message.error(response.message || $t('page.quartz.notificationPage.deleteFailed'));
+          message.error(
+            response.message || $t('page.quartz.notificationPage.deleteFailed'),
+          );
         }
       } catch (error) {
         message.error($t('page.quartz.notificationPage.deleteFailed'));
@@ -388,7 +438,9 @@ const handleClearNotifications = () => {
           message.success($t('page.quartz.notificationPage.clearSuccess'));
           loadNotificationList();
         } else {
-          message.error(response.message || $t('page.quartz.notificationPage.clearFailed'));
+          message.error(
+            response.message || $t('page.quartz.notificationPage.clearFailed'),
+          );
         }
       } catch (error) {
         message.error($t('page.quartz.notificationPage.clearFailed'));
@@ -407,168 +459,476 @@ onMounted(() => {
 <template>
   <Page auto-content-height>
     <template #default>
-      <Card class="mb-4">
-        <Form ref="searchFormRef" :model="searchForm" layout="horizontal" :label-align="'right'">
-          <Row :gutter="16">
-            <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="6" :xxl="4">
-              <Form.Item :label="$t('page.quartz.notificationPage.notificationStatus')" name="status">
-                <Select v-model:value="searchForm.status" :placeholder="$t('page.quartz.notificationPage.placeholderStatus')" allowClear>
-                  <Select.Option :value="NotificationStatusEnum.Pending">{{ $t('page.quartz.notificationPage.statusPending') }}</Select.Option>
-                  <Select.Option :value="NotificationStatusEnum.Sent">{{ $t('page.quartz.notificationPage.statusSent') }}</Select.Option>
-                  <Select.Option :value="NotificationStatusEnum.Failed">{{ $t('page.quartz.notificationPage.statusFailed') }}</Select.Option>
+      <!-- 统计概览 -->
+      <Row :gutter="[12, 12]" class="mb-3">
+        <Col :xs="12" :sm="12" :md="6">
+          <Card
+            class="stat-mini-card"
+            :bordered="false"
+            :body-style="{ padding: '14px 16px' }"
+          >
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-xs text-muted-foreground">
+                  {{ $t('page.quartz.notificationPage.totalNotifications') }}
+                </div>
+                <div class="mt-1 text-xl font-bold text-foreground">
+                  {{ stats.total }}
+                </div>
+              </div>
+              <div class="stat-mini-icon bg-primary/10 text-primary">
+                <span style="font-size: 18px">&#x1F514;</span>
+              </div>
+            </div>
+          </Card>
+        </Col>
+        <Col :xs="12" :sm="12" :md="6">
+          <Card
+            class="stat-mini-card"
+            :bordered="false"
+            :body-style="{ padding: '14px 16px' }"
+          >
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-xs text-muted-foreground">
+                  {{ $t('page.quartz.notificationPage.sentCount') }}
+                </div>
+                <div class="mt-1 text-xl font-bold text-success">
+                  {{ stats.sent }}
+                </div>
+              </div>
+              <div class="stat-mini-icon bg-success/10 text-success">
+                <span style="font-size: 18px">&#x2713;</span>
+              </div>
+            </div>
+          </Card>
+        </Col>
+        <Col :xs="12" :sm="12" :md="6">
+          <Card
+            class="stat-mini-card"
+            :bordered="false"
+            :body-style="{ padding: '14px 16px' }"
+          >
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-xs text-muted-foreground">
+                  {{ $t('page.quartz.notificationPage.failedCount') }}
+                </div>
+                <div class="mt-1 text-xl font-bold text-destructive">
+                  {{ stats.failed }}
+                </div>
+              </div>
+              <div class="stat-mini-icon bg-destructive/10 text-destructive">
+                <span style="font-size: 18px">&#x2717;</span>
+              </div>
+            </div>
+          </Card>
+        </Col>
+        <Col :xs="12" :sm="12" :md="6">
+          <Card
+            class="stat-mini-card"
+            :bordered="false"
+            :body-style="{ padding: '14px 16px' }"
+          >
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-xs text-muted-foreground">
+                  {{ $t('page.quartz.notificationPage.pendingCount') }}
+                </div>
+                <div class="mt-1 text-xl font-bold text-warning">
+                  {{ stats.pending }}
+                </div>
+              </div>
+              <div class="stat-mini-icon bg-warning/10 text-warning">
+                <span style="font-size: 18px">&#x23F3;</span>
+              </div>
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
+      <!-- 搜索卡片 -->
+      <Card class="search-card mb-3" :body-style="{ padding: '16px 20px' }">
+        <Form ref="searchFormRef" :model="searchForm" layout="inline">
+          <Row :gutter="[16, 12]" class="w-full">
+            <Col :xs="24" :sm="12" :md="8" :lg="6" :xl="5">
+              <Form.Item
+                :label="$t('page.quartz.notificationPage.notificationStatus')"
+                name="status"
+                class="mb-0"
+              >
+                <Select
+                  v-model:value="searchForm.status"
+                  :placeholder="
+                    $t('page.quartz.notificationPage.placeholderStatus')
+                  "
+                  allow-clear
+                >
+                  <Select.Option :value="NotificationStatusEnum.Pending">
+                    {{ $t('page.quartz.notificationPage.statusPending') }}
+                  </Select.Option>
+                  <Select.Option :value="NotificationStatusEnum.Sent">
+                    {{ $t('page.quartz.notificationPage.statusSent') }}
+                  </Select.Option>
+                  <Select.Option :value="NotificationStatusEnum.Failed">
+                    {{ $t('page.quartz.notificationPage.statusFailed') }}
+                  </Select.Option>
                 </Select>
               </Form.Item>
             </Col>
-            <Col :xs="24" :sm="12" :md="12" :lg="8" :xl="6" :xxl="6">
-              <Form.Item :label="$t('page.quartz.notificationPage.triggeredBy')" name="triggeredBy">
-                <Input v-model:value="searchForm.triggeredBy" :placeholder="$t('page.quartz.notificationPage.placeholderTriggeredBy')" />
+            <Col :xs="24" :sm="12" :md="8" :lg="6" :xl="5">
+              <Form.Item
+                :label="$t('page.quartz.notificationPage.triggeredBy')"
+                name="triggeredBy"
+                class="mb-0"
+              >
+                <Input
+                  v-model:value="searchForm.triggeredBy"
+                  :placeholder="
+                    $t('page.quartz.notificationPage.placeholderTriggeredBy')
+                  "
+                  allow-clear
+                />
               </Form.Item>
             </Col>
-            <Col :xs="24" :sm="24" :md="24" :lg="8" :xl="12" :xxl="14" class="text-right">
-              <Space>
-                <Button type="primary" @click="handleSearch">{{ $t('page.quartz.notificationPage.search') }}</Button>
-                <Button @click="handleReset">{{ $t('page.quartz.notificationPage.reset') }}</Button>
-              </Space>
+            <Col :xs="24" :sm="24" :md="8" :lg="12" :xl="14" class="text-right">
+              <Form.Item class="mb-0">
+                <Space>
+                  <Button type="primary" @click="handleSearch">
+                    {{ $t('page.quartz.notificationPage.search') }}
+                  </Button>
+                  <Button @click="handleReset">
+                    {{ $t('page.quartz.notificationPage.reset') }}
+                  </Button>
+                </Space>
+              </Form.Item>
             </Col>
           </Row>
         </Form>
       </Card>
 
       <!-- 通知管理卡片 -->
-      <Card>
-        <div class="mb-4 flex items-center justify-between">
+      <Card :body-style="{ padding: '16px 20px' }">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <Space>
-            <Button type="primary" @click="handleOpenConfigModal">{{ $t('page.quartz.notificationPage.notificationConfig') }}</Button>
-            <Button type="default" @click="handleSendTest">{{ $t('page.quartz.notificationPage.sendTestNotification') }}</Button>
+            <Button type="primary" @click="handleOpenConfigModal">
+              {{ $t('page.quartz.notificationPage.notificationConfig') }}
+            </Button>
+            <Button @click="handleSendTest">
+              {{ $t('page.quartz.notificationPage.sendTestNotification') }}
+            </Button>
           </Space>
-          <Space>
-            <Button danger @click="handleClearNotifications">{{ $t('page.quartz.notificationPage.clearAll') }}</Button>
-          </Space>
+          <Button danger @click="handleClearNotifications">
+            {{ $t('page.quartz.notificationPage.clearAll') }}
+          </Button>
         </div>
-        <Table :columns="columns" :data-source="dataSource" :pagination="pagination" :loading="loading"
-          :rowKey="(record) => record.notificationId" @change="handleTableChange" size="middle"
-          :scroll="{ x: 'max-content' }" />
+        <Table
+          :columns="columns"
+          :data-source="dataSource"
+          :pagination="pagination"
+          :loading="loading"
+          :row-key="(record) => record.notificationId"
+          @change="handleTableChange"
+          size="middle"
+          :scroll="{ x: 'max-content' }"
+        >
+          <template #emptyText>
+            <Empty
+              :description="
+                $t('page.quartz.notificationPage.noNotificationData')
+              "
+            />
+          </template>
+        </Table>
       </Card>
 
       <!-- 配置对话框 -->
-      <Modal v-model:open="configModalVisible" :title="$t('page.quartz.notificationPage.notificationConfig')" width="720px" destroyOnClose
-        @cancel="configModalVisible = false" centered>
+      <Modal
+        v-model:open="configModalVisible"
+        :title="$t('page.quartz.notificationPage.notificationConfig')"
+        width="720px"
+        destroy-on-close
+        centered
+        @cancel="configModalVisible = false"
+      >
         <div class="config-modal-content">
-          <Alert :message="$t('page.quartz.notificationPage.configPushPlusDesc')" type="info" show-icon class="config-tip-alert" />
+          <Alert
+            :message="$t('page.quartz.notificationPage.configPushPlusDesc')"
+            type="info"
+            show-icon
+            class="mb-3"
+          />
 
-          <Form ref="formRef" :model="configForm" layout="vertical" class="custom-form" size="small">
+          <Form
+            ref="formRef"
+            :model="configForm"
+            layout="vertical"
+            size="small"
+          >
             <!-- 基础配置 -->
             <section class="form-section">
               <div class="section-header">
-                <span class="title">{{ $t('page.quartz.notificationPage.basicConfig') }}</span>
+                <span class="title">{{
+                  $t('page.quartz.notificationPage.basicConfig')
+                }}</span>
                 <div class="header-action">
-                  <span class="label">{{ $t('page.quartz.notificationPage.serviceEnableStatus') }}</span>
+                  <span class="label">{{
+                    $t('page.quartz.notificationPage.serviceEnableStatus')
+                  }}</span>
                   <Switch v-model:checked="configForm.enable" size="small" />
                 </div>
               </div>
 
               <Row :gutter="12" align="middle">
                 <Col :span="16">
-                  <Form.Item label="PushPlus Token" name="token"
-                    :rules="[{ required: configForm.enable, message: $t('page.quartz.notificationPage.tokenRequired') }]">
-                    <Input.Password v-model:value="configForm.token" :placeholder="$t('page.quartz.notificationPage.tokenPlaceholder')" autocomplete="off" />
+                  <Form.Item
+                    label="PushPlus Token"
+                    name="token"
+                    :rules="[
+                      {
+                        required: configForm.enable,
+                        message: $t(
+                          'page.quartz.notificationPage.tokenRequired',
+                        ),
+                      },
+                    ]"
+                  >
+                    <Input.Password
+                      v-model:value="configForm.token"
+                      :placeholder="
+                        $t('page.quartz.notificationPage.tokenPlaceholder')
+                      "
+                      autocomplete="off"
+                    />
                   </Form.Item>
                 </Col>
                 <Col :span="8">
-                  <Form.Item :label="$t('page.quartz.notificationPage.topicLabel')" name="topic">
-                    <Input v-model:value="configForm.topic" :placeholder="$t('page.quartz.notificationPage.topicPlaceholder')" />
+                  <Form.Item
+                    :label="$t('page.quartz.notificationPage.topicLabel')"
+                    name="topic"
+                  >
+                    <Input
+                      v-model:value="configForm.topic"
+                      :placeholder="
+                        $t('page.quartz.notificationPage.topicPlaceholder')
+                      "
+                    />
                   </Form.Item>
                 </Col>
                 <Col :span="8">
-                  <Form.Item :label="$t('page.quartz.notificationPage.pushChannel')" name="channel">
+                  <Form.Item
+                    :label="$t('page.quartz.notificationPage.pushChannel')"
+                    name="channel"
+                  >
                     <Select v-model:value="configForm.channel">
-                      <Select.Option value="wechat">{{ $t('page.quartz.notificationPage.channelWechat') }}</Select.Option>
-                      <Select.Option value="cp">{{ $t('page.quartz.notificationPage.channelWechatWork') }}</Select.Option>
-                      <Select.Option value="webhook">{{ $t('page.quartz.notificationPage.channelWebhook') }}</Select.Option>
-                      <Select.Option value="mail">{{ $t('page.quartz.notificationPage.channelEmail') }}</Select.Option>
-                      <Select.Option value="sms">{{ $t('page.quartz.notificationPage.channelSms') }}</Select.Option>
-                      <Select.Option value="voice">{{ $t('page.quartz.notificationPage.channelVoice') }}</Select.Option>
-                      <Select.Option value="extension">{{ $t('page.quartz.notificationPage.channelExtension') }}</Select.Option>
-                      <Select.Option value="app">{{ $t('page.quartz.notificationPage.channelApp') }}</Select.Option>
+                      <Select.Option value="wechat">
+                        {{ $t('page.quartz.notificationPage.channelWechat') }}
+                      </Select.Option>
+                      <Select.Option value="cp">
+                        {{
+                          $t('page.quartz.notificationPage.channelWechatWork')
+                        }}
+                      </Select.Option>
+                      <Select.Option value="webhook">
+                        {{ $t('page.quartz.notificationPage.channelWebhook') }}
+                      </Select.Option>
+                      <Select.Option value="mail">
+                        {{ $t('page.quartz.notificationPage.channelEmail') }}
+                      </Select.Option>
+                      <Select.Option value="sms">
+                        {{ $t('page.quartz.notificationPage.channelSms') }}
+                      </Select.Option>
+                      <Select.Option value="voice">
+                        {{ $t('page.quartz.notificationPage.channelVoice') }}
+                      </Select.Option>
+                      <Select.Option value="extension">
+                        {{
+                          $t('page.quartz.notificationPage.channelExtension')
+                        }}
+                      </Select.Option>
+                      <Select.Option value="app">
+                        {{ $t('page.quartz.notificationPage.channelApp') }}
+                      </Select.Option>
                     </Select>
                   </Form.Item>
                 </Col>
                 <Col :span="8">
-                  <Form.Item :label="$t('page.quartz.notificationPage.messageTemplate')" name="template">
+                  <Form.Item
+                    :label="$t('page.quartz.notificationPage.messageTemplate')"
+                    name="template"
+                  >
                     <Select v-model:value="configForm.template">
-                      <Select.Option value="html">{{ $t('page.quartz.notificationPage.templateHtml') }}</Select.Option>
-                      <Select.Option value="txt">{{ $t('page.quartz.notificationPage.templateTxt') }}</Select.Option>
-                      <Select.Option value="json">{{ $t('page.quartz.notificationPage.templateJson') }}</Select.Option>
-                      <Select.Option value="markdown">{{ $t('page.quartz.notificationPage.templateMarkdown') }}</Select.Option>
+                      <Select.Option value="html">
+                        {{ $t('page.quartz.notificationPage.templateHtml') }}
+                      </Select.Option>
+                      <Select.Option value="txt">
+                        {{ $t('page.quartz.notificationPage.templateTxt') }}
+                      </Select.Option>
+                      <Select.Option value="json">
+                        {{ $t('page.quartz.notificationPage.templateJson') }}
+                      </Select.Option>
+                      <Select.Option value="markdown">
+                        {{
+                          $t('page.quartz.notificationPage.templateMarkdown')
+                        }}
+                      </Select.Option>
                     </Select>
                   </Form.Item>
                 </Col>
-                <Col v-if="['webhook', 'cp', 'mail'].includes(configForm.channel)" :span="8">
-                  <Form.Item :label="$t('page.quartz.notificationPage.optionLabel')" name="option"
-                    :rules="[{ required: ['webhook', 'cp'].includes(configForm.channel), message: $t('page.quartz.notificationPage.optionRequired') }]">
-                    <Input v-model:value="configForm.option" :placeholder="optionPlaceholder" />
+                <Col
+                  v-if="['webhook', 'cp', 'mail'].includes(configForm.channel)"
+                  :span="8"
+                >
+                  <Form.Item
+                    :label="$t('page.quartz.notificationPage.optionLabel')"
+                    name="option"
+                    :rules="[
+                      {
+                        required: ['webhook', 'cp'].includes(
+                          configForm.channel,
+                        ),
+                        message: $t(
+                          'page.quartz.notificationPage.optionRequired',
+                        ),
+                      },
+                    ]"
+                  >
+                    <Input
+                      v-model:value="configForm.option"
+                      :placeholder="optionPlaceholder"
+                    />
                   </Form.Item>
                 </Col>
-                <Col v-if="['wechat', 'cp'].includes(configForm.channel)" :span="8">
-                  <Form.Item :label="$t('page.quartz.notificationPage.toLabel')" name="to">
-                    <Input v-model:value="configForm.to" :placeholder="$t('page.quartz.notificationPage.toPlaceholder')" />
+                <Col
+                  v-if="['wechat', 'cp'].includes(configForm.channel)"
+                  :span="8"
+                >
+                  <Form.Item
+                    :label="$t('page.quartz.notificationPage.toLabel')"
+                    name="to"
+                  >
+                    <Input
+                      v-model:value="configForm.to"
+                      :placeholder="
+                        $t('page.quartz.notificationPage.toPlaceholder')
+                      "
+                    />
                   </Form.Item>
                 </Col>
               </Row>
 
-              <Alert v-if="showChannelParams" :message="channelTipMessage" type="warning" show-icon class="channel-tip" />
+              <Alert
+                v-if="showChannelParams"
+                :message="channelTipMessage"
+                type="warning"
+                show-icon
+                class="mt-1"
+              />
             </section>
 
             <!-- 通知策略 -->
-            <section class="form-section last">
+            <section class="form-section">
               <div class="section-header">
-                <span class="title">{{ $t('page.quartz.notificationPage.notificationStrategy') }}</span>
+                <span class="title">{{
+                  $t('page.quartz.notificationPage.notificationStrategy')
+                }}</span>
               </div>
 
               <div class="strategy-grid">
                 <div class="strategy-item">
                   <div class="strategy-info">
-                    <div class="name">{{ $t('page.quartz.notificationPage.jobSuccess') }}</div>
-                    <div class="desc">{{ $t('page.quartz.notificationPage.jobSuccessDesc') }}</div>
+                    <div class="name">
+                      {{ $t('page.quartz.notificationPage.jobSuccess') }}
+                    </div>
+                    <div class="desc">
+                      {{ $t('page.quartz.notificationPage.jobSuccessDesc') }}
+                    </div>
                   </div>
-                  <Switch v-model:checked="configForm.strategy.notifyOnJobSuccess" />
+                  <Switch
+                    v-model:checked="configForm.strategy.notifyOnJobSuccess"
+                  />
                 </div>
 
                 <div class="strategy-item">
                   <div class="strategy-info">
-                    <div class="name">{{ $t('page.quartz.notificationPage.jobFailure') }}</div>
-                    <div class="desc">{{ $t('page.quartz.notificationPage.jobFailureDesc') }}</div>
+                    <div class="name">
+                      {{ $t('page.quartz.notificationPage.jobFailure') }}
+                    </div>
+                    <div class="desc">
+                      {{ $t('page.quartz.notificationPage.jobFailureDesc') }}
+                    </div>
                   </div>
-                  <Switch v-model:checked="configForm.strategy.notifyOnJobFailure" />
+                  <Switch
+                    v-model:checked="configForm.strategy.notifyOnJobFailure"
+                  />
                 </div>
 
                 <div class="strategy-item">
                   <div class="strategy-info">
-                    <div class="name">{{ $t('page.quartz.notificationPage.schedulerError') }}</div>
-                    <div class="desc">{{ $t('page.quartz.notificationPage.schedulerErrorDesc') }}</div>
+                    <div class="name">
+                      {{ $t('page.quartz.notificationPage.schedulerError') }}
+                    </div>
+                    <div class="desc">
+                      {{
+                        $t('page.quartz.notificationPage.schedulerErrorDesc')
+                      }}
+                    </div>
                   </div>
-                  <Switch v-model:checked="configForm.strategy.notifyOnSchedulerError" />
+                  <Switch
+                    v-model:checked="configForm.strategy.notifyOnSchedulerError"
+                  />
                 </div>
               </div>
             </section>
 
             <!-- 高级配置 -->
             <div class="advanced-section">
-              <div class="section-header" @click="advancedVisible = !advancedVisible">
-                <span class="title">{{ $t('page.quartz.notificationPage.advancedConfig') }}</span>
-                <span class="toggle-icon" :class="{ expanded: advancedVisible }">›</span>
+              <div
+                class="section-header"
+                @click="advancedVisible = !advancedVisible"
+              >
+                <span class="title">{{
+                  $t('page.quartz.notificationPage.advancedConfig')
+                }}</span>
+                <span class="toggle-icon" :class="{ expanded: advancedVisible }"
+                  >&#x203A;</span
+                >
               </div>
               <div v-show="advancedVisible" class="advanced-body">
                 <Row :gutter="12">
                   <Col :span="16">
-                    <Form.Item :label="$t('page.quartz.notificationPage.callbackUrlLabel')" name="callbackUrl">
-                      <Input v-model:value="configForm.callbackUrl" :placeholder="$t('page.quartz.notificationPage.callbackUrlPlaceholder')" />
+                    <Form.Item
+                      :label="
+                        $t('page.quartz.notificationPage.callbackUrlLabel')
+                      "
+                      name="callbackUrl"
+                    >
+                      <Input
+                        v-model:value="configForm.callbackUrl"
+                        :placeholder="
+                          $t(
+                            'page.quartz.notificationPage.callbackUrlPlaceholder',
+                          )
+                        "
+                      />
                     </Form.Item>
                   </Col>
                   <Col :span="8">
-                    <Form.Item :label="$t('page.quartz.notificationPage.timestampLabel')" name="timestamp">
-                      <InputNumber v-model:value="configForm.timestamp" :placeholder="$t('page.quartz.notificationPage.timestampPlaceholder')"
-                        :precision="0" :min="0" style="width: 100%" />
+                    <Form.Item
+                      :label="$t('page.quartz.notificationPage.timestampLabel')"
+                      name="timestamp"
+                    >
+                      <InputNumber
+                        v-model:value="configForm.timestamp"
+                        :placeholder="
+                          $t(
+                            'page.quartz.notificationPage.timestampPlaceholder',
+                          )
+                        "
+                        :precision="0"
+                        :min="0"
+                        style="width: 100%"
+                      />
                     </Form.Item>
                   </Col>
                 </Row>
@@ -578,78 +938,123 @@ onMounted(() => {
         </div>
 
         <template #footer>
-          <div class="modal-footer">
-            <Button @click="configModalVisible = false">{{ $t('page.quartz.notificationPage.cancel') }}</Button>
-            <Button type="primary" :loading="saveLoading" @click="handleSaveConfig">{{ $t('page.quartz.notificationPage.saveConfig') }}</Button>
+          <div class="flex justify-end gap-3">
+            <Button @click="configModalVisible = false">
+              {{ $t('page.quartz.notificationPage.cancel') }}
+            </Button>
+            <Button
+              type="primary"
+              :loading="saveLoading"
+              @click="handleSaveConfig"
+            >
+              {{ $t('page.quartz.notificationPage.saveConfig') }}
+            </Button>
           </div>
         </template>
       </Modal>
 
       <!-- 详情对话框 -->
-      <Modal v-model:open="detailModalVisible" :title="$t('page.quartz.notificationPage.notificationDetail')" width="80%" :max-width="1200" :footer="null"
-        :destroyOnClose="true">
+      <Modal
+        v-model:open="detailModalVisible"
+        :title="$t('page.quartz.notificationPage.notificationDetail')"
+        width="800px"
+        :footer="null"
+        :destroy-on-close="true"
+        centered
+      >
         <div v-if="currentNotification" class="notification-detail">
           <!-- 头部信息 -->
-          <div class="detail-header mb-4 rounded-lg p-5">
-            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <Typography.Title :level="4" class="m-0 text-ellipsis max-w-[70%]">
+          <div class="detail-header mb-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <Typography.Text strong class="text-base">
                 {{ currentNotification.title }}
-              </Typography.Title>
-              <Tag :color="notificationStatusMap[currentNotification.status].status"
-                class="text-lg px-4 py-1 text-base">
-                {{ notificationStatusMap[currentNotification.status].text() }}
-              </Tag>
+              </Typography.Text>
+              <Badge
+                :status="
+                  notificationStatusMap[currentNotification.status]?.status ||
+                  'default'
+                "
+                :text="
+                  notificationStatusMap[currentNotification.status]?.text?.() ||
+                  $t('page.quartz.notificationPage.unknown')
+                "
+              />
             </div>
 
-            <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
-              <div class="info-item flex items-center gap-2 p-2 rounded">
-                <span class="font-semibold text-sm opacity-80">{{ $t('page.quartz.notificationPage.triggerSource') }}</span>
-                <span class="text-sm">{{ currentNotification.triggeredBy || '-' }}</span>
+            <div
+              class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4"
+            >
+              <div class="info-item">
+                <span class="info-label">{{
+                  $t('page.quartz.notificationPage.triggerSource')
+                }}</span>
+                <span class="info-value">{{
+                  currentNotification.triggeredBy || '-'
+                }}</span>
               </div>
-              <div class="info-item flex items-center gap-2 p-2 rounded">
-                <span class="font-semibold text-sm opacity-80">{{ $t('page.quartz.notificationPage.sendDateTime') }}</span>
-                <span class="text-sm">{{
+              <div class="info-item">
+                <span class="info-label">{{
+                  $t('page.quartz.notificationPage.sendDateTime')
+                }}</span>
+                <span class="info-value">{{
                   currentNotification.sendTime
                     ? formatDateTime(currentNotification.sendTime)
-                    : '-' }}
-                </span>
+                    : '-'
+                }}</span>
               </div>
-              <div class="info-item flex items-center gap-2 p-2 rounded">
-                <span class="font-semibold text-sm opacity-80">{{ $t('page.quartz.notificationPage.sendDuration') }}</span>
-                <span class="text-sm">{{
+              <div class="info-item">
+                <span class="info-label">{{
+                  $t('page.quartz.notificationPage.sendDuration')
+                }}</span>
+                <span class="info-value font-mono">{{
                   currentNotification.duration
                     ? `${currentNotification.duration} ms`
-                    : '0 ms' }}
-                </span>
+                    : '0 ms'
+                }}</span>
               </div>
-              <div class="info-item flex items-center gap-2 p-2 rounded">
-                <span class="font-semibold text-sm opacity-80">{{ $t('page.quartz.notificationPage.createDateTime') }}</span>
-                <span class="text-sm">{{ formatDateTime(currentNotification.createTime) }}</span>
+              <div class="info-item">
+                <span class="info-label">{{
+                  $t('page.quartz.notificationPage.createDateTime')
+                }}</span>
+                <span class="info-value">{{
+                  formatDateTime(currentNotification.createTime)
+                }}</span>
               </div>
             </div>
           </div>
 
           <!-- 内容区域 -->
-          <div class="detail-content space-y-6">
+          <div class="detail-content space-y-4">
             <div class="content-section">
-              <Typography.Title :level="5" class="mb-3">{{ $t('page.quartz.notificationPage.notificationContent') }}</Typography.Title>
-              <div class="content-card info-card rounded-lg p-4">
-                <div class="word-break-break-word text-sm" v-html="currentNotification.content"></div>
+              <Typography.Text strong>
+                {{ $t('page.quartz.notificationPage.notificationContent') }}
+              </Typography.Text>
+              <div class="content-card info-card mt-2">
+                <div
+                  class="content-html"
+                  v-html="currentNotification.content"
+                ></div>
               </div>
             </div>
 
-            <div v-if="currentNotification.errorMessage" class="content-section">
-              <Typography.Title :level="5" class="mb-3">{{ $t('page.quartz.notificationPage.errorInfo') }}</Typography.Title>
-              <div class="content-card error-card rounded-lg p-4">
-                <pre class="code-block word-break-break-word m-0 whitespace-pre-wrap text-sm">{{
-                  currentNotification.errorMessage }}</pre>
+            <div
+              v-if="currentNotification.errorMessage"
+              class="content-section"
+            >
+              <Typography.Text strong class="text-destructive">
+                {{ $t('page.quartz.notificationPage.errorInfo') }}
+              </Typography.Text>
+              <div class="content-card error-card mt-2">
+                <pre class="code-block">{{
+                  currentNotification.errorMessage
+                }}</pre>
               </div>
             </div>
           </div>
         </div>
 
-        <div class="mt-6 flex justify-end">
-          <Button @click="detailModalVisible = false" type="primary" size="large" class="px-6">
+        <div class="mt-5 flex justify-end">
+          <Button @click="detailModalVisible = false" type="primary">
             {{ $t('page.quartz.notificationPage.close') }}
           </Button>
         </div>
@@ -659,63 +1064,121 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.detail-header {
-  background: var(--color-bg-container) !important;
-  border: 1px solid var(--color-border) !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+/* 统计迷你卡片 */
+.stat-mini-card {
+  background: hsl(var(--card)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 10px;
+  transition: border-color 0.2s;
 }
 
-.info-item {
-  background: rgba(var(--color-text-secondary-rgb), 0.05);
-  border-radius: 4px;
-  transition: all 0.3s ease;
+.stat-mini-card:hover {
+  border-color: hsl(var(--primary) / 0.3) !important;
 }
 
-.info-item:hover {
-  background: rgba(var(--color-text-secondary-rgb), 0.1);
-}
-
-.detail-content {
-  :deep(.ant-typography) {
-    color: var(--color-text) !important;
-  }
-}
-
-.content-card {
-  background: var(--color-bg-container) !important;
-  border: 1px solid var(--color-border) !important;
+.stat-mini-icon {
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* 搜索卡片 */
+.search-card {
+  background: hsl(var(--card)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 10px;
+}
+
+/* 详情头部 */
+.detail-header {
+  padding: 16px;
+  background: hsl(var(--muted) / 0.5);
+  border-radius: 10px;
+  border: 1px solid hsl(var(--border));
+}
+
+/* 信息项 */
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.info-label {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+
+.info-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+}
+
+/* 内容卡片 */
+.content-card {
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  transition: box-shadow 0.2s;
+  overflow: hidden;
 }
 
 .content-card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px hsl(var(--foreground) / 0.06);
 }
 
 .error-card {
-  background: rgba(var(--color-error-rgb), 0.1) !important;
-  border: 1px solid var(--color-error-light) !important;
+  background: hsl(var(--destructive) / 0.04);
+  border-color: hsl(var(--destructive) / 0.2);
+}
+
+.error-card .code-block {
+  color: hsl(var(--destructive));
 }
 
 .info-card {
-  background: rgba(var(--color-success-rgb), 0.1) !important;
-  border: 1px solid var(--color-success-light) !important;
+  background: hsl(var(--primary) / 0.03);
+  border-color: hsl(var(--primary) / 0.15);
+}
+
+.content-html {
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: hsl(var(--foreground));
+  word-break: break-word;
+}
+
+.content-html :deep(img) {
+  max-width: 100%;
 }
 
 .code-block {
-  color: var(--color-text) !important;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  margin: 0;
+  padding: 12px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 12px;
   line-height: 1.6;
-  padding: 0.75rem;
-  border-radius: 4px;
-  background: rgba(var(--color-text-rgb), 0.03) !important;
+  white-space: pre-wrap;
+  word-break: break-word;
   overflow-x: auto;
-  max-height: 400px;
+  max-height: 360px;
+  overflow-y: auto;
+  color: hsl(var(--foreground));
 }
 
-.error-card :deep(.code-block) {
-  color: #ff4d4f !important;
+/* 间距工具类 */
+.mb-3 {
+  margin-bottom: 12px;
+}
+
+.text-right {
+  text-align: right;
 }
 </style>
 
@@ -737,23 +1200,23 @@ onMounted(() => {
 
   .form-section {
     padding: 12px;
-    background: var(--ant-color-fill-quaternary);
+    background: hsl(var(--muted) / 0.5);
     border-radius: 8px;
     margin-bottom: 12px;
-    border: 1px solid var(--ant-color-border-secondary);
+    border: 1px solid hsl(var(--border));
 
     .section-header {
       display: flex;
       align-items: center;
       margin-bottom: 10px;
       padding-bottom: 8px;
-      border-bottom: 1px solid var(--ant-color-border-split);
+      border-bottom: 1px solid hsl(var(--border));
 
       .title {
         font-size: 14px;
         font-weight: 600;
         flex: 1;
-        color: var(--ant-color-text);
+        color: hsl(var(--foreground));
       }
 
       .header-action {
@@ -763,30 +1226,17 @@ onMounted(() => {
 
         .label {
           font-size: 12px;
-          color: var(--ant-color-text-description);
+          color: hsl(var(--muted-foreground));
         }
       }
     }
-
-    &.last {
-      margin-bottom: 0;
-    }
-  }
-
-  .channel-tip {
-    border-radius: 6px;
-    margin-top: 4px;
-  }
-
-  .config-tip-alert {
-    margin-bottom: 12px;
   }
 
   .advanced-section {
     margin-top: 12px;
-    background: var(--ant-color-fill-quaternary);
+    background: hsl(var(--muted) / 0.5);
     border-radius: 8px;
-    border: 1px solid var(--ant-color-border-secondary);
+    border: 1px solid hsl(var(--border));
     overflow: hidden;
 
     .section-header {
@@ -798,19 +1248,19 @@ onMounted(() => {
       transition: background 0.2s;
 
       &:hover {
-        background: var(--ant-color-fill-tertiary);
+        background: hsl(var(--accent));
       }
 
       .title {
         font-size: 13px;
         font-weight: 600;
-        color: var(--ant-color-text-description);
+        color: hsl(var(--muted-foreground));
       }
 
       .toggle-icon {
         margin-left: 6px;
         font-size: 16px;
-        color: var(--ant-color-text-description);
+        color: hsl(var(--muted-foreground));
         transition: transform 0.2s ease;
         display: inline-block;
         line-height: 1;
@@ -823,7 +1273,7 @@ onMounted(() => {
 
     .advanced-body {
       padding: 0 12px 12px;
-      border-top: 1px solid var(--ant-color-border-secondary);
+      border-top: 1px solid hsl(var(--border));
     }
   }
 
@@ -837,25 +1287,25 @@ onMounted(() => {
       justify-content: space-between;
       align-items: center;
       padding: 8px 10px;
-      background: var(--ant-component-background);
-      border: 1px solid var(--ant-color-border-secondary);
+      background: hsl(var(--card));
+      border: 1px solid hsl(var(--border));
       border-radius: 6px;
       transition: all 0.2s ease;
 
       &:hover {
-        border-color: var(--ant-color-primary-border);
+        border-color: hsl(var(--primary) / 0.3);
       }
 
       .strategy-info {
         .name {
           font-size: 13px;
           font-weight: 500;
-          color: var(--ant-color-text);
+          color: hsl(var(--foreground));
         }
 
         .desc {
           font-size: 11px;
-          color: var(--ant-color-text-description);
+          color: hsl(var(--muted-foreground));
           margin-top: 1px;
         }
       }
@@ -863,37 +1313,9 @@ onMounted(() => {
   }
 }
 
-.modal-footer {
-  padding: 10px 0;
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-::where(.dark) {
-  .config-modal-content {
-    .form-section {
-      background: rgba(255, 255, 255, 0.04);
-      border-color: #303030;
-    }
-
-    .advanced-section {
-      background: rgba(255, 255, 255, 0.04);
-      border-color: #303030;
-    }
-
-    .strategy-item {
-      background: #141414 !important;
-      border-color: #303030 !important;
-
-      &:hover {
-        border-color: var(--ant-color-primary) !important;
-      }
-    }
+@media (max-width: 640px) {
+  .strategy-grid {
+    grid-template-columns: 1fr !important;
   }
-}
-
-.mb-3 {
-  margin-bottom: 12px;
 }
 </style>
