@@ -532,7 +532,7 @@ onMounted(async () => {
         <template #action="{ row }">
           <div class="flex items-center justify-center gap-3">
             <Tooltip :title="$t('page.quartz.notificationPage.detail')">
-              <i class="vxe-icon-eye-fill text-primary cursor-pointer hover:opacity-80" @click="handleDetail(row)"></i>
+              <i class="vxe-icon-info-circle-fill text-primary cursor-pointer hover:opacity-80" @click="handleDetail(row)"></i>
             </Tooltip>
             <Tooltip :title="$t('page.quartz.notificationPage.delete')">
               <i class="vxe-icon-delete cursor-pointer hover:opacity-80" style="color: var(--ant-color-error)" @click="handleDelete(row)"></i>

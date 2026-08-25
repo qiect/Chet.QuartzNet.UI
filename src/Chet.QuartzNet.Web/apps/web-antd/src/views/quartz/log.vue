@@ -469,7 +469,7 @@ onMounted(async () => {
         <template #action="{ row }">
           <div class="flex items-center justify-center gap-1">
             <Tooltip :title="$t('page.quartz.logPage.detail')">
-              <i class="vxe-icon-eye-fill text-primary cursor-pointer hover:opacity-80 px-1" @click="handleDetail(row)"></i>
+              <i class="vxe-icon-info-circle-fill text-primary cursor-pointer hover:opacity-80 px-1" @click="handleDetail(row)"></i>
             </Tooltip>
           </div>
         </template>
