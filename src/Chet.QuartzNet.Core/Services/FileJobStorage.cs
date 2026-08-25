@@ -266,6 +266,14 @@ public class FileJobStorage : IJobStorage
                     .ToList();
             }
 
+            if (!string.IsNullOrEmpty(queryDto.JobClassOrApi))
+            {
+                jobs = jobs.Where(j =>
+                        j.JobClassOrApi.Contains(queryDto.JobClassOrApi, StringComparison.OrdinalIgnoreCase)
+                    )
+                    .ToList();
+            }
+
             if (queryDto.Status.HasValue)
             {
                 jobs = jobs.Where(j => j.Status == queryDto.Status.Value).ToList();

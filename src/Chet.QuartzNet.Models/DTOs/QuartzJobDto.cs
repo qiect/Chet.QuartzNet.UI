@@ -223,6 +223,11 @@ public class QuartzJobQueryDto
     public JobStatus? Status { get; set; }
 
     /// <summary>
+    /// 作业类名或API
+    /// </summary>
+    public string? JobClassOrApi { get; set; }
+
+    /// <summary>
     /// 是否启用
     /// </summary>
     public bool? IsEnabled { get; set; }

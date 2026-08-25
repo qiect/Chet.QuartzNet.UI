@@ -254,6 +254,11 @@ public class EFCoreJobStorage : IJobStorage
                 query = query.Where(j => EF.Functions.Like(j.JobGroup, $"%{queryDto.JobGroup}%"));
             }
 
+            if (!string.IsNullOrEmpty(queryDto.JobClassOrApi))
+            {
+                query = query.Where(j => EF.Functions.Like(j.JobClassOrApi, $"%{queryDto.JobClassOrApi}%"));
+            }
+
             if (queryDto.Status.HasValue)
             {
                 query = query.Where(j => j.Status == queryDto.Status.Value);

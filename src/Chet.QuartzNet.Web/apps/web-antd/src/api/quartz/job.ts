@@ -204,6 +204,8 @@ export interface QuartzJobQueryDto {
   jobGroup?: string;
   /** 作业状态 */
   status?: JobStatusEnum;
+  /** 作业类名或API */
+  jobClassOrApi?: string;
   /** 是否启用 */
   isEnabled?: boolean;
   /** 页码 */

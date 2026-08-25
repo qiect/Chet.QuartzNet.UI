@@ -77,6 +77,7 @@ const jobStatusMap = {
 
 // 响应式数据
 const loading = ref(false);
+const toggleLoadingKeys = ref<Set<string>>(new Set());
 // 批量删除相关
 const selectedRows = ref<QuartzJobResponseDto[]>([]);
 
@@ -329,6 +330,7 @@ const gridOptions: VxeTableGridOptions<QuartzJobResponseDto> = {
           pageSize: page.pageSize,
           jobName: currentValues?.jobName,
           jobGroup: currentValues?.jobGroup,
+          jobClassOrApi: currentValues?.jobClassOrApi,
           status: currentValues?.status,
           isEnabled: currentValues?.isEnabled,
           sortBy: sortField ?? '',
@@ -337,7 +339,7 @@ const gridOptions: VxeTableGridOptions<QuartzJobResponseDto> = {
         // 持久化搜索条件（仅保存非空值，避免 localStorage 膨胀）
         try {
           const persisted: Record<string, any> = {};
-          for (const k of ['jobName', 'jobGroup', 'status', 'isEnabled']) {
+          for (const k of ['jobName', 'jobGroup', 'jobClassOrApi', 'status', 'isEnabled']) {
             if (currentValues[k] != null && currentValues[k] !== '') {
               persisted[k] = currentValues[k];
             }
@@ -400,6 +402,12 @@ const [Grid, gridApi] = useVbenVxeGrid({
         },
         fieldName: 'status',
         label: $t('page.quartz.jobPage.status'),
+      },
+      {
+        component: 'Input',
+        componentProps: { placeholder: $t('page.quartz.jobPage.placeholderJobClassOrApi') },
+        fieldName: 'jobClassOrApi',
+        label: $t('page.quartz.jobPage.jobClassOrApi'),
       },
       {
         component: 'Select',
@@ -705,6 +713,51 @@ const handleExecute = async (job: QuartzJobResponseDto) => {
   }
 };
 
+// 切换作业启用状态
+const handleToggleEnabled = (job: QuartzJobResponseDto, checked: boolean) => {
+  const key = `${job.jobName}:${job.jobGroup}`;
+  const action = checked ? $t('page.quartz.jobPage.enable') : $t('page.quartz.jobPage.disable');
+  Modal.confirm({
+    title: $t('page.quartz.jobPage.toggleEnabledTitle'),
+    content: $t('page.quartz.jobPage.toggleEnabledContent', { action, name: job.jobName }),
+    okText: $t('page.quartz.jobPage.ok'),
+    cancelText: $t('page.quartz.jobPage.cancel'),
+    onOk: async () => {
+      toggleLoadingKeys.value = new Set([...toggleLoadingKeys.value, key]);
+      try {
+        await updateJob({
+          jobName: job.jobName,
+          jobGroup: job.jobGroup,
+          jobType: job.jobType,
+          jobClassOrApi: job.jobClassOrApi,
+          cronExpression: job.cronExpression,
+          description: job.description,
+          jobData: job.jobData,
+          apiMethod: job.apiMethod,
+          apiHeaders: job.apiHeaders,
+          apiBody: job.apiBody,
+          apiTimeout: job.apiTimeout,
+          retryCount: job.retryCount,
+          retryIntervalSeconds: job.retryIntervalSeconds,
+          skipSslValidation: job.skipSslValidation,
+          startTime: job.startTime,
+          endTime: job.endTime,
+          isEnabled: checked,
+        });
+        message.success($t('page.quartz.jobPage.toggleEnabledSuccess', { action }));
+        gridApi.query();
+      } catch (error) {
+        message.error($t('page.quartz.jobPage.toggleEnabledFailed', { action }));
+        console.error($t('page.quartz.jobPage.toggleEnabledFailed', { action }), error);
+      } finally {
+        const next = new Set(toggleLoadingKeys.value);
+        next.delete(key);
+        toggleLoadingKeys.value = next;
+      }
+    },
+  });
+};
+
 // 批量删除作业
 const handleBatchDelete = () => {
   if (selectedRows.value.length === 0) {
@@ -882,7 +935,7 @@ onMounted(async () => {
 
         <!-- 是否启用 -->
         <template #isEnabled="{ row }">
-          <Switch :checked="row.isEnabled" disabled />
+          <Switch :checked="row.isEnabled" :loading="toggleLoadingKeys.has(`${row.jobName}:${row.jobGroup}`)" @change="(checked: boolean) => handleToggleEnabled(row, checked)" />
         </template>
 
         <!-- 通用日期时间渲染 -->
