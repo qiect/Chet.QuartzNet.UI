@@ -330,13 +330,14 @@ const gridOptions: VxeTableGridOptions<QuartzJobResponseDto> = {
           jobName: currentValues?.jobName,
           jobGroup: currentValues?.jobGroup,
           status: currentValues?.status,
+          isEnabled: currentValues?.isEnabled,
           sortBy: sortField ?? '',
           sortOrder,
         };
         // 持久化搜索条件（仅保存非空值，避免 localStorage 膨胀）
         try {
           const persisted: Record<string, any> = {};
-          for (const k of ['jobName', 'jobGroup', 'status']) {
+          for (const k of ['jobName', 'jobGroup', 'status', 'isEnabled']) {
             if (currentValues[k] != null && currentValues[k] !== '') {
               persisted[k] = currentValues[k];
             }
@@ -399,6 +400,19 @@ const [Grid, gridApi] = useVbenVxeGrid({
         },
         fieldName: 'status',
         label: $t('page.quartz.jobPage.status'),
+      },
+      {
+        component: 'Select',
+        componentProps: {
+          allowClear: true,
+          placeholder: $t('page.quartz.jobPage.placeholderIsEnabled'),
+          options: [
+            { label: $t('page.quartz.jobPage.enabledYes'), value: true },
+            { label: $t('page.quartz.jobPage.enabledNo'), value: false },
+          ],
+        },
+        fieldName: 'isEnabled',
+        label: $t('page.quartz.jobPage.isEnabled'),
       },
     ],
     showCollapseButton: false,
@@ -879,7 +893,7 @@ onMounted(async () => {
         <!-- 操作列 -->
         <template #action="{ row }">
           <Dropdown :trigger="['hover']" placement="bottomRight">
-            <i class="vxe-icon-menu text-base cursor-pointer hover:opacity-80" :class="{ 'opacity-50': loading }"></i>
+            <i class="vxe-icon-ellipsis-h text-base cursor-pointer hover:opacity-80" :class="{ 'opacity-50': loading }"></i>
             <template #overlay>
               <Menu>
                 <Menu.Item key="edit" @click="handleEdit(row)">
@@ -962,9 +976,15 @@ onMounted(async () => {
             </Col>
             <!-- 失败重试配置：紧凑组合控件，次数为 0 时间隔置灰，避免布局跳动 -->
             <Col :xs="24">
-              <Form.Item :label="$t('page.quartz.jobPage.retryLabel')" name="retryCount" :rules="[
+              <Form.Item name="retryCount" :rules="[
                 { type: 'number', min: 0, max: 10, message: $t('page.quartz.jobPage.retryCountRange') },
               ]">
+                <template #label>
+                  <Tooltip :title="$t('page.quartz.jobPage.retryCountHint')">
+                    <i class="vxe-icon-question-circle-fill retry-hint-icon"></i>
+                  </Tooltip>
+                  {{ $t('page.quartz.jobPage.retryLabel') }}
+                </template>
                 <div class="retry-group">
                   <InputNumber v-model:value="editForm.retryCount" :min="0" :max="10" class="retry-group__input"
                     :placeholder="$t('page.quartz.jobPage.placeholderRetryCount')" />
@@ -977,7 +997,6 @@ onMounted(async () => {
                     :disabled="!editForm.retryCount" />
                   <span class="retry-group__unit">{{ $t('page.quartz.jobPage.retrySecondsUnit') }}</span>
                 </div>
-                <div class="field-hint">{{ $t('page.quartz.jobPage.retryCountHint') }}</div>
               </Form.Item>
             </Col>
           </Row>
@@ -1186,13 +1205,7 @@ onMounted(async () => {
   margin-top: 8px;
 }
 
-/* ====== 表单字段辅助提示 ====== */
-.field-hint {
-  margin-top: 2px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: hsl(var(--muted-foreground));
-}
+
 
 /* ====== 失败重试紧凑配置组 ====== */
 .retry-group {
@@ -1220,6 +1233,20 @@ onMounted(async () => {
 
 .retry-group__inline-label {
   color: hsl(var(--foreground));
+}
+
+/* ====== 表单字段辅助提示 ====== */
+.retry-hint-icon {
+  font-size: 12px;
+  margin-right: 4px;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  vertical-align: -1px;
+  transition: color 0.2s;
+}
+
+.retry-hint-icon:hover {
+  color: hsl(var(--primary));
 }
 
 .retry-group__sep {
