@@ -115,6 +115,7 @@ const editForm = reactive<QuartzJobDto>({
   retryCount: 0,
   retryIntervalSeconds: 30,
   skipSslValidation: false,
+  disallowConcurrentExecution: false,
   startTime: undefined,
   endTime: undefined,
   isEnabled: true,
@@ -511,6 +512,7 @@ const handleCopyJob = async (job: QuartzJobResponseDto) => {
       retryCount: response.data?.retryCount ?? 0,
       retryIntervalSeconds: response.data?.retryIntervalSeconds ?? 30,
       skipSslValidation: response.data?.skipSslValidation || false,
+      disallowConcurrentExecution: response.data?.disallowConcurrentExecution || false,
       startTime: response.data?.startTime || undefined,
       endTime: response.data?.endTime || undefined,
       isEnabled: response.data?.isEnabled !== false,
@@ -562,6 +564,7 @@ const handleEdit = async (job: QuartzJobResponseDto) => {
       retryCount: response.data?.retryCount ?? 0,
       retryIntervalSeconds: response.data?.retryIntervalSeconds ?? 30,
       skipSslValidation: response.data?.skipSslValidation || false,
+      disallowConcurrentExecution: response.data?.disallowConcurrentExecution || false,
       startTime: response.data?.startTime || undefined,
       endTime: response.data?.endTime || undefined,
       isEnabled: response.data?.isEnabled !== false,
@@ -607,6 +610,7 @@ const handleSave = async () => {
       retryCount: editForm.retryCount ?? 0,
       retryIntervalSeconds: editForm.retryIntervalSeconds ?? 30,
       skipSslValidation: editForm.skipSslValidation,
+      disallowConcurrentExecution: editForm.disallowConcurrentExecution,
       startTime: editForm.startTime,
       endTime: editForm.endTime,
       isEnabled: editForm.isEnabled,
@@ -740,6 +744,7 @@ const handleToggleEnabled = (job: QuartzJobResponseDto, checked: boolean) => {
           retryCount: job.retryCount,
           retryIntervalSeconds: job.retryIntervalSeconds,
           skipSslValidation: job.skipSslValidation,
+          disallowConcurrentExecution: job.disallowConcurrentExecution,
           startTime: job.startTime,
           endTime: job.endTime,
           isEnabled: checked,
@@ -1027,7 +1032,7 @@ onMounted(async () => {
                 </Space.Compact>
               </Form.Item>
             </Col>
-            <!-- 失败重试配置：紧凑组合控件，次数为 0 时间隔置灰，避免布局跳动 -->
+            <!-- 失败重试 + 禁止并发：同一行布局 -->
             <Col :xs="24">
               <Form.Item name="retryCount" :rules="[
                 { type: 'number', min: 0, max: 10, message: $t('page.quartz.jobPage.retryCountRange') },
@@ -1035,8 +1040,8 @@ onMounted(async () => {
                 <template #label>
                   <Tooltip :title="$t('page.quartz.jobPage.retryCountHint')">
                     <i class="vxe-icon-question-circle-fill retry-hint-icon"></i>
+                    {{ $t('page.quartz.jobPage.retryLabel') }}
                   </Tooltip>
-                  {{ $t('page.quartz.jobPage.retryLabel') }}
                 </template>
                 <div class="retry-group">
                   <InputNumber v-model:value="editForm.retryCount" :min="0" :max="10" class="retry-group__input"
@@ -1049,6 +1054,14 @@ onMounted(async () => {
                     :placeholder="$t('page.quartz.jobPage.placeholderRetryInterval')"
                     :disabled="!editForm.retryCount" />
                   <span class="retry-group__unit">{{ $t('page.quartz.jobPage.retrySecondsUnit') }}</span>
+                  <span class="retry-group__divider" aria-hidden="true"></span>
+                  <Tooltip :title="$t('page.quartz.jobPage.disallowConcurrentHint')">
+                    <span class="retry-group__inline-label" style="cursor: help;">
+                      <i class="vxe-icon-question-circle-fill retry-hint-icon"></i>
+                      {{ $t('page.quartz.jobPage.disallowConcurrent') }}
+                    </span>
+                  </Tooltip>
+                  <Switch v-model:checked="editForm.disallowConcurrentExecution" />
                 </div>
               </Form.Item>
             </Col>
@@ -1290,11 +1303,9 @@ onMounted(async () => {
 
 /* ====== 表单字段辅助提示 ====== */
 .retry-hint-icon {
-  font-size: 12px;
-  margin-right: 4px;
+  font-size: 11px;
   color: hsl(var(--muted-foreground));
   cursor: pointer;
-  vertical-align: -1px;
   transition: color 0.2s;
 }
 
@@ -1306,6 +1317,13 @@ onMounted(async () => {
   width: 1px;
   height: 16px;
   margin: 0 4px;
+  background: hsl(var(--border));
+}
+
+.retry-group__divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 8px;
   background: hsl(var(--border));
 }
 

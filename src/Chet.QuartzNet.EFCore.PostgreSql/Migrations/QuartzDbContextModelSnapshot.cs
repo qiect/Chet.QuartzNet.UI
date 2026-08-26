@@ -132,6 +132,12 @@ namespace Chet.QuartzNet.EFCore.PostgreSQL.Migrations
                         .HasDefaultValue(false)
                         .HasComment("是否跳过SSL验证");
 
+                    b.Property<bool>("DisallowConcurrentExecution")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasComment("禁止并发执行");
+
                     b.Property<DateTime?>("StartTime")
                         .HasColumnType("timestamp without time zone")
                         .HasComment("开始时间");

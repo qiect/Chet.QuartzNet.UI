@@ -127,6 +127,12 @@ namespace Chet.QuartzNet.EFCore.SQLite.Migrations
                         .HasDefaultValue(false)
                         .HasComment("是否跳过SSL验证");
 
+                    b.Property<bool>("DisallowConcurrentExecution")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false)
+                        .HasComment("禁止并发执行");
+
                     b.Property<DateTime?>("StartTime")
                         .HasColumnType("TEXT")
                         .HasComment("开始时间");

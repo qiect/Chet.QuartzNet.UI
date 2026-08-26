@@ -366,6 +366,7 @@ public class QuartzJobService : IQuartzJobService
                 RetryCount = jobDto.RetryCount,
                 RetryIntervalSeconds = jobDto.RetryIntervalSeconds,
                 SkipSslValidation = jobDto.SkipSslValidation,
+                DisallowConcurrentExecution = jobDto.DisallowConcurrentExecution,
                 StartTime = jobDto.StartTime,
                 EndTime = jobDto.EndTime,
                 IsEnabled = jobDto.IsEnabled,
@@ -463,6 +464,7 @@ public class QuartzJobService : IQuartzJobService
             existingJob.RetryCount = jobDto.RetryCount;
             existingJob.RetryIntervalSeconds = jobDto.RetryIntervalSeconds;
             existingJob.SkipSslValidation = jobDto.SkipSslValidation;
+            existingJob.DisallowConcurrentExecution = jobDto.DisallowConcurrentExecution;
             existingJob.StartTime = jobDto.StartTime;
             existingJob.EndTime = jobDto.EndTime;
             existingJob.IsEnabled = jobDto.IsEnabled;
@@ -1329,6 +1331,12 @@ public class QuartzJobService : IQuartzJobService
             .WithDescription(jobInfo.Description ?? string.Empty)
             .StoreDurably();
 
+        // 禁止并发执行：同一作业上一次执行未完成时，新的触发会等待
+        if (jobInfo.DisallowConcurrentExecution)
+        {
+            jobBuilder.DisallowConcurrentExecution();
+        }
+
         // 设置作业数据
         if (!string.IsNullOrEmpty(jobInfo.JobData))
         {
@@ -1410,6 +1418,7 @@ public class QuartzJobService : IQuartzJobService
             RetryCount = jobInfo.RetryCount,
             RetryIntervalSeconds = jobInfo.RetryIntervalSeconds,
             SkipSslValidation = jobInfo.SkipSslValidation,
+            DisallowConcurrentExecution = jobInfo.DisallowConcurrentExecution,
             StartTime = jobInfo.StartTime,
             EndTime = jobInfo.EndTime,
             Status = jobInfo.Status,

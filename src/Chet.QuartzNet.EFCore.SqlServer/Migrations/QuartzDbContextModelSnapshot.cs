@@ -132,6 +132,12 @@ namespace Chet.QuartzNet.EFCore.SqlServer.Migrations
                         .HasDefaultValue(false)
                         .HasComment("是否跳过SSL验证");
 
+                    b.Property<bool>("DisallowConcurrentExecution")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasComment("禁止并发执行");
+
                     b.Property<DateTime?>("StartTime")
                         .HasColumnType("datetime2")
                         .HasComment("开始时间");

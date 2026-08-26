@@ -183,7 +183,9 @@
       "sectionBasic": "Basic Info",
       "sectionSchedule": "Schedule",
       "sectionConfig": "Job Configuration",
-      "sectionOther": "Other"
+      "sectionOther": "Other",
+      "disallowConcurrent": "Disallow Concurrent Execution",
+      "disallowConcurrentHint": "When enabled, if the previous execution has not finished, the new trigger will wait until the previous one completes. Suitable for jobs whose execution time may exceed the schedule interval."
     },
     "cronHelper": {
       "title": "Cron Expression Generator",

@@ -132,6 +132,8 @@ export interface QuartzJobDto {
   retryIntervalSeconds?: number;
   /** 跳过SSL验证 */
   skipSslValidation?: boolean;
+  /** 禁止并发执行（同一作业上一次执行未完成时，新的触发会等待） */
+  disallowConcurrentExecution?: boolean;
   /** 开始时间 */
   startTime?: string;
   /** 结束时间 */
@@ -174,6 +176,8 @@ export interface QuartzJobResponseDto {
   retryIntervalSeconds: number;
   /** 是否跳过SSL验证 */
   skipSslValidation: boolean;
+  /** 禁止并发执行 */
+  disallowConcurrentExecution: boolean;
   /** 开始时间 */
   startTime?: string;
   /** 结束时间 */

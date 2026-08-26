@@ -183,7 +183,9 @@
       "sectionBasic": "基本信息",
       "sectionSchedule": "调度设置",
       "sectionConfig": "作业配置",
-      "sectionOther": "其他设置"
+      "sectionOther": "其他设置",
+      "disallowConcurrent": "禁止并发执行",
+      "disallowConcurrentHint": "开启后，同一作业上一次执行未完成时，新的触发会等待上一个完成后再执行。适用于执行时间可能超过调度间隔的作业。"
     },
     "cronHelper": {
       "title": "Cron 表达式生成器",
