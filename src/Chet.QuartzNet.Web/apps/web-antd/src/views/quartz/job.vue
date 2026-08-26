@@ -472,6 +472,7 @@ const handleAdd = async () => {
     retryCount: 0,
     retryIntervalSeconds: 30,
     skipSslValidation: false,
+    disallowConcurrentExecution: false,
     startTime: undefined,
     endTime: undefined,
     isEnabled: true,

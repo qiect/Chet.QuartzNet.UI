@@ -850,6 +850,13 @@ public class QuartzJobService : IQuartzJobService
                     .WithDescription(jobInfo.Description ?? string.Empty)
                     .StoreDurably(true); // 没有触发器的作业必须设置为持久化
 
+                // 禁止并发执行：与 ScheduleJobAsync 保持一致，
+                // 手动触发兜底注册的作业同样需要携带该标志，否则并发开关在手动触发场景失效
+                if (jobInfo.DisallowConcurrentExecution)
+                {
+                    jobBuilder.DisallowConcurrentExecution();
+                }
+
                 // 根据作业类型设置作业类（配置了重试的注册为重试包装器）
                 Type? realJobType = jobInfo.JobType == JobTypeEnum.API ? typeof(ApiJob) : null;
                 if (realJobType == null)
