@@ -151,26 +151,6 @@ const getTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
     anomalyCount: anomalyPoints.length,
   };
 
-  const busyThreshold = avgTotal * 1.2;
-  const idleThreshold = avgTotal * 0.6;
-
-  const zoneAreas: { xAxis: string; itemStyle?: { color: string; opacity: number } }[][] = [];
-  for (let i = 0; i < n; i++) {
-    const val = totalValues[i]!;
-    let color: string | undefined;
-    if (val >= busyThreshold) {
-      color = 'rgba(255,77,79,0.06)';
-    } else if (val <= idleThreshold) {
-      color = 'rgba(24,144,255,0.06)';
-    }
-    if (color) {
-      zoneAreas.push([
-        { xAxis: dates[i]!, itemStyle: { color, opacity: 1 } },
-        { xAxis: dates[i]! },
-      ]);
-    }
-  }
-
   return {
     backgroundColor: 'transparent',
     tooltip: {
@@ -233,7 +213,7 @@ const getTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
       {
         type: 'value',
         axisLabel: { color: '#8c8c8c', fontSize: 11 },
-        splitLine: { lineStyle: { color: '#f5f5f5', type: 'dashed' } },
+        splitLine: { show: false },
         axisLine: { show: false },
         axisTick: { show: false },
       },
@@ -279,10 +259,6 @@ const getTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
           },
           data: [{ yAxis: avgTotal, name: $t('page.quartz.analyticsPage.avgLine') }],
         },
-        markArea: zoneAreas.length > 0 ? {
-          silent: true,
-          data: zoneAreas,
-        } : undefined,
         markPoint: anomalyPoints.length > 0 ? {
           symbol: 'pin',
           symbolSize: 30,
@@ -377,6 +353,14 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
 
   const maxExecCount = Math.max(...data.map((d) => d.executionCount), 1);
 
+  const sortedDurations = [...data.map((d) => d.avgDuration)].sort((a, b) => a - b);
+  const medianDuration = sortedDurations.length > 0
+    ? sortedDurations[Math.floor(sortedDurations.length / 2)]
+    : 0;
+
+  const successThreshold = 80;
+  const durationThreshold = medianDuration || 1;
+
   return {
     backgroundColor: 'transparent',
     tooltip: {
@@ -392,8 +376,25 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
         const enabledText = d.isEnabled
           ? $t('page.quartz.analyticsPage.enabled')
           : $t('page.quartz.analyticsPage.disabled');
+        const quadrant =
+          d.successRate >= successThreshold && d.avgDuration <= durationThreshold
+            ? $t('page.quartz.analyticsPage.quadrantHealthy')
+            : d.successRate >= successThreshold && d.avgDuration > durationThreshold
+              ? $t('page.quartz.analyticsPage.quadrantSlow')
+              : d.successRate < successThreshold && d.avgDuration <= durationThreshold
+                ? $t('page.quartz.analyticsPage.quadrantUnstable')
+                : $t('page.quartz.analyticsPage.quadrantCritical');
+        const quadrantColor =
+          d.successRate >= successThreshold && d.avgDuration <= durationThreshold
+            ? '#52c41a'
+            : d.successRate >= successThreshold && d.avgDuration > durationThreshold
+              ? '#faad14'
+              : d.successRate < successThreshold && d.avgDuration <= durationThreshold
+                ? '#fa8c16'
+                : '#ff4d4f';
         return `
           <div style="font-weight:600;color:#262626;font-size:13px;margin-bottom:6px;">${d.jobName}</div>
+          <div style="display:inline-block;padding:1px 8px;border-radius:3px;font-size:11px;font-weight:500;color:${quadrantColor};background:${quadrantColor}14;margin-bottom:4px;">${quadrant}</div>
           <div style="color:#8c8c8c;font-size:12px;line-height:20px;">
             ${$t('page.quartz.analyticsPage.jobGroup')}: ${d.jobGroup}<br/>
             ${$t('page.quartz.analyticsPage.jobStatus')}: ${enabledText}<br/>
@@ -411,7 +412,7 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
       type: 'value',
       min: 0,
       max: 100,
-      splitLine: { lineStyle: { color: '#f5f5f5', type: 'dashed' } },
+      splitLine: { show: false },
       axisLabel: { color: '#8c8c8c', fontSize: 12 },
     },
     yAxis: {
@@ -424,96 +425,68 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
         fontSize: 12,
         formatter: (v: number) => formatDuration(v),
       },
-      splitLine: { lineStyle: { color: '#f5f5f5', type: 'dashed' } },
+      splitLine: { show: false },
     },
     graphic: [
       {
-        type: 'group',
-        right: 40,
-        bottom: 10,
-        children: [
-          {
-            type: 'circle',
-            shape: { cx: 0, cy: -4, r: 4 },
-            style: { fill: '#1677ff' },
-          },
-          {
-            type: 'text',
-            style: {
-              text: $t('page.quartz.analyticsPage.quadrantHealthy'),
-              x: 10,
-              fill: '#1677ff',
-              fontSize: 11,
-              fontWeight: 500,
-            },
-          },
-        ],
+        type: 'text',
+        right: 36,
+        bottom: 12,
+        style: {
+          text: $t('page.quartz.analyticsPage.quadrantHealthy'),
+          fill: '#52c41a',
+          fontSize: 10,
+          fontWeight: 600,
+          opacity: 0.85,
+          backgroundColor: 'rgba(82,196,26,0.10)',
+          padding: [3, 8, 3, 8],
+          borderRadius: 4,
+        },
       },
       {
-        type: 'group',
-        right: 40,
-        top: 8,
-        children: [
-          {
-            type: 'circle',
-            shape: { cx: 0, cy: -4, r: 4 },
-            style: { fill: '#faad14' },
-          },
-          {
-            type: 'text',
-            style: {
-              text: $t('page.quartz.analyticsPage.quadrantSlow'),
-              x: 10,
-              fill: '#faad14',
-              fontSize: 11,
-              fontWeight: 500,
-            },
-          },
-        ],
+        type: 'text',
+        right: 36,
+        top: 10,
+        style: {
+          text: $t('page.quartz.analyticsPage.quadrantSlow'),
+          fill: '#faad14',
+          fontSize: 10,
+          fontWeight: 600,
+          opacity: 0.85,
+          backgroundColor: 'rgba(250,173,20,0.10)',
+          padding: [3, 8, 3, 8],
+          borderRadius: 4,
+        },
       },
       {
-        type: 'group',
+        type: 'text',
         left: 68,
-        bottom: 10,
-        children: [
-          {
-            type: 'circle',
-            shape: { cx: 0, cy: -4, r: 4 },
-            style: { fill: '#fa8c16' },
-          },
-          {
-            type: 'text',
-            style: {
-              text: $t('page.quartz.analyticsPage.quadrantUnstable'),
-              x: 10,
-              fill: '#fa8c16',
-              fontSize: 11,
-              fontWeight: 500,
-            },
-          },
-        ],
+        bottom: 12,
+        style: {
+          text: $t('page.quartz.analyticsPage.quadrantUnstable'),
+          fill: '#fa8c16',
+          fontSize: 10,
+          fontWeight: 600,
+          opacity: 0.85,
+          backgroundColor: 'rgba(250,140,22,0.10)',
+          padding: [3, 8, 3, 8],
+          borderRadius: 4,
+        },
       },
       {
-        type: 'group',
+        type: 'text',
         left: 68,
-        top: 8,
-        children: [
-          {
-            type: 'circle',
-            shape: { cx: 0, cy: -4, r: 4 },
-            style: { fill: '#ff4d4f' },
-          },
-          {
-            type: 'text',
-            style: {
-              text: $t('page.quartz.analyticsPage.quadrantCritical'),
-              x: 10,
-              fill: '#ff4d4f',
-              fontSize: 11,
-              fontWeight: 500,
-            },
-          },
-        ],
+        top: 10,
+        style: {
+          text: $t('page.quartz.analyticsPage.quadrantCritical'),
+          fill: '#ff4d4f',
+          fontSize: 10,
+          fontWeight: 600,
+          opacity: 0.85,
+          backgroundColor: 'rgba(255,77,79,0.10)',
+          padding: [3, 8, 3, 8],
+          borderRadius: 4,
+        },
       },
     ],
     series: [
@@ -521,7 +494,7 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
         type: 'scatter',
         symbolSize: (_val: number[], params: any) => {
           const count = params.data.executionCount;
-          return Math.max(8, Math.min(40, (count / maxExecCount) * 40));
+          return Math.max(10, Math.min(44, (count / maxExecCount) * 44));
         },
         data: data.map((d) => ({
           value: [d.successRate, d.avgDuration],
@@ -534,12 +507,72 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
           executionCount: d.executionCount,
           itemStyle: {
             color: statusColorMap[d.status] || '#8c8c8c',
-            opacity: d.isEnabled ? 1 : 0.4,
+            opacity: d.isEnabled ? 0.85 : 0.3,
+            shadowBlur: 6,
+            shadowColor: 'rgba(0,0,0,0.1)',
+            borderColor: 'rgba(255,255,255,0.75)',
+            borderWidth: 1.5,
           },
         })),
         emphasis: {
           focus: 'self',
-          itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.2)' },
+          itemStyle: {
+            shadowBlur: 14,
+            shadowColor: 'rgba(0,0,0,0.2)',
+            borderColor: '#fff',
+            borderWidth: 2,
+          },
+        },
+        markArea: {
+          silent: true,
+          data: [
+            [
+              {
+                xAxis: successThreshold,
+                yAxis: 0,
+                itemStyle: { color: 'rgba(82,196,26,0.04)' },
+                label: { show: false },
+              },
+              { xAxis: 100, yAxis: durationThreshold },
+            ],
+            [
+              {
+                xAxis: successThreshold,
+                yAxis: durationThreshold,
+                itemStyle: { color: 'rgba(250,173,20,0.04)' },
+                label: { show: false },
+              },
+              { xAxis: 100 },
+            ],
+            [
+              {
+                xAxis: 0,
+                yAxis: 0,
+                itemStyle: { color: 'rgba(250,140,22,0.04)' },
+                label: { show: false },
+              },
+              { xAxis: successThreshold, yAxis: durationThreshold },
+            ],
+            [
+              {
+                xAxis: 0,
+                yAxis: durationThreshold,
+                itemStyle: { color: 'rgba(255,77,79,0.04)' },
+                label: { show: false },
+              },
+              { xAxis: successThreshold },
+            ],
+          ],
+        },
+        markLine: {
+          silent: true,
+          symbol: 'none',
+          lineStyle: { color: '#e0e0e0', type: 'dashed', width: 1 },
+          label: { show: false },
+          data: [
+            { xAxis: successThreshold },
+            { yAxis: durationThreshold },
+          ],
         },
       },
     ],
