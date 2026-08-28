@@ -104,7 +104,21 @@
       "weekOverWeek": "周环比",
       "anomalyCount": "异常日",
       "anomalyDay": "异常日",
-      "threshold": "阈值"
+      "threshold": "阈值",
+      "jobOverview": "作业总览",
+      "jobsUnit": "个作业",
+      "executionActivity": "执行活跃度",
+      "dailyAvgExecution": "日均执行",
+      "recent7Total": "近7日",
+      "executionQuality": "执行质量",
+      "durationLevel": "耗时水位",
+      "slowestJob": "最慢",
+      "anomalyDaysShort": "异常",
+      "anomalyDaysUnit": "天",
+      "normalStatus": "正常",
+      "pausedStatus": "暂停",
+      "enabledStatus": "启用",
+      "disabledStatus": "禁用"
     },
     "jobPage": {
       "jobName": "作业名称",

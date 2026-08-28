@@ -9,7 +9,6 @@ import {
   Table,
   Tag,
 } from 'ant-design-vue';
-import { Activity, CircleCheckBig, Layers, Package } from '@vben/icons';
 import type { EChartsOption } from 'echarts';
 
 import type { EchartsUIType } from '@vben/plugins/echarts';
@@ -47,6 +46,18 @@ const { renderEcharts: renderTrend } = useEcharts(trendChartRef);
 const { renderEcharts: renderHealth } = useEcharts(healthChartRef);
 const { renderEcharts: renderHeatmap } = useEcharts(heatmapChartRef);
 
+const overviewEnabledChartRef = ref<EchartsUIType | null>(null);
+const overviewStatusChartRef = ref<EchartsUIType | null>(null);
+const activityChartRef = ref<EchartsUIType | null>(null);
+const qualityChartRef = ref<EchartsUIType | null>(null);
+const durationChartRef = ref<EchartsUIType | null>(null);
+
+const { renderEcharts: renderOverviewEnabled } = useEcharts(overviewEnabledChartRef);
+const { renderEcharts: renderOverviewStatus } = useEcharts(overviewStatusChartRef);
+const { renderEcharts: renderActivity } = useEcharts(activityChartRef);
+const { renderEcharts: renderQuality } = useEcharts(qualityChartRef);
+const { renderEcharts: renderDuration } = useEcharts(durationChartRef);
+
 const statsOverview = ref<JobStats>({
   totalJobs: 0,
   enabledJobs: 0,
@@ -69,33 +80,45 @@ const normalCount = computed(
 const pausedCount = computed(
   () => jobStatusDistribution.value.find((d) => d.status === 'Paused')?.count || 0,
 );
-const normalPercentage = computed(
-  () => jobStatusDistribution.value.find((d) => d.status === 'Normal')?.percentage || 0,
-);
-const dllCount = computed(
-  () => jobTypeDistribution.value.find((d) => d.type === 'DLL')?.count || 0,
-);
-const apiCount = computed(
-  () => jobTypeDistribution.value.find((d) => d.type === 'API')?.count || 0,
-);
-const dllPercentage = computed(
-  () => jobTypeDistribution.value.find((d) => d.type === 'DLL')?.percentage || 0,
-);
-const apiPercentage = computed(
-  () => jobTypeDistribution.value.find((d) => d.type === 'API')?.percentage || 0,
-);
 const enabledRatio = computed(() =>
   (statsOverview.value.enabledJobs / (statsOverview.value.totalJobs || 1)) * 100,
 );
-const successRate = computed(() =>
-  (
-    (statsOverview.value.successCount / (statsOverview.value.totalExecutions || 1)) *
-    100
-  ).toFixed(1),
+const recent7Data = computed(() => trendData.value.slice(-7));
+const recent7TotalExecutions = computed(() =>
+  recent7Data.value.reduce((sum, d) => sum + d.totalCount, 0),
 );
-const successRatio = computed(() =>
-  (statsOverview.value.successCount / (statsOverview.value.totalExecutions || 1)) * 100,
+const recent7DailyAvg = computed(() => {
+  const n = recent7Data.value.length;
+  return n > 0 ? Number((recent7TotalExecutions.value / n).toFixed(1)) : 0;
+});
+const recent7SuccessCount = computed(() =>
+  recent7Data.value.reduce((sum, d) => sum + d.successCount, 0),
 );
+const recent7FailedCount = computed(() =>
+  recent7Data.value.reduce((sum, d) => sum + d.failedCount, 0),
+);
+const recent7SuccessRate = computed(() => {
+  const total = recent7TotalExecutions.value;
+  return total > 0 ? Number(((recent7SuccessCount.value / total) * 100).toFixed(1)) : 0;
+});
+const avgDurationValue = computed(() => {
+  const data = jobHealthData.value;
+  if (data.length === 0) return 0;
+  const totalExec = data.reduce((sum, d) => sum + d.executionCount, 0);
+  if (totalExec === 0) return 0;
+  return data.reduce((sum, d) => sum + d.avgDuration * d.executionCount, 0) / totalExec;
+});
+const p99Duration = computed(() => {
+  const data = jobHealthData.value;
+  if (data.length === 0) return 0;
+  return Math.max(...data.map((d) => d.maxDuration));
+});
+const slowestJobName = computed(() => {
+  const data = jobHealthData.value;
+  if (data.length === 0) return '-';
+  const sorted = [...data].sort((a, b) => b.avgDuration - a.avgDuration);
+  return sorted[0]?.jobName ?? '-';
+});
 
 const trendSummary = ref({
   recent7Avg: 0,
@@ -657,6 +680,218 @@ const getHeatmapOption = (data: JobExecutionHeatmap[]): EChartsOption => {
   };
 };
 
+const getOverviewEnabledOption = (): EChartsOption => {
+  const enabledPct = Number(enabledRatio.value.toFixed(0));
+  return {
+    backgroundColor: 'transparent',
+    series: [
+      {
+        type: 'pie',
+        radius: ['60%', '78%'],
+        center: ['50%', '50%'],
+        silent: true,
+        label: { show: false },
+        animation: false,
+        data: [
+          { value: statsOverview.value.enabledJobs, itemStyle: { color: '#52c41a' } },
+          { value: statsOverview.value.disabledJobs, itemStyle: { color: '#d9d9d9' } },
+        ],
+      },
+    ],
+    graphic: [
+      {
+        type: 'group',
+        left: 'center',
+        top: 'center',
+        children: [
+          {
+            type: 'text',
+            style: {
+              text: `${enabledPct}%`,
+              fill: '#262626',
+              fontSize: 14,
+              fontWeight: 700,
+              fontFamily: 'DIN Alternate, sans-serif',
+              textAlign: 'center',
+              y: -8,
+            },
+          },
+          {
+            type: 'text',
+            style: {
+              text: $t('page.quartz.analyticsPage.enabledStatus'),
+              fill: '#8c8c8c',
+              fontSize: 7,
+              textAlign: 'center',
+              y: 6,
+            },
+          },
+        ],
+      },
+    ],
+  };
+};
+
+const getOverviewStatusOption = (): EChartsOption => {
+  return {
+    backgroundColor: 'transparent',
+    series: [
+      {
+        type: 'pie',
+        radius: ['60%', '78%'],
+        center: ['50%', '50%'],
+        silent: true,
+        label: { show: false },
+        animation: false,
+        data: [
+          { value: normalCount.value, itemStyle: { color: '#1677ff' } },
+          { value: pausedCount.value, itemStyle: { color: '#faad14' } },
+        ],
+      },
+    ],
+    graphic: [
+      {
+        type: 'group',
+        left: 'center',
+        top: 'center',
+        children: [
+          {
+            type: 'text',
+            style: {
+              text: `${normalCount.value}`,
+              fill: '#262626',
+              fontSize: 14,
+              fontWeight: 700,
+              fontFamily: 'DIN Alternate, sans-serif',
+              textAlign: 'center',
+              y: -8,
+            },
+          },
+          {
+            type: 'text',
+            style: {
+              text: $t('page.quartz.analyticsPage.normalStatus'),
+              fill: '#8c8c8c',
+              fontSize: 7,
+              textAlign: 'center',
+              y: 6,
+            },
+          },
+        ],
+      },
+    ],
+  };
+};
+
+const getActivityOption = (): EChartsOption => ({
+  backgroundColor: 'transparent',
+  grid: { left: 0, right: 0, top: 5, bottom: 0, containLabel: false },
+  xAxis: { type: 'category', show: false, boundaryGap: false },
+  yAxis: { type: 'value', show: false, min: 0 },
+  series: [
+    {
+      type: 'line',
+      data: recent7Data.value.map((d) => d.totalCount),
+      smooth: true,
+      symbol: 'none',
+      lineStyle: { width: 2, color: '#52c41a' },
+      areaStyle: {
+        color: {
+          type: 'linear',
+          x: 0,
+          y: 0,
+          x2: 0,
+          y2: 1,
+          colorStops: [
+            { offset: 0, color: 'rgba(82,196,26,0.25)' },
+            { offset: 1, color: 'rgba(82,196,26,0.02)' },
+          ],
+        },
+      },
+    },
+  ],
+});
+
+const getQualityOption = (): EChartsOption => {
+  const success = recent7SuccessCount.value;
+  const failed = recent7FailedCount.value;
+  const rate = recent7SuccessRate.value;
+  return {
+    backgroundColor: 'transparent',
+    series: [
+      {
+        type: 'pie',
+        radius: ['58%', '74%'],
+        center: ['50%', '50%'],
+        silent: true,
+        label: { show: false },
+        animation: false,
+        data: [
+          { value: success, name: $t('page.quartz.analyticsPage.success'), itemStyle: { color: '#52c41a' } },
+          { value: failed, name: $t('page.quartz.analyticsPage.failed'), itemStyle: { color: '#ff4d4f' } },
+        ],
+      },
+    ],
+    graphic: [
+      {
+        type: 'text',
+        left: 'center',
+        top: 'center',
+        style: {
+          text: `${rate}%`,
+          fill: '#262626',
+          fontSize: 12,
+          fontWeight: 700,
+          fontFamily: 'DIN Alternate, sans-serif',
+          textAlign: 'center',
+        },
+      },
+    ],
+  };
+};
+
+const getDurationOption = (): EChartsOption => {
+  const data = jobHealthData.value;
+  if (data.length === 0) {
+    return {
+      backgroundColor: 'transparent',
+      grid: { left: 0, right: 0, top: 5, bottom: 0, containLabel: false },
+      xAxis: { type: 'category', show: false },
+      yAxis: { type: 'value', show: false },
+      series: [],
+    };
+  }
+  const sorted = [...data].sort((a, b) => b.avgDuration - a.avgDuration).slice(0, 7);
+  const durations = sorted.map((d) => d.avgDuration);
+  const maxDur = Math.max(...durations, 1);
+  return {
+    backgroundColor: 'transparent',
+    grid: { left: 0, right: 0, top: 5, bottom: 0, containLabel: false },
+    xAxis: { type: 'category', show: false },
+    yAxis: { type: 'value', show: false, min: 0, max: maxDur * 1.2 },
+    series: [
+      {
+        type: 'bar',
+        data: durations,
+        barWidth: 6,
+        itemStyle: {
+          color: {
+            type: 'linear',
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: '#b37feb' },
+              { offset: 1, color: '#722ed1' },
+            ],
+          },
+          borderRadius: [2, 2, 0, 0],
+        },
+        silent: true,
+        animation: false,
+      },
+    ],
+  };
+};
+
 const formatDuration = (ms: number): string => {
   if (ms < 1000) return `${Math.round(ms)} ms`;
   if (ms < 60000) return `${(ms / 1000).toFixed(1)} s`;
@@ -728,7 +963,7 @@ const topSlowColumns = computed(() => [
 
 const fetchData = async () => {
   loading.value = true;
-  const query: StatsQueryDto = { timeRangeType: 'last30Days' };
+  const query: StatsQueryDto = { timeRangeType: 'last7Days' };
 
   try {
     const [
@@ -771,6 +1006,12 @@ const fetchData = async () => {
     jobTypeDistribution.value = typeDistributionRes?.success && typeDistributionRes.data
       ? typeDistributionRes.data
       : [];
+
+    renderOverviewEnabled(getOverviewEnabledOption());
+    renderOverviewStatus(getOverviewStatusOption());
+    renderActivity(getActivityOption());
+    renderQuality(getQualityOption());
+    renderDuration(getDurationOption());
   } catch (error) {
     console.error('Data Fetch Error:', error);
   } finally {
@@ -820,115 +1061,109 @@ onMounted(() => {
 
     <Row :gutter="[16, 16]">
       <Col :xs="24" :sm="12" :lg="6">
-        <Card class="stat-card" :loading="loading" :bordered="false">
+        <Card class="stat-card stat-card--blue" :loading="loading" :bordered="false">
           <div class="stat-content">
             <div class="stat-main">
-              <span class="stat-title">{{ $t('page.quartz.analyticsPage.totalJobs') }}</span>
+              <span class="stat-title">{{ $t('page.quartz.analyticsPage.jobOverview') }}</span>
               <span class="stat-number">
                 {{ statsOverview.totalJobs }}
-                <small class="stat-unit">{{ $t('page.quartz.analyticsPage.unit') }}</small>
+                <small class="stat-unit">{{ $t('page.quartz.analyticsPage.jobsUnit') }}</small>
               </span>
             </div>
-            <div class="stat-icon stat-icon--blue">
-              <Package class="stat-icon__svg" />
+            <div class="stat-mini-chart stat-mini-chart--dual">
+              <EchartsUI ref="overviewEnabledChartRef" style="height: 72px; width: 68px" />
+              <EchartsUI ref="overviewStatusChartRef" style="height: 72px; width: 68px" />
             </div>
           </div>
-          <div class="stat-sub">
-            <div class="stat-sub__label">
-              <span class="sub-label">{{ $t('page.quartz.analyticsPage.enabledDisabled') }}</span>
-              <span class="sub-value">
-                <i class="dot dot--success"></i>{{ statsOverview.enabledJobs }}
-                <i class="dot dot--muted"></i>{{ statsOverview.disabledJobs }}
-              </span>
-            </div>
-            <div class="mini-bar">
-              <div class="mini-bar__fill mini-bar__fill--blue" :style="{ width: enabledRatio + '%' }"></div>
-            </div>
+          <div class="stat-footer">
+            <span class="stat-footer__item">
+              <i class="dot dot--success"></i>{{ $t('page.quartz.analyticsPage.enabledStatus') }} {{ statsOverview.enabledJobs }}
+            </span>
+            <span class="stat-footer__item">
+              <i class="dot dot--muted"></i>{{ $t('page.quartz.analyticsPage.disabledStatus') }} {{ statsOverview.disabledJobs }}
+            </span>
+            <span class="stat-footer__item">
+              <i class="dot dot--blue"></i>{{ $t('page.quartz.analyticsPage.normalStatus') }} {{ normalCount }}
+            </span>
+            <span class="stat-footer__item">
+              <i class="dot dot--warning"></i>{{ $t('page.quartz.analyticsPage.pausedStatus') }} {{ pausedCount }}
+            </span>
           </div>
         </Card>
       </Col>
 
       <Col :xs="24" :sm="12" :lg="6">
-        <Card class="stat-card" :loading="loading" :bordered="false">
+        <Card class="stat-card stat-card--green" :loading="loading" :bordered="false">
           <div class="stat-content">
             <div class="stat-main">
-              <span class="stat-title">{{ $t('page.quartz.analyticsPage.totalExecutions') }}</span>
-              <span class="stat-number">
-                {{ statsOverview.totalExecutions }}
-                <small class="stat-unit">{{ $t('page.quartz.analyticsPage.times') }}</small>
-              </span>
-            </div>
-            <div class="stat-icon stat-icon--green">
-              <Activity class="stat-icon__svg" />
-            </div>
-          </div>
-          <div class="stat-sub">
-            <div class="stat-sub__label">
-              <span class="sub-label">{{ $t('page.quartz.analyticsPage.successRate') }}</span>
-              <span class="sub-value sub-value--success">{{ successRate }}%</span>
-            </div>
-            <div class="mini-bar">
-              <div class="mini-bar__fill mini-bar__fill--green" :style="{ width: successRatio + '%' }"></div>
-            </div>
-          </div>
-        </Card>
-      </Col>
-
-      <Col :xs="24" :sm="12" :lg="6">
-        <Card class="stat-card" :loading="loading" :bordered="false">
-          <div class="stat-content">
-            <div class="stat-main">
-              <span class="stat-title">{{ $t('page.quartz.analyticsPage.normalRunning') }}</span>
-              <span class="stat-number">
-                {{ normalCount }}
-                <small class="stat-unit">{{ $t('page.quartz.analyticsPage.unit') }}</small>
-              </span>
-            </div>
-            <div class="stat-icon stat-icon--orange">
-              <CircleCheckBig class="stat-icon__svg" />
-            </div>
-          </div>
-          <div class="stat-sub">
-            <div class="stat-sub__label">
-              <span class="sub-label">{{ $t('page.quartz.analyticsPage.normalPaused') }}</span>
-              <span class="sub-value">{{ normalCount }} / {{ pausedCount }}</span>
-            </div>
-            <div class="mini-bar">
-              <div class="mini-bar__fill mini-bar__fill--orange" :style="{ width: normalPercentage + '%' }"></div>
-            </div>
-          </div>
-        </Card>
-      </Col>
-
-      <Col :xs="24" :sm="12" :lg="6">
-        <Card class="stat-card" :bordered="false">
-          <div class="stat-content">
-            <div class="stat-main">
-              <span class="stat-title">{{ $t('page.quartz.analyticsPage.jobTypeDistribution') }}</span>
-              <div class="dual-numbers">
-                <span class="dual-item dual-item--dll">
-                  <small>DLL</small>
-                  <b>{{ dllCount }}</b>
+              <span class="stat-title">{{ $t('page.quartz.analyticsPage.executionActivity') }}</span>
+              <div class="stat-number-row">
+                <span class="stat-number">
+                  {{ recent7DailyAvg }}
+                  <small class="stat-unit">{{ $t('page.quartz.analyticsPage.dailyAvgExecution') }}</small>
                 </span>
-                <span class="dual-item dual-item--api">
-                  <small>API</small>
-                  <b>{{ apiCount }}</b>
+                <span class="stat-badge" :class="trendSummary.changePercent >= 0 ? 'stat-badge--up' : 'stat-badge--down'">
+                  {{ trendSummary.changePercent >= 0 ? '↑' : '↓' }}{{ Math.abs(trendSummary.changePercent) }}%
                 </span>
               </div>
             </div>
-            <div class="stat-icon stat-icon--purple">
-              <Layers class="stat-icon__svg" />
+            <div class="stat-mini-chart">
+              <EchartsUI ref="activityChartRef" style="height: 72px; width: 88px" />
             </div>
           </div>
-          <div class="stat-sub">
-            <div class="stat-sub__label">
-              <span class="sub-label">DLL {{ dllPercentage.toFixed(0) }}%</span>
-              <span class="sub-value">API {{ apiPercentage.toFixed(0) }}%</span>
+          <div class="stat-footer">
+            <span class="stat-footer__item">
+              {{ $t('page.quartz.analyticsPage.recent7Total') }} {{ recent7TotalExecutions }} {{ $t('page.quartz.analyticsPage.times') }}
+            </span>
+          </div>
+        </Card>
+      </Col>
+
+      <Col :xs="24" :sm="12" :lg="6">
+        <Card class="stat-card stat-card--orange" :loading="loading" :bordered="false">
+          <div class="stat-content">
+            <div class="stat-main">
+              <span class="stat-title">{{ $t('page.quartz.analyticsPage.executionQuality') }}</span>
+              <span class="stat-number">
+                {{ recent7SuccessRate }}
+                <small class="stat-unit">%</small>
+              </span>
             </div>
-            <div class="mini-bar mini-bar--dual">
-              <div class="mini-bar__fill mini-bar__fill--purple" :style="{ width: dllPercentage + '%' }"></div>
-              <div class="mini-bar__fill mini-bar__fill--cyan" :style="{ width: apiPercentage + '%' }"></div>
+            <div class="stat-mini-chart">
+              <EchartsUI ref="qualityChartRef" style="height: 72px; width: 72px" />
             </div>
+          </div>
+          <div class="stat-footer">
+            <span class="stat-footer__item">
+              <i class="dot dot--success"></i>{{ $t('page.quartz.analyticsPage.success') }} {{ recent7SuccessCount }}
+            </span>
+            <span class="stat-footer__item">
+              <i class="dot dot--danger"></i>{{ $t('page.quartz.analyticsPage.failed') }} {{ recent7FailedCount }}
+            </span>
+          </div>
+        </Card>
+      </Col>
+
+      <Col :xs="24" :sm="12" :lg="6">
+        <Card class="stat-card stat-card--purple" :loading="loading" :bordered="false">
+          <div class="stat-content">
+            <div class="stat-main">
+              <span class="stat-title">{{ $t('page.quartz.analyticsPage.durationLevel') }}</span>
+              <span class="stat-number">
+                {{ formatDuration(avgDurationValue) }}
+              </span>
+            </div>
+            <div class="stat-mini-chart">
+              <EchartsUI ref="durationChartRef" style="height: 72px; width: 88px" />
+            </div>
+          </div>
+          <div class="stat-footer">
+            <span class="stat-footer__item">
+              P99 {{ formatDuration(p99Duration) }}
+            </span>
+            <span class="stat-footer__item">
+              {{ $t('page.quartz.analyticsPage.slowestJob') }}: {{ slowestJobName }}
+            </span>
           </div>
         </Card>
       </Col>
@@ -1134,16 +1369,17 @@ onMounted(() => {
 }
 
 .stat-card {
-  border-radius: 10px;
+  border-radius: 8px;
   background: hsl(var(--card));
   border: 1px solid hsl(var(--border));
-  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.04);
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.03);
   overflow: hidden;
+  position: relative;
   min-height: 152px;
 }
 
 :deep(.stat-card .ant-card-body) {
-  padding: 18px 20px;
+  padding: 16px 18px;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -1153,7 +1389,8 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
+  min-height: 72px;
 }
 
 .stat-main {
@@ -1165,13 +1402,13 @@ onMounted(() => {
 
 .stat-title {
   color: hsl(var(--muted-foreground));
-  font-size: 13px;
-  margin-bottom: 8px;
+  font-size: 12px;
+  margin-bottom: 6px;
   letter-spacing: 0.01em;
 }
 
 .stat-number {
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 700;
   color: hsl(var(--foreground));
   line-height: 1.1;
@@ -1183,112 +1420,61 @@ onMounted(() => {
   font-size: 12px;
   font-weight: 400;
   color: hsl(var(--muted-foreground));
-  margin-left: 6px;
+  margin-left: 4px;
 }
 
-.stat-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+.stat-number-row {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  position: relative;
-}
-
-.stat-icon__svg {
-  width: 22px;
-  height: 22px;
-}
-
-.stat-icon--blue {
-  background: hsl(212 100% 45% / 0.12);
-  color: hsl(212 100% 45%);
-  box-shadow: 0 4px 12px hsl(212 100% 45% / 0.15);
-}
-
-.stat-icon--green {
-  background: hsl(144 57% 58% / 0.15);
-  color: hsl(144 57% 45%);
-  box-shadow: 0 4px 12px hsl(144 57% 58% / 0.15);
-}
-
-.stat-icon--orange {
-  background: hsl(42 84% 61% / 0.15);
-  color: hsl(42 84% 50%);
-  box-shadow: 0 4px 12px hsl(42 84% 61% / 0.15);
-}
-
-.stat-icon--purple {
-  background: hsl(262 83% 58% / 0.15);
-  color: hsl(262 83% 55%);
-  box-shadow: 0 4px 12px hsl(262 83% 58% / 0.15);
-}
-
-.dual-numbers {
-  display: flex;
-  gap: 18px;
   align-items: baseline;
-}
-
-.dual-item {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.dual-item small {
-  font-size: 11px;
-  color: hsl(var(--muted-foreground));
-  letter-spacing: 0.04em;
-  font-weight: 500;
-}
-
-.dual-item b {
-  font-size: 26px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-}
-
-.dual-item--dll b {
-  color: hsl(262 83% 58%);
-}
-
-.dual-item--api b {
-  color: hsl(187 100% 42%);
-}
-
-.stat-sub {
-  display: flex;
-  flex-direction: column;
   gap: 8px;
-  margin-top: auto;
 }
 
-.stat-sub__label {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
-}
-
-.sub-label {
-  color: hsl(var(--muted-foreground));
-}
-
-.sub-value {
-  font-weight: 600;
-  color: hsl(var(--foreground));
+.stat-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  line-height: 1.6;
 }
 
-.sub-value--success {
-  color: hsl(var(--success));
+.stat-badge--up {
+  color: #52c41a;
+  background: rgba(82, 196, 26, 0.1);
+}
+
+.stat-badge--down {
+  color: #ff4d4f;
+  background: rgba(255, 77, 79, 0.1);
+}
+
+.stat-mini-chart {
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.stat-mini-chart--dual {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.stat-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid hsl(var(--border) / 0.5);
+}
+
+.stat-footer__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .dot {
@@ -1296,64 +1482,33 @@ onMounted(() => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  margin-right: 2px;
 }
 
 .dot--success {
-  background: hsl(var(--success));
+  background: #52c41a;
 }
 
 .dot--muted {
   background: hsl(var(--muted-foreground) / 0.5);
-  margin-left: 6px;
 }
 
-.mini-bar {
-  height: 6px;
-  background: hsl(var(--accent));
-  border-radius: 3px;
-  overflow: hidden;
+.dot--blue {
+  background: #1677ff;
 }
 
-.mini-bar__fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+.dot--warning {
+  background: #faad14;
 }
 
-.mini-bar__fill--blue {
-  background: linear-gradient(90deg, #1890ff, #40a9ff);
-}
-
-.mini-bar__fill--green {
-  background: linear-gradient(90deg, #52c41a, #73d13d);
-}
-
-.mini-bar__fill--orange {
-  background: linear-gradient(90deg, #faad14, #ffc53d);
-}
-
-.mini-bar__fill--purple {
-  background: linear-gradient(90deg, #722ed1, #9254de);
-}
-
-.mini-bar__fill--cyan {
-  background: linear-gradient(90deg, #13c2c2, #36cfc9);
-}
-
-.mini-bar--dual {
-  display: flex;
-}
-
-.mini-bar--dual .mini-bar__fill {
-  min-width: 0;
+.dot--danger {
+  background: #ff4d4f;
 }
 
 .chart-card {
-  border-radius: 10px;
+  border-radius: 8px;
   background: hsl(var(--card));
   border: 1px solid hsl(var(--border));
-  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.04);
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.03);
 }
 
 :deep(.chart-card .ant-card-head) {
@@ -1458,11 +1613,11 @@ onMounted(() => {
 
 @media (max-width: 576px) {
   .stat-number {
-    font-size: 26px;
+    font-size: 24px;
   }
 
-  .dual-item b {
-    font-size: 22px;
+  .stat-mini-chart {
+    display: none;
   }
 
   .chart-title__desc {

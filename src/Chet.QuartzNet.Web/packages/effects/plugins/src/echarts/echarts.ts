@@ -2,6 +2,7 @@ import type {
   BarSeriesOption,
   HeatmapSeriesOption,
   LineSeriesOption,
+  PieSeriesOption,
   ScatterSeriesOption,
 } from 'echarts/charts';
 import type {
@@ -17,6 +18,7 @@ import {
   BarChart,
   HeatmapChart,
   LineChart,
+  PieChart,
   ScatterChart,
 } from 'echarts/charts';
 import {
@@ -42,6 +44,7 @@ export type ECOption = ComposeOption<
   | GridComponentOption
   | HeatmapSeriesOption
   | LineSeriesOption
+  | PieSeriesOption
   | ScatterSeriesOption
   | TitleComponentOption
   | TooltipComponentOption
@@ -61,6 +64,7 @@ echarts.use([
   MarkAreaComponent,
   BarChart,
   LineChart,
+  PieChart,
   ScatterChart,
   HeatmapChart,
   LabelLayout,

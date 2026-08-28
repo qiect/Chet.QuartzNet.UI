@@ -21,7 +21,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddQuartzUI(builder.Configuration);
 
 // 添加ClassJob自动注册
-//builder.Services.AddQuartzClassJobs();
+builder.Services.AddQuartzClassJobs();
 
 builder.Services.AddFileDataToDatabase();
 

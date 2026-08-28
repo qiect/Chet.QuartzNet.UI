@@ -104,7 +104,21 @@
       "weekOverWeek": "WoW",
       "anomalyCount": "Anomalies",
       "anomalyDay": "Anomaly Day",
-      "threshold": "Threshold"
+      "threshold": "Threshold",
+      "jobOverview": "Job Overview",
+      "jobsUnit": "jobs",
+      "executionActivity": "Execution Activity",
+      "dailyAvgExecution": "Daily Avg",
+      "recent7Total": "7-Day",
+      "executionQuality": "Execution Quality",
+      "durationLevel": "Duration Level",
+      "slowestJob": "Slowest",
+      "anomalyDaysShort": "Anomaly",
+      "anomalyDaysUnit": "days",
+      "normalStatus": "Normal",
+      "pausedStatus": "Paused",
+      "enabledStatus": "Enabled",
+      "disabledStatus": "Disabled"
     },
     "jobPage": {
       "jobName": "Job Name",
