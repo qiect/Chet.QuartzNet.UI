@@ -965,6 +965,78 @@ public class QuartzUIController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// 获取作业健康概览数据
+    /// </summary>
+    [HttpPost("GetJobHealthOverview")]
+    public async Task<
+        ActionResult<ApiResponseDto<List<JobHealthDto>>>
+    > GetJobHealthOverview([FromBody] StatsQueryDto query)
+    {
+        try
+        {
+            var result = await _jobService.GetJobHealthOverviewAsync(query);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("获取作业健康概览数据", ex);
+            return Ok(
+                ApiResponseDto<List<JobHealthDto>>.ErrorResponse(
+                    "获取作业健康概览数据失败: " + ex.Message
+                )
+            );
+        }
+    }
+
+    /// <summary>
+    /// 获取作业执行热力图数据
+    /// </summary>
+    [HttpPost("GetJobExecutionHeatmap")]
+    public async Task<
+        ActionResult<ApiResponseDto<List<JobExecutionHeatmapDto>>>
+    > GetJobExecutionHeatmap([FromBody] StatsQueryDto query)
+    {
+        try
+        {
+            var result = await _jobService.GetJobExecutionHeatmapAsync(query);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("获取作业执行热力图数据", ex);
+            return Ok(
+                ApiResponseDto<List<JobExecutionHeatmapDto>>.ErrorResponse(
+                    "获取作业执行热力图数据失败: " + ex.Message
+                )
+            );
+        }
+    }
+
+    /// <summary>
+    /// 获取耗时基线分析数据
+    /// </summary>
+    [HttpPost("GetTopSlowJobs")]
+    public async Task<
+        ActionResult<ApiResponseDto<List<TopSlowJobDto>>>
+    > GetTopSlowJobs([FromBody] StatsQueryDto query, int topCount = 10)
+    {
+        try
+        {
+            var result = await _jobService.GetTopSlowJobsAsync(query, topCount);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("获取耗时基线分析数据", ex);
+            return Ok(
+                ApiResponseDto<List<TopSlowJobDto>>.ErrorResponse(
+                    "获取耗时基线分析数据失败: " + ex.Message
+                )
+            );
+        }
+    }
+
     #endregion
 
     #region 扩展

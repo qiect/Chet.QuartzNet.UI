@@ -1,46 +1,51 @@
 <script setup lang="ts">
-import { ref, shallowRef, onMounted, computed } from 'vue';
+import { ref, shallowRef, onMounted, computed, h } from 'vue';
 import { Page } from '@vben/common-ui';
-import { Card, Row, Col, Skeleton } from 'ant-design-vue';
+import {
+  Card,
+  Row,
+  Col,
+  Skeleton,
+  Table,
+  Tag,
+} from 'ant-design-vue';
 import { Activity, CircleCheckBig, Layers, Package } from '@vben/icons';
 import type { EChartsOption } from 'echarts';
 
-// 导入Vben插件与组件
 import type { EchartsUIType } from '@vben/plugins/echarts';
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
-// 导入i18n
 import { $t } from '#/locales';
 
-// 导入API和类型
 import {
-  getSchedulerStatus,
   getJobStats,
   getJobExecutionTrend,
-  getJobExecutionTime,
+  getJobHealthOverview,
+  getJobExecutionHeatmap,
+  getTopSlowJobs,
   getJobStatusDistribution,
   getJobTypeDistribution,
 } from '../../api/quartz/job';
 import type {
   JobStats,
   JobExecutionTrend,
-  JobExecutionTime,
+  JobHealth,
+  JobExecutionHeatmap,
+  TopSlowJob,
   StatsQueryDto,
   JobStatusDistribution,
   JobTypeDistribution,
 } from '../../api/quartz/job';
 import { useSystemConfig } from '../../composables/use-system-config';
 
-/**
- * 状态与数据初始化
- * 使用 shallowRef 优化性能，防止大型图表数据被过度代理
- */
 const loading = ref(false);
-const executionTrendChartRef = ref<EchartsUIType | null>(null);
-const executionTimeChartRef = ref<EchartsUIType | null>(null);
+const trendChartRef = ref<EchartsUIType | null>(null);
+const healthChartRef = ref<EchartsUIType | null>(null);
+const heatmapChartRef = ref<EchartsUIType | null>(null);
 
-const { renderEcharts: renderExecutionTrend } = useEcharts(executionTrendChartRef);
-const { renderEcharts: renderExecutionTime } = useEcharts(executionTimeChartRef);
+const { renderEcharts: renderTrend } = useEcharts(trendChartRef);
+const { renderEcharts: renderHealth } = useEcharts(healthChartRef);
+const { renderEcharts: renderHeatmap } = useEcharts(heatmapChartRef);
 
 const statsOverview = ref<JobStats>({
   totalJobs: 0,
@@ -51,13 +56,13 @@ const statsOverview = ref<JobStats>({
   failedCount: 0,
 });
 
-// 使用 shallowRef 存储数组数据
-const jobExecutionTrend = shallowRef<JobExecutionTrend[]>([]);
-const jobExecutionTimeData = shallowRef<JobExecutionTime[]>([]);
+const trendData = shallowRef<JobExecutionTrend[]>([]);
+const jobHealthData = shallowRef<JobHealth[]>([]);
+const heatmapData = shallowRef<JobExecutionHeatmap[]>([]);
+const topSlowData = shallowRef<TopSlowJob[]>([]);
 const jobStatusDistribution = shallowRef<JobStatusDistribution[]>([]);
 const jobTypeDistribution = shallowRef<JobTypeDistribution[]>([]);
 
-// 派生数据：KPI 副指标集中计算，避免模板中重复 find
 const normalCount = computed(
   () => jobStatusDistribution.value.find((d) => d.status === 'Normal')?.count || 0,
 );
@@ -92,17 +97,79 @@ const successRatio = computed(() =>
   (statsOverview.value.successCount / (statsOverview.value.totalExecutions || 1)) * 100,
 );
 
-/**
- * 图表配置生成器 (抽离配置逻辑，保持 fetch 函数纯粹)
- */
-const getExecutionTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
-  const hasData = data.length > 0;
-  // 语义色：success 绿 / failed 红 / total 蓝
-  const colors = {
-    success: '#52c41a',
-    failed: '#ff4d4f',
-    total: '#1890ff',
+const trendSummary = ref({
+  recent7Avg: 0,
+  prev7Avg: 0,
+  changePercent: 0,
+  anomalyCount: 0,
+});
+
+const getTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
+  const dates = data.map((d) => d.time);
+  const successValues = data.map((d) => d.successCount);
+  const failedValues = data.map((d) => d.failedCount);
+  const totalValues = data.map((d) => d.totalCount);
+  const successRateValues = data.map((d) =>
+    d.totalCount > 0 ? Number(((d.successCount / d.totalCount) * 100).toFixed(1)) : 0,
+  );
+
+  const n = totalValues.length;
+  const avgTotal = n > 0 ? Number((totalValues.reduce((a, b) => a + b, 0) / n).toFixed(1)) : 0;
+
+  const movingAvg = (arr: number[], window: number): number[] =>
+    arr.map((_, i) => {
+      const start = Math.max(0, i - window + 1);
+      const slice = arr.slice(start, i + 1);
+      return Number((slice.reduce((a, b) => a + b, 0) / slice.length).toFixed(1));
+    });
+
+  const ma7Values = movingAvg(totalValues, 7);
+
+  const failedMean = n > 0 ? failedValues.reduce((a, b) => a + b, 0) / n : 0;
+  const failedStd = n > 0
+    ? Math.sqrt(failedValues.reduce((sum, v) => sum + (v - failedMean) ** 2, 0) / n)
+    : 0;
+  const anomalyThreshold = failedMean + 2 * failedStd;
+
+  const anomalyPoints: { coord: [number, number]; value: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    if (failedValues[i]! > anomalyThreshold && failedValues[i]! > 0) {
+      anomalyPoints.push({ coord: [i, totalValues[i]!], value: failedValues[i]! });
+    }
+  }
+
+  const recent7 = totalValues.slice(-7);
+  const prev7 = totalValues.slice(-14, -7);
+  const recent7Avg = recent7.length > 0 ? recent7.reduce((a, b) => a + b, 0) / recent7.length : 0;
+  const prev7Avg = prev7.length > 0 ? prev7.reduce((a, b) => a + b, 0) / prev7.length : 0;
+  const changePercent = prev7Avg > 0 ? Number((((recent7Avg - prev7Avg) / prev7Avg) * 100).toFixed(1)) : 0;
+
+  trendSummary.value = {
+    recent7Avg: Number(recent7Avg.toFixed(1)),
+    prev7Avg: Number(prev7Avg.toFixed(1)),
+    changePercent,
+    anomalyCount: anomalyPoints.length,
   };
+
+  const busyThreshold = avgTotal * 1.2;
+  const idleThreshold = avgTotal * 0.6;
+
+  const zoneAreas: { xAxis: string; itemStyle?: { color: string; opacity: number } }[][] = [];
+  for (let i = 0; i < n; i++) {
+    const val = totalValues[i]!;
+    let color: string | undefined;
+    if (val >= busyThreshold) {
+      color = 'rgba(255,77,79,0.06)';
+    } else if (val <= idleThreshold) {
+      color = 'rgba(24,144,255,0.06)';
+    }
+    if (color) {
+      zoneAreas.push([
+        { xAxis: dates[i]!, itemStyle: { color, opacity: 1 } },
+        { xAxis: dates[i]! },
+      ]);
+    }
+  }
 
   return {
     backgroundColor: 'transparent',
@@ -112,227 +179,563 @@ const getExecutionTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
       padding: [10, 14],
       textStyle: { fontSize: 12, color: '#595959' },
       extraCssText: 'backdrop-filter: blur(8px); box-shadow: 0 6px 16px rgba(0,0,0,0.08);',
-      formatter: (params: any) => {
-        let html = `<div style="margin-bottom: 8px; font-weight: 600; color: #262626; font-size: 13px;">${params[0].axisValue}</div>`;
-        params.forEach((item: any) => {
-          html += `
-            <div style="display: flex; align-items: center; justify-content: space-between; min-width: 140px; line-height: 22px;">
-              <span style="font-size: 12px; color: #8c8c8c">
-                <span style="display:inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${item.color}; margin-right: 8px; vertical-align: middle;"></span>
-                ${item.seriesName}
-              </span>
-              <span style="font-weight: 600; color: #262626; font-variant-numeric: tabular-nums;">${item.value}</span>
-            </div>`;
-        });
+      formatter: (params: any[]) => {
+        if (!params || params.length === 0) return '';
+        const idx = params[0]!.dataIndex;
+        const date = params[0]!.axisValue;
+        let html = `<div style="font-weight:600;color:#262626;font-size:13px;margin-bottom:6px;">${date}</div>`;
+        for (const p of params) {
+          if (p.seriesName === $t('page.quartz.analyticsPage.successRate')) {
+            html += `<div style="font-size:12px;line-height:20px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:6px;"></span>${p.seriesName}: <b style="color:#262626;">${p.value}%</b></div>`;
+          } else if (p.seriesName === $t('page.quartz.analyticsPage.ma7')) {
+            html += `<div style="font-size:12px;line-height:20px;"><span style="display:inline-block;width:8px;height:3px;border-radius:1px;background:${p.color};margin-right:6px;"></span>${p.seriesName}: <b style="color:#262626;">${p.value}</b></div>`;
+          } else {
+            html += `<div style="font-size:12px;line-height:20px;"><span style="display:inline-block;width:8px;height:3px;border-radius:1px;background:${p.color};margin-right:6px;"></span>${p.seriesName}: <b style="color:#262626;">${p.value}</b></div>`;
+          }
+        }
+        if (idx > 0 && idx < totalValues.length) {
+          const prev = totalValues[idx - 1]!;
+          const curr = totalValues[idx]!;
+          if (prev > 0) {
+            const pct = (((curr - prev) / prev) * 100).toFixed(1);
+            const arrow = Number(pct) >= 0 ? '↑' : '↓';
+            const clr = Number(pct) >= 0 ? '#52c41a' : '#ff4d4f';
+            html += `<div style="font-size:11px;color:#8c8c8c;margin-top:4px;border-top:1px dashed #e8e8e8;padding-top:4px;">${$t('page.quartz.analyticsPage.dayOverDay')}: <span style="color:${clr};font-weight:500;">${arrow}${Math.abs(Number(pct))}%</span></div>`;
+          }
+        }
         return html;
       },
     },
     legend: {
-      icon: 'circle',
-      itemWidth: 8,
-      itemHeight: 8,
-      right: 0,
+      data: [
+        $t('page.quartz.analyticsPage.total'),
+        $t('page.quartz.analyticsPage.ma7'),
+        $t('page.quartz.analyticsPage.success'),
+        $t('page.quartz.analyticsPage.failed'),
+        $t('page.quartz.analyticsPage.successRate'),
+      ],
+      right: 20,
       top: 0,
-      textStyle: { color: '#8c8c8c', fontSize: 12 },
+      itemWidth: 16,
+      itemHeight: 3,
+      textStyle: { fontSize: 12, color: '#8c8c8c' },
     },
-    grid: { left: '1%', right: '2%', bottom: '3%', top: '15%', containLabel: true },
+    grid: { left: 50, right: 50, bottom: 30, top: 36 },
     xAxis: {
       type: 'category',
+      data: dates,
       boundaryGap: false,
-      data: hasData ? data.map((i) => i.time) : [$t('page.quartz.analyticsPage.noData')],
-      axisLine: { lineStyle: { color: '#f0f0f0' } },
+      axisLabel: { color: '#8c8c8c', fontSize: 11, rotate: dates.length > 15 ? 45 : 0 },
       axisTick: { show: false },
-      axisLabel: { color: '#8c8c8c', fontSize: 12 },
+      axisLine: { lineStyle: { color: '#e8e8e8' } },
     },
-    yAxis: {
-      type: 'value',
-      splitLine: { lineStyle: { color: '#f5f5f5', type: 'dashed' } },
-      axisLabel: { color: '#8c8c8c', fontSize: 12 },
-    },
+    yAxis: [
+      {
+        type: 'value',
+        axisLabel: { color: '#8c8c8c', fontSize: 11 },
+        splitLine: { lineStyle: { color: '#f5f5f5', type: 'dashed' } },
+        axisLine: { show: false },
+        axisTick: { show: false },
+      },
+      {
+        type: 'value',
+        min: 0,
+        max: 100,
+        axisLabel: { color: '#8c8c8c', fontSize: 11, formatter: (v: number) => `${v}%` },
+        splitLine: { show: false },
+        axisLine: { show: false },
+        axisTick: { show: false },
+      },
+    ],
     series: [
       {
-        name: $t('page.quartz.analyticsPage.success'),
+        name: $t('page.quartz.analyticsPage.total'),
         type: 'line',
-        smooth: 0.4,
+        data: totalValues,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 6,
         showSymbol: false,
-        data: data.map((i) => i.successCount),
-        itemStyle: { color: colors.success },
-        lineStyle: { width: 2.5 },
+        lineStyle: { width: 2.5, color: '#1890ff' },
         areaStyle: {
           color: {
             type: 'linear',
-            x: 0,
-            y: 0,
-            x2: 0,
-            y2: 1,
+            x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(82, 196, 26, 0.18)' },
-              { offset: 1, color: 'transparent' },
+              { offset: 0, color: 'rgba(24,144,255,0.12)' },
+              { offset: 1, color: 'rgba(24,144,255,0.01)' },
             ],
           },
         },
+        itemStyle: { color: '#1890ff' },
+        markLine: {
+          silent: true,
+          symbol: 'none',
+          lineStyle: { color: '#1890ff', type: 'dashed', width: 1, opacity: 0.4 },
+          label: {
+            formatter: `{c}`,
+            fontSize: 10,
+            color: '#8c8c8c',
+          },
+          data: [{ yAxis: avgTotal, name: $t('page.quartz.analyticsPage.avgLine') }],
+        },
+        markArea: zoneAreas.length > 0 ? {
+          silent: true,
+          data: zoneAreas,
+        } : undefined,
+        markPoint: anomalyPoints.length > 0 ? {
+          symbol: 'pin',
+          symbolSize: 30,
+          itemStyle: { color: '#ff4d4f' },
+          label: {
+            show: true,
+            formatter: () => `!`,
+            fontSize: 11,
+            fontWeight: 700,
+            color: '#fff',
+          },
+          data: anomalyPoints,
+          tooltip: {
+            formatter: (params: any) => {
+              const idx = params.coord?.[0] ?? params.dataIndex;
+              const dateStr = typeof idx === 'number' && dates[idx] ? dates[idx] : '';
+              const failVal = typeof idx === 'number' && failedValues[idx] ? failedValues[idx] : params.value;
+              return `<b style="color:#ff4d4f;">${$t('page.quartz.analyticsPage.anomalyDay')}</b><br/>
+                <span style="color:#8c8c8c;">${dateStr}</span><br/>
+                <span style="color:#ff4d4f;">${$t('page.quartz.analyticsPage.failed')}: <b>${failVal}</b></span><br/>
+                <span style="color:#8c8c8c;">${$t('page.quartz.analyticsPage.threshold')}: <b>${anomalyThreshold.toFixed(1)}</b></span>`;
+            },
+          },
+        } : undefined,
+      },
+      {
+        name: $t('page.quartz.analyticsPage.ma7'),
+        type: 'line',
+        data: ma7Values,
+        smooth: true,
+        symbol: 'none',
+        showSymbol: false,
+        lineStyle: { width: 1.5, color: '#1890ff', type: 'dashed', opacity: 0.5 },
+        itemStyle: { color: '#1890ff' },
+      },
+      {
+        name: $t('page.quartz.analyticsPage.success'),
+        type: 'line',
+        data: successValues,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 6,
+        showSymbol: false,
+        lineStyle: { width: 2, color: '#52c41a' },
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: 'rgba(82,196,26,0.08)' },
+              { offset: 1, color: 'rgba(82,196,26,0.01)' },
+            ],
+          },
+        },
+        itemStyle: { color: '#52c41a' },
       },
       {
         name: $t('page.quartz.analyticsPage.failed'),
         type: 'line',
-        smooth: 0.4,
+        data: failedValues,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 6,
         showSymbol: false,
-        data: data.map((i) => i.failedCount),
-        itemStyle: { color: colors.failed },
-        lineStyle: { width: 2.5 },
-        areaStyle: {
-          color: {
-            type: 'linear',
-            x: 0,
-            y: 0,
-            x2: 0,
-            y2: 1,
-            colorStops: [
-              { offset: 0, color: 'rgba(255, 77, 79, 0.18)' },
-              { offset: 1, color: 'transparent' },
-            ],
-          },
-        },
+        lineStyle: { width: 2, color: '#ff4d4f' },
+        itemStyle: { color: '#ff4d4f' },
       },
       {
-        name: $t('page.quartz.analyticsPage.total'),
+        name: $t('page.quartz.analyticsPage.successRate'),
         type: 'line',
-        smooth: 0.4,
+        yAxisIndex: 1,
+        data: successRateValues,
+        smooth: true,
+        symbol: 'diamond',
+        symbolSize: 5,
         showSymbol: false,
-        data: data.map((i) => i.totalCount),
-        itemStyle: { color: colors.total },
-        lineStyle: { width: 2, type: 'dashed', opacity: 0.55 },
+        lineStyle: { width: 1.5, color: '#722ed1', type: 'dashed' },
+        itemStyle: { color: '#722ed1' },
       },
     ],
   };
 };
 
-const getExecutionTimeOption = (data: JobExecutionTime[]): EChartsOption => {
-  const xAxisData =
-    data.length > 0
-      ? data.map((i) => i.timeRange)
-      : [$t('page.quartz.analyticsPage.noData')];
-  const isDark = document.documentElement.classList.contains('dark');
-  const labelColor = isDark ? 'rgba(255,255,255,0.45)' : '#8c8c8c';
-  const lineColor = isDark ? '#303030' : '#f0f0f0';
-  const splitColor = isDark ? '#303030' : '#f5f5f5';
+const getHealthOption = (data: JobHealth[]): EChartsOption => {
+  const statusColorMap: Record<string, string> = {
+    Normal: '#1677ff',
+    Paused: '#faad14',
+    Completed: '#13c2c2',
+    Error: '#ff4d4f',
+    Blocked: '#8c8c8c',
+  };
+
+  const maxExecCount = Math.max(...data.map((d) => d.executionCount), 1);
 
   return {
     backgroundColor: 'transparent',
     tooltip: {
-      trigger: 'axis',
-      axisPointer: { type: 'shadow' },
+      trigger: 'item',
       borderWidth: 0,
       padding: [10, 14],
-      textStyle: { fontSize: 12 },
+      textStyle: { fontSize: 12, color: '#595959' },
       extraCssText: 'backdrop-filter: blur(8px); box-shadow: 0 6px 16px rgba(0,0,0,0.08);',
-    },
-    grid: { left: '1%', right: '2%', bottom: '3%', top: '15%', containLabel: true },
-    xAxis: {
-      type: 'category',
-      data: xAxisData,
-      axisLabel: {
-        color: labelColor,
-        fontSize: 12,
-        rotate: xAxisData.length > 6 ? 30 : 0,
+      formatter: (params: any) => {
+        const d = params.data;
+        if (!d) return '';
+        const dur = formatDuration(d.avgDuration);
+        const enabledText = d.isEnabled
+          ? $t('page.quartz.analyticsPage.enabled')
+          : $t('page.quartz.analyticsPage.disabled');
+        return `
+          <div style="font-weight:600;color:#262626;font-size:13px;margin-bottom:6px;">${d.jobName}</div>
+          <div style="color:#8c8c8c;font-size:12px;line-height:20px;">
+            ${$t('page.quartz.analyticsPage.jobGroup')}: ${d.jobGroup}<br/>
+            ${$t('page.quartz.analyticsPage.jobStatus')}: ${enabledText}<br/>
+            ${$t('page.quartz.analyticsPage.jobHealthSuccessRate')}: <b style="color:#262626;">${d.successRate}%</b><br/>
+            ${$t('page.quartz.analyticsPage.jobHealthAvgDuration')}: <b style="color:#262626;">${dur}</b><br/>
+            ${$t('page.quartz.analyticsPage.jobHealthExecutionCount')}: <b style="color:#262626;">${d.executionCount}</b>
+          </div>`;
       },
-      axisLine: { lineStyle: { color: lineColor } },
-      axisTick: { show: false },
+    },
+    grid: { left: 60, right: 30, bottom: 50, top: 30 },
+    xAxis: {
+      name: $t('page.quartz.analyticsPage.jobHealthSuccessRate') + ' (%)',
+      nameLocation: 'middle',
+      nameGap: 30,
+      type: 'value',
+      min: 0,
+      max: 100,
+      splitLine: { lineStyle: { color: '#f5f5f5', type: 'dashed' } },
+      axisLabel: { color: '#8c8c8c', fontSize: 12 },
     },
     yAxis: {
+      name: $t('page.quartz.analyticsPage.jobHealthAvgDuration'),
+      nameLocation: 'middle',
+      nameGap: 50,
       type: 'value',
-      splitLine: { lineStyle: { type: 'dashed', color: splitColor } },
-      axisLabel: { color: labelColor, fontSize: 12 },
+      axisLabel: {
+        color: '#8c8c8c',
+        fontSize: 12,
+        formatter: (v: number) => formatDuration(v),
+      },
+      splitLine: { lineStyle: { color: '#f5f5f5', type: 'dashed' } },
     },
+    graphic: [
+      {
+        type: 'group',
+        right: 40,
+        bottom: 10,
+        children: [
+          {
+            type: 'circle',
+            shape: { cx: 0, cy: -4, r: 4 },
+            style: { fill: '#1677ff' },
+          },
+          {
+            type: 'text',
+            style: {
+              text: $t('page.quartz.analyticsPage.quadrantHealthy'),
+              x: 10,
+              fill: '#1677ff',
+              fontSize: 11,
+              fontWeight: 500,
+            },
+          },
+        ],
+      },
+      {
+        type: 'group',
+        right: 40,
+        top: 8,
+        children: [
+          {
+            type: 'circle',
+            shape: { cx: 0, cy: -4, r: 4 },
+            style: { fill: '#faad14' },
+          },
+          {
+            type: 'text',
+            style: {
+              text: $t('page.quartz.analyticsPage.quadrantSlow'),
+              x: 10,
+              fill: '#faad14',
+              fontSize: 11,
+              fontWeight: 500,
+            },
+          },
+        ],
+      },
+      {
+        type: 'group',
+        left: 68,
+        bottom: 10,
+        children: [
+          {
+            type: 'circle',
+            shape: { cx: 0, cy: -4, r: 4 },
+            style: { fill: '#fa8c16' },
+          },
+          {
+            type: 'text',
+            style: {
+              text: $t('page.quartz.analyticsPage.quadrantUnstable'),
+              x: 10,
+              fill: '#fa8c16',
+              fontSize: 11,
+              fontWeight: 500,
+            },
+          },
+        ],
+      },
+      {
+        type: 'group',
+        left: 68,
+        top: 8,
+        children: [
+          {
+            type: 'circle',
+            shape: { cx: 0, cy: -4, r: 4 },
+            style: { fill: '#ff4d4f' },
+          },
+          {
+            type: 'text',
+            style: {
+              text: $t('page.quartz.analyticsPage.quadrantCritical'),
+              x: 10,
+              fill: '#ff4d4f',
+              fontSize: 11,
+              fontWeight: 500,
+            },
+          },
+        ],
+      },
+    ],
     series: [
       {
-        name: $t('page.quartz.analyticsPage.jobCount'),
-        type: 'bar',
-        barWidth: 24,
-        data: data.map((i) => i.count),
-        itemStyle: {
-          borderRadius: [6, 6, 0, 0],
-          color: (params: any) => {
-            // 按耗时档位映射语义色：极速蓝 → 正常绿 → 偏慢黄 → 极慢红
-            const ratio = params.dataIndex / (xAxisData.length - 1 || 1);
-            let color;
-            if (ratio < 0.25) {
-              color = '#1890ff';
-            } else if (ratio < 0.5) {
-              color = '#52c41a';
-            } else if (ratio < 0.75) {
-              color = '#faad14';
-            } else {
-              color = '#ff4d4f';
-            }
-            return {
-              type: 'linear',
-              x: 0,
-              y: 0,
-              x2: 0,
-              y2: 1,
-              colorStops: [
-                { offset: 0, color },
-                { offset: 1, color: color + 'AA' },
-              ],
-            };
+        type: 'scatter',
+        symbolSize: (_val: number[], params: any) => {
+          const count = params.data.executionCount;
+          return Math.max(8, Math.min(40, (count / maxExecCount) * 40));
+        },
+        data: data.map((d) => ({
+          value: [d.successRate, d.avgDuration],
+          jobName: d.jobName,
+          jobGroup: d.jobGroup,
+          status: d.status,
+          isEnabled: d.isEnabled,
+          successRate: d.successRate,
+          avgDuration: d.avgDuration,
+          executionCount: d.executionCount,
+          itemStyle: {
+            color: statusColorMap[d.status] || '#8c8c8c',
+            opacity: d.isEnabled ? 1 : 0.4,
           },
+        })),
+        emphasis: {
+          focus: 'self',
+          itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.2)' },
         },
       },
     ],
   };
 };
 
-/**
- * 业务逻辑：获取并渲染数据
- */
+const getHeatmapOption = (data: JobExecutionHeatmap[]): EChartsOption => {
+  const days = [
+    $t('page.quartz.analyticsPage.dayMon'),
+    $t('page.quartz.analyticsPage.dayTue'),
+    $t('page.quartz.analyticsPage.dayWed'),
+    $t('page.quartz.analyticsPage.dayThu'),
+    $t('page.quartz.analyticsPage.dayFri'),
+    $t('page.quartz.analyticsPage.daySat'),
+    $t('page.quartz.analyticsPage.daySun'),
+  ];
+  const hours = Array.from({ length: 24 }, (_, i) => `${i}`);
+
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
+
+  const heatmapValues = data.map((d) => [d.hour, d.dayOfWeek - 1, d.count]);
+
+  return {
+    backgroundColor: 'transparent',
+    tooltip: {
+      borderWidth: 0,
+      padding: [10, 14],
+      textStyle: { fontSize: 12, color: '#595959' },
+      extraCssText: 'backdrop-filter: blur(8px); box-shadow: 0 6px 16px rgba(0,0,0,0.08);',
+      formatter: (params: any) => {
+        const d = data.find(
+          (item) => item.dayOfWeek === params.value[1] + 1 && item.hour === params.value[0],
+        );
+        if (!d) return '';
+        const dayName = days[params.value[1]];
+        return `<b style="color:#262626;">${dayName} ${params.value[0]}:00</b><br/>
+          <span style="color:#8c8c8c;">${$t('page.quartz.analyticsPage.heatmapExec')}: <b style="color:#262626;">${d.count}</b> ${$t('page.quartz.analyticsPage.times')}</span><br/>
+          <span style="color:#52c41a;">${$t('page.quartz.analyticsPage.success')}: <b>${d.successCount}</b></span> /
+          <span style="color:#ff4d4f;">${$t('page.quartz.analyticsPage.failed')}: <b>${d.failedCount}</b></span>`;
+      },
+    },
+    grid: { left: 50, right: 20, bottom: 40, top: 10 },
+    xAxis: {
+      type: 'category',
+      data: hours,
+      splitArea: { show: true, areaStyle: { color: ['rgba(0,0,0,0.02)', 'transparent'] } },
+      axisLabel: { color: '#8c8c8c', fontSize: 11, interval: 1 },
+      axisTick: { show: false },
+      axisLine: { show: false },
+    },
+    yAxis: {
+      type: 'category',
+      data: days,
+      splitArea: { show: true, areaStyle: { color: ['rgba(0,0,0,0.02)', 'transparent'] } },
+      axisLabel: { color: '#8c8c8c', fontSize: 11 },
+      axisTick: { show: false },
+      axisLine: { show: false },
+    },
+    visualMap: {
+      min: 0,
+      max: maxCount,
+      calculable: false,
+      orient: 'horizontal',
+      left: 'center',
+      bottom: 0,
+      inRange: {
+        color: ['#fff1f0', '#ffa39e', '#ff7875', '#ff4d4f', '#cf1322'],
+      },
+      textStyle: { color: '#8c8c8c', fontSize: 10 },
+      show: true,
+    },
+    series: [
+      {
+        type: 'heatmap',
+        data: heatmapValues,
+        label: { show: false },
+        emphasis: {
+          itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' },
+        },
+      },
+    ],
+  };
+};
+
+const formatDuration = (ms: number): string => {
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)} s`;
+  if (ms < 3600000) return `${(ms / 60000).toFixed(1)} min`;
+  return `${(ms / 3600000).toFixed(1)} h`;
+};
+
+const formatDateTime = (dt?: string | null): string => {
+  if (!dt) return '-';
+  const d = new Date(dt);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+const topSlowColumns = computed(() => [
+  {
+    title: '#',
+    key: 'rank',
+    width: 36,
+    customRender: ({ index }: { index: number }) => index + 1,
+  },
+  {
+    title: $t('page.quartz.jobPage.jobName'),
+    dataIndex: 'jobName',
+    key: 'jobName',
+    width: 180,
+    ellipsis: true,
+  },
+  {
+    title: $t('page.quartz.jobPage.jobGroup'),
+    dataIndex: 'jobGroup',
+    key: 'jobGroup',
+    width: 90,
+    ellipsis: true,
+  },
+  {
+    title: $t('page.quartz.analyticsPage.avgDuration'),
+    dataIndex: 'avgDuration',
+    key: 'avgDuration',
+    width: 90,
+    customRender: ({ text }: { text: number }) => formatDuration(text),
+    sorter: (a: TopSlowJob, b: TopSlowJob) => a.avgDuration - b.avgDuration,
+  },
+  {
+    title: $t('page.quartz.analyticsPage.maxDuration'),
+    dataIndex: 'maxDuration',
+    key: 'maxDuration',
+    width: 90,
+    customRender: ({ text }: { text: number }) => formatDuration(text),
+  },
+  {
+    title: $t('page.quartz.analyticsPage.successRate'),
+    dataIndex: 'successRate',
+    key: 'successRate',
+    width: 80,
+    customRender: ({ text }: { text: number }) => {
+      const color = text >= 95 ? '#52c41a' : text >= 80 ? '#faad14' : '#ff4d4f';
+      return h(Tag, { color }, () => `${text}%`);
+    },
+  },
+  {
+    title: $t('page.quartz.analyticsPage.lastExecution'),
+    dataIndex: 'lastExecutionTime',
+    key: 'lastExecutionTime',
+    width: 130,
+    customRender: ({ text }: { text: string }) => formatDateTime(text),
+  },
+]);
+
 const fetchData = async () => {
   loading.value = true;
   const query: StatsQueryDto = { timeRangeType: 'last30Days' };
 
   try {
-    // 并行请求，提高加载速度
     const [
       statsRes,
       trendRes,
-      timeRes,
-      schedulerRes,
+      healthRes,
+      heatmapRes,
+      slowRes,
       statusDistributionRes,
       typeDistributionRes,
     ] = await Promise.all([
       getJobStats(query),
       getJobExecutionTrend(query),
-      getJobExecutionTime(query),
-      getSchedulerStatus(),
+      getJobHealthOverview(query),
+      getJobExecutionHeatmap(query),
+      getTopSlowJobs(query, 10),
       getJobStatusDistribution(query),
       getJobTypeDistribution(query),
     ]);
 
-    // 更新基础统计 (优先使用 statsRes, schedulerRes 作为补充)
-    if (statsRes.success) {
+    if (statsRes.success && statsRes.data) {
       statsOverview.value = statsRes.data;
     }
-    if (schedulerRes.success) {
-      // 若总数为空则使用调度器数据
-      if (!statsOverview.value.totalJobs)
-        statsOverview.value.totalJobs = schedulerRes.data.jobCount || 0;
-    }
 
-    // 更新趋势图数据
-    jobExecutionTrend.value = trendRes?.success ? trendRes.data : [];
-    renderExecutionTrend(getExecutionTrendOption(jobExecutionTrend.value));
+    trendData.value = trendRes?.success && trendRes.data ? trendRes.data : [];
+    renderTrend(getTrendOption(trendData.value));
 
-    // 更新耗时图数据
-    jobExecutionTimeData.value = timeRes?.success ? timeRes.data : [];
-    renderExecutionTime(getExecutionTimeOption(jobExecutionTimeData.value));
+    jobHealthData.value = healthRes?.success && healthRes.data ? healthRes.data : [];
+    renderHealth(getHealthOption(jobHealthData.value));
 
-    // 更新作业状态分布数据
-    jobStatusDistribution.value = statusDistributionRes?.success
+    heatmapData.value = heatmapRes?.success && heatmapRes.data ? heatmapRes.data : [];
+    renderHeatmap(getHeatmapOption(heatmapData.value));
+
+    topSlowData.value = slowRes?.success && slowRes.data ? slowRes.data : [];
+
+    jobStatusDistribution.value = statusDistributionRes?.success && statusDistributionRes.data
       ? statusDistributionRes.data
       : [];
 
-    // 更新作业类型分布数据
-    jobTypeDistribution.value = typeDistributionRes?.success
+    jobTypeDistribution.value = typeDistributionRes?.success && typeDistributionRes.data
       ? typeDistributionRes.data
       : [];
   } catch (error) {
@@ -342,13 +745,8 @@ const fetchData = async () => {
   }
 };
 
-/**
- * 系统配置：服务标识横幅
- * 使用全局共享状态，标题同步由 bootstrap.ts 统一处理
- */
 const { systemConfig, loadSystemConfig } = useSystemConfig();
 
-// 环境标签文本映射
 const environmentTagMap: Record<string, () => string> = {
   DEV: () => $t('page.quartz.systemConfigPage.envDEV'),
   TEST: () => $t('page.quartz.systemConfigPage.envTEST'),
@@ -370,7 +768,6 @@ onMounted(() => {
 
 <template>
   <Page auto-content-height header-class="page-header-compact">
-    <!-- 标题行：服务标识胶囊 = 主题色条 + 服务名 + 环境标签 -->
     <template #title>
       <div class="page-title-row">
         <div v-if="hasServiceName" class="service-chip">
@@ -382,13 +779,12 @@ onMounted(() => {
         </div>
       </div>
     </template>
-    <!-- 描述：服务描述（若有） -->
     <template #description>
       <p v-if="hasServiceName && systemConfig.serviceDescription" class="service-desc">
         {{ systemConfig.serviceDescription }}
       </p>
     </template>
-    <!-- KPI 概览：保留 Card 质感 + 图标视觉，用 vben token 统一配色 -->
+
     <Row :gutter="[16, 16]">
       <Col :xs="24" :sm="12" :lg="6">
         <Card class="stat-card" :loading="loading" :bordered="false">
@@ -472,7 +868,7 @@ onMounted(() => {
       </Col>
 
       <Col :xs="24" :sm="12" :lg="6">
-        <Card class="stat-card" :loading="loading" :bordered="false">
+        <Card class="stat-card" :bordered="false">
           <div class="stat-content">
             <div class="stat-main">
               <span class="stat-title">{{ $t('page.quartz.analyticsPage.jobTypeDistribution') }}</span>
@@ -512,8 +908,58 @@ onMounted(() => {
               <span class="chart-title__text">{{ $t('page.quartz.analyticsPage.executionTrend') }}</span>
             </div>
           </template>
+          <template #extra>
+            <div class="trend-summary">
+              <span class="trend-summary__item">
+                <span class="trend-summary__label">{{ $t('page.quartz.analyticsPage.recent7Avg') }}</span>
+                <span class="trend-summary__value">{{ trendSummary.recent7Avg }}</span>
+              </span>
+              <span class="trend-summary__item">
+                <span class="trend-summary__label">{{ $t('page.quartz.analyticsPage.weekOverWeek') }}</span>
+                <span
+                  class="trend-summary__value"
+                  :class="trendSummary.changePercent >= 0 ? 'trend-summary__up' : 'trend-summary__down'"
+                >
+                  {{ trendSummary.changePercent >= 0 ? '↑' : '↓' }}{{ Math.abs(trendSummary.changePercent) }}%
+                </span>
+              </span>
+              <span v-if="trendSummary.anomalyCount > 0" class="trend-summary__item trend-summary__item--warn">
+                <span class="trend-summary__label">{{ $t('page.quartz.analyticsPage.anomalyCount') }}</span>
+                <span class="trend-summary__value trend-summary__down">{{ trendSummary.anomalyCount }}</span>
+              </span>
+            </div>
+          </template>
+          <Skeleton :loading="loading" active :paragraph="{ rows: 6 }">
+            <EchartsUI ref="trendChartRef" style="height: 280px" />
+          </Skeleton>
+        </Card>
+      </Col>
+
+      <Col :xs="24" :lg="12">
+        <Card class="chart-card" :bordered="false">
+          <template #title>
+            <div class="chart-title">
+              <span class="chart-title__bar"></span>
+              <span class="chart-title__text">{{ $t('page.quartz.analyticsPage.jobOperationStatus') }}</span>
+              <span class="chart-title__desc">{{ $t('page.quartz.analyticsPage.jobOperationStatusDesc') }}</span>
+            </div>
+          </template>
           <Skeleton :loading="loading" active :paragraph="{ rows: 8 }">
-            <EchartsUI ref="executionTrendChartRef" style="height: 380px" />
+            <EchartsUI ref="healthChartRef" style="height: 340px" />
+          </Skeleton>
+        </Card>
+      </Col>
+
+      <Col :xs="24" :lg="12">
+        <Card class="chart-card" :bordered="false">
+          <template #title>
+            <div class="chart-title">
+              <span class="chart-title__bar"></span>
+              <span class="chart-title__text">{{ $t('page.quartz.analyticsPage.executionHeatmap') }}</span>
+            </div>
+          </template>
+          <Skeleton :loading="loading" active :paragraph="{ rows: 8 }">
+            <EchartsUI ref="heatmapChartRef" style="height: 340px" />
           </Skeleton>
         </Card>
       </Col>
@@ -523,11 +969,19 @@ onMounted(() => {
           <template #title>
             <div class="chart-title">
               <span class="chart-title__bar"></span>
-              <span class="chart-title__text">{{ $t('page.quartz.analyticsPage.executionTime') }}</span>
+              <span class="chart-title__text">{{ $t('page.quartz.analyticsPage.topSlowJobs') }}</span>
             </div>
           </template>
-          <Skeleton :loading="loading" active :paragraph="{ rows: 8 }">
-            <EchartsUI ref="executionTimeChartRef" style="height: 380px" />
+          <Skeleton :loading="loading" active :paragraph="{ rows: 6 }">
+            <Table
+              :columns="topSlowColumns"
+              :data-source="topSlowData"
+              :pagination="false"
+              :scroll="{ x: 680 }"
+              size="small"
+              row-key="jobName"
+              class="top-slow-table"
+            />
           </Skeleton>
         </Card>
       </Col>
@@ -536,26 +990,22 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* ====== Page header 紧凑化 ====== */
 :deep(.page-header-compact) {
   padding-top: 12px !important;
   padding-bottom: 12px !important;
 }
 
-/* ====== 标题行：服务标识区（大气版） ====== */
 .page-title-row {
   display: flex;
   align-items: center;
 }
 
-/* 服务标识容器：直接铺开，不套小胶囊，更有体量感 */
 .service-chip {
   display: inline-flex;
   align-items: center;
   gap: 14px;
 }
 
-/* 主题色条：加粗加高 + 渐变 + 微光，作为视觉锚点 */
 .service-bar {
   flex-shrink: 0;
   width: 4px;
@@ -567,7 +1017,6 @@ onMounted(() => {
   box-shadow: 0 0 8px hsl(var(--primary) / 0.35);
 }
 
-/* 服务名：大字号作为视觉主体 */
 .service-name {
   font-size: 20px;
   font-weight: 600;
@@ -580,7 +1029,6 @@ onMounted(() => {
   max-width: 360px;
 }
 
-/* 环境标签：稍大胶囊 + 语义色圆点 */
 .env-pill {
   display: inline-flex;
   align-items: center;
@@ -602,7 +1050,6 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-/* 环境语义色映射 */
 .env-pill[data-env='DEV'] {
   color: hsl(var(--foreground));
   background: hsl(var(--muted-foreground) / 0.08);
@@ -653,7 +1100,6 @@ onMounted(() => {
   text-overflow: ellipsis;
 }
 
-/* ====== KPI 卡片：保留质感，token 统一配色 ====== */
 .stat-card {
   border-radius: 10px;
   background: hsl(var(--card));
@@ -707,7 +1153,6 @@ onMounted(() => {
   margin-left: 6px;
 }
 
-/* 图标：语义色圆角背景 + lucide 图标 */
 .stat-icon {
   width: 44px;
   height: 44px;
@@ -748,7 +1193,6 @@ onMounted(() => {
   box-shadow: 0 4px 12px hsl(262 83% 58% / 0.15);
 }
 
-/* 双数值（DLL / API） */
 .dual-numbers {
   display: flex;
   gap: 18px;
@@ -783,7 +1227,6 @@ onMounted(() => {
   color: hsl(187 100% 42%);
 }
 
-/* ====== 副指标 + mini bar ====== */
 .stat-sub {
   display: flex;
   flex-direction: column;
@@ -873,7 +1316,6 @@ onMounted(() => {
   min-width: 0;
 }
 
-/* ====== 图表卡片 ====== */
 .chart-card {
   border-radius: 10px;
   background: hsl(var(--card));
@@ -914,7 +1356,73 @@ onMounted(() => {
   color: hsl(var(--foreground));
 }
 
-/* 响应式 */
+.chart-title__desc {
+  font-size: 12px;
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+  margin-left: 4px;
+}
+
+.trend-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 12px;
+}
+
+.trend-summary__item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.trend-summary__label {
+  color: #8c8c8c;
+}
+
+.trend-summary__value {
+  font-weight: 600;
+  color: #262626;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-summary__up {
+  color: #52c41a;
+}
+
+.trend-summary__down {
+  color: #ff4d4f;
+}
+
+.trend-summary__item--warn {
+  background: rgba(255, 77, 79, 0.08);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.top-slow-table {
+  font-size: 13px;
+}
+
+:deep(.top-slow-table .ant-table) {
+  background: transparent;
+}
+
+:deep(.top-slow-table .ant-table-thead > tr > th) {
+  background: hsl(var(--muted) / 0.3);
+  font-size: 12px;
+  padding: 8px 12px;
+}
+
+:deep(.top-slow-table .ant-table-tbody > tr > td) {
+  padding: 8px 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+:deep(.top-slow-table .ant-table-cell) {
+  white-space: nowrap;
+}
+
 @media (max-width: 576px) {
   .stat-number {
     font-size: 26px;
@@ -922,6 +1430,10 @@ onMounted(() => {
 
   .dual-item b {
     font-size: 22px;
+  }
+
+  .chart-title__desc {
+    display: none;
   }
 }
 </style>

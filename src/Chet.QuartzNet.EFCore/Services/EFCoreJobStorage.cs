@@ -977,6 +977,165 @@ public class EFCoreJobStorage : IJobStorage
     }
 
     /// <summary>
+    /// 获取作业健康概览数据（用于散点气泡图）
+    /// </summary>
+    public async Task<List<JobHealthDto>> GetJobHealthOverviewAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var (startTime, endTime) = CalculateTimeRange(queryDto);
+
+            var jobs = await _dbContext.QuartzJobs.ToListAsync(cancellationToken);
+
+            var logs = await _dbContext
+                .QuartzJobLogs.Where(l => l.StartTime >= startTime && l.StartTime <= endTime)
+                .GroupBy(l => new { l.JobName, l.JobGroup })
+                .Select(g => new
+                {
+                    g.Key.JobName,
+                    g.Key.JobGroup,
+                    ExecutionCount = g.Count(),
+                    SuccessCount = g.Count(l => l.Status == LogStatus.Success),
+                    AvgDuration = g.Where(l => l.Duration.HasValue).Average(l => (double)l.Duration!.Value),
+                    MaxDuration = g.Where(l => l.Duration.HasValue).Max(l => (double)l.Duration!.Value),
+                    LastExecutionTime = g.Max(l => l.StartTime),
+                })
+                .ToListAsync(cancellationToken);
+
+            var result = jobs.Select(job =>
+            {
+                var jobLog = logs.FirstOrDefault(l =>
+                    l.JobName == job.JobName && l.JobGroup == job.JobGroup
+                );
+                var execCount = jobLog?.ExecutionCount ?? 0;
+                var successCount = jobLog?.SuccessCount ?? 0;
+
+                return new JobHealthDto
+                {
+                    JobName = job.JobName,
+                    JobGroup = job.JobGroup,
+                    Status = job.Status.ToString(),
+                    IsEnabled = job.IsEnabled,
+                    SuccessRate = execCount > 0 ? Math.Round((double)successCount / execCount * 100, 1) : 0,
+                    AvgDuration = Math.Round(jobLog?.AvgDuration ?? 0, 0),
+                    MaxDuration = Math.Round(jobLog?.MaxDuration ?? 0, 0),
+                    ExecutionCount = execCount,
+                    LastExecutionTime = jobLog?.LastExecutionTime,
+                    CronExpression = job.CronExpression,
+                };
+            }).ToList();
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("获取作业健康概览数据", ex);
+            return new List<JobHealthDto>();
+        }
+    }
+
+    /// <summary>
+    /// 获取作业执行热力图数据（星期×小时）
+    /// </summary>
+    public async Task<List<JobExecutionHeatmapDto>> GetJobExecutionHeatmapAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var (startTime, endTime) = CalculateTimeRange(queryDto);
+
+            var logs = await _dbContext
+                .QuartzJobLogs.Where(l => l.StartTime >= startTime && l.StartTime <= endTime)
+                .ToListAsync(cancellationToken);
+
+            var heatmap = logs
+                .GroupBy(l => new
+                {
+                    DayOfWeek = ((int)l.StartTime.DayOfWeek + 6) % 7 + 1,
+                    Hour = l.StartTime.Hour,
+                })
+                .Select(g => new JobExecutionHeatmapDto
+                {
+                    DayOfWeek = g.Key.DayOfWeek,
+                    Hour = g.Key.Hour,
+                    Count = g.Count(),
+                    SuccessCount = g.Count(l => l.Status == LogStatus.Success),
+                    FailedCount = g.Count(l => l.Status == LogStatus.Failed),
+                })
+                .ToList();
+
+            return heatmap;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("获取作业执行热力图数据", ex);
+            return new List<JobExecutionHeatmapDto>();
+        }
+    }
+
+    /// <summary>
+    /// 获取耗时基线分析数据（Top慢作业）
+    /// </summary>
+    public async Task<List<TopSlowJobDto>> GetTopSlowJobsAsync(
+        StatsQueryDto queryDto,
+        int topCount = 10,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var (startTime, endTime) = CalculateTimeRange(queryDto);
+
+            var logs = await _dbContext
+                .QuartzJobLogs.Where(l =>
+                    l.StartTime >= startTime
+                    && l.StartTime <= endTime
+                    && l.Status != LogStatus.Running
+                    && l.Duration.HasValue
+                )
+                .GroupBy(l => new { l.JobName, l.JobGroup })
+                .Select(g => new
+                {
+                    g.Key.JobName,
+                    g.Key.JobGroup,
+                    AvgDuration = g.Average(l => (double)l.Duration!.Value),
+                    MaxDuration = g.Max(l => (double)l.Duration!.Value),
+                    MinDuration = g.Min(l => (double)l.Duration!.Value),
+                    ExecutionCount = g.Count(),
+                    SuccessCount = g.Count(l => l.Status == LogStatus.Success),
+                    LastExecutionTime = g.Max(l => l.StartTime),
+                })
+                .OrderByDescending(g => g.AvgDuration)
+                .Take(topCount)
+                .ToListAsync(cancellationToken);
+
+            var result = logs.Select(l => new TopSlowJobDto
+            {
+                JobName = l.JobName,
+                JobGroup = l.JobGroup,
+                AvgDuration = Math.Round(l.AvgDuration, 0),
+                MaxDuration = Math.Round(l.MaxDuration, 0),
+                MinDuration = Math.Round(l.MinDuration, 0),
+                ExecutionCount = l.ExecutionCount,
+                SuccessRate = Math.Round((double)l.SuccessCount / l.ExecutionCount * 100, 1),
+                LastExecutionTime = l.LastExecutionTime,
+            }).ToList();
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("获取耗时基线分析数据", ex);
+            return new List<TopSlowJobDto>();
+        }
+    }
+
+    /// <summary>
     /// 计算时间范围
     /// </summary>
     /// <param name="queryDto">查询条件</param>

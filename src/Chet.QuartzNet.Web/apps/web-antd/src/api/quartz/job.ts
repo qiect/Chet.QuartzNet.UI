@@ -435,3 +435,50 @@ export async function getJobExecutionTime(query?: StatsQueryDto): Promise<ApiRes
   const response = await requestClient.post('/api/quartz/GetJobExecutionTime', query);
   return response;
 }
+
+export interface JobHealth {
+  jobName: string;
+  jobGroup: string;
+  status: string;
+  isEnabled: boolean;
+  successRate: number;
+  avgDuration: number;
+  maxDuration: number;
+  executionCount: number;
+  lastExecutionTime?: string;
+  cronExpression?: string;
+}
+
+export interface JobExecutionHeatmap {
+  dayOfWeek: number;
+  hour: number;
+  count: number;
+  successCount: number;
+  failedCount: number;
+}
+
+export interface TopSlowJob {
+  jobName: string;
+  jobGroup: string;
+  avgDuration: number;
+  maxDuration: number;
+  minDuration: number;
+  executionCount: number;
+  successRate: number;
+  lastExecutionTime?: string;
+}
+
+export async function getJobHealthOverview(query?: StatsQueryDto): Promise<ApiResponse<JobHealth[]>> {
+  const response = await requestClient.post('/api/quartz/GetJobHealthOverview', query);
+  return response;
+}
+
+export async function getJobExecutionHeatmap(query?: StatsQueryDto): Promise<ApiResponse<JobExecutionHeatmap[]>> {
+  const response = await requestClient.post('/api/quartz/GetJobExecutionHeatmap', query);
+  return response;
+}
+
+export async function getTopSlowJobs(query?: StatsQueryDto, topCount: number = 10): Promise<ApiResponse<TopSlowJob[]>> {
+  const response = await requestClient.post(`/api/quartz/GetTopSlowJobs?topCount=${topCount}`, query);
+  return response;
+}

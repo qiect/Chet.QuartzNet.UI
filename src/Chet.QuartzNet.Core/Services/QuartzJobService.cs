@@ -1690,6 +1690,80 @@ public class QuartzJobService : IQuartzJobService
             );
         }
     }
+
+    /// <summary>
+    /// 获取作业健康概览数据
+    /// </summary>
+    public async Task<ApiResponseDto<List<JobHealthDto>>> GetJobHealthOverviewAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var data = await _jobStorage.GetJobHealthOverviewAsync(queryDto, cancellationToken);
+            return ApiResponseDto<List<JobHealthDto>>.SuccessResponse(data, "获取作业健康概览数据成功");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("GetJobHealthOverview", ex);
+            return ApiResponseDto<List<JobHealthDto>>.ErrorResponse(
+                $"获取作业健康概览数据失败: {ex.Message}"
+            );
+        }
+    }
+
+    /// <summary>
+    /// 获取作业执行热力图数据
+    /// </summary>
+    public async Task<ApiResponseDto<List<JobExecutionHeatmapDto>>> GetJobExecutionHeatmapAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var data = await _jobStorage.GetJobExecutionHeatmapAsync(queryDto, cancellationToken);
+            return ApiResponseDto<List<JobExecutionHeatmapDto>>.SuccessResponse(
+                data,
+                "获取作业执行热力图数据成功"
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("GetJobExecutionHeatmap", ex);
+            return ApiResponseDto<List<JobExecutionHeatmapDto>>.ErrorResponse(
+                $"获取作业执行热力图数据失败: {ex.Message}"
+            );
+        }
+    }
+
+    /// <summary>
+    /// 获取耗时基线分析数据
+    /// </summary>
+    public async Task<ApiResponseDto<List<TopSlowJobDto>>> GetTopSlowJobsAsync(
+        StatsQueryDto queryDto,
+        int topCount = 10,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var data = await _jobStorage.GetTopSlowJobsAsync(queryDto, topCount, cancellationToken);
+            return ApiResponseDto<List<TopSlowJobDto>>.SuccessResponse(
+                data,
+                "获取耗时基线分析数据成功"
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("GetTopSlowJobs", ex);
+            return ApiResponseDto<List<TopSlowJobDto>>.ErrorResponse(
+                $"获取耗时基线分析数据失败: {ex.Message}"
+            );
+        }
+    }
+
     #endregion
 
     #region 通知管理

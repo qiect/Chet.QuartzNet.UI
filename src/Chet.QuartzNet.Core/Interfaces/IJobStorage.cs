@@ -191,6 +191,41 @@ public interface IJobStorage
     );
 
     /// <summary>
+    /// 获取作业健康概览数据
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>作业健康概览数据列表</returns>
+    Task<List<JobHealthDto>> GetJobHealthOverviewAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 获取作业执行热力图数据
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>热力图数据列表</returns>
+    Task<List<JobExecutionHeatmapDto>> GetJobExecutionHeatmapAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 获取耗时基线分析数据（Top慢作业）
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="topCount">取前N条，默认10</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>耗时基线分析数据列表</returns>
+    Task<List<TopSlowJobDto>> GetTopSlowJobsAsync(
+        StatsQueryDto queryDto,
+        int topCount = 10,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
     /// 批量添加作业（跳过已存在的作业）
     /// </summary>
     /// <param name="jobs">作业信息列表</param>

@@ -1256,6 +1256,151 @@ public class FileJobStorage : IJobStorage
     }
 
     /// <summary>
+    /// 获取作业健康概览数据
+    /// </summary>
+    public async Task<List<JobHealthDto>> GetJobHealthOverviewAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var (startTime, endTime) = CalculateTimeRange(queryDto);
+            var jobs = await LoadJobsAsync();
+            var logs = await LoadLogsAsync();
+
+            var filteredLogs = logs.Where(l => l.StartTime >= startTime && l.StartTime <= endTime).ToList();
+
+            var result = jobs.Select(job =>
+            {
+                var jobLogs = filteredLogs.Where(l => l.JobName == job.JobName && l.JobGroup == job.JobGroup).ToList();
+                var execCount = jobLogs.Count;
+                var successCount = jobLogs.Count(l => l.Status == LogStatus.Success);
+                var durationLogs = jobLogs.Where(l => l.Duration.HasValue).ToList();
+
+                return new JobHealthDto
+                {
+                    JobName = job.JobName,
+                    JobGroup = job.JobGroup,
+                    Status = job.Status.ToString(),
+                    IsEnabled = job.IsEnabled,
+                    SuccessRate = execCount > 0 ? Math.Round((double)successCount / execCount * 100, 1) : 0,
+                    AvgDuration = durationLogs.Count > 0 ? Math.Round(durationLogs.Average(l => (double)l.Duration!.Value), 0) : 0,
+                    MaxDuration = durationLogs.Count > 0 ? Math.Round(durationLogs.Max(l => (double)l.Duration!.Value), 0) : 0,
+                    ExecutionCount = execCount,
+                    LastExecutionTime = jobLogs.Count > 0 ? jobLogs.Max(l => l.StartTime) : null,
+                    CronExpression = job.CronExpression,
+                };
+            }).ToList();
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("获取作业健康概览数据", ex);
+            return new List<JobHealthDto>();
+        }
+    }
+
+    /// <summary>
+    /// 获取作业执行热力图数据
+    /// </summary>
+    public async Task<List<JobExecutionHeatmapDto>> GetJobExecutionHeatmapAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var (startTime, endTime) = CalculateTimeRange(queryDto);
+            var logs = await LoadLogsAsync();
+
+            var filteredLogs = logs.Where(l => l.StartTime >= startTime && l.StartTime <= endTime).ToList();
+
+            var heatmap = filteredLogs
+                .GroupBy(l => new
+                {
+                    DayOfWeek = ((int)l.StartTime.DayOfWeek + 6) % 7 + 1,
+                    Hour = l.StartTime.Hour,
+                })
+                .Select(g => new JobExecutionHeatmapDto
+                {
+                    DayOfWeek = g.Key.DayOfWeek,
+                    Hour = g.Key.Hour,
+                    Count = g.Count(),
+                    SuccessCount = g.Count(l => l.Status == LogStatus.Success),
+                    FailedCount = g.Count(l => l.Status == LogStatus.Failed),
+                })
+                .ToList();
+
+            return heatmap;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("获取作业执行热力图数据", ex);
+            return new List<JobExecutionHeatmapDto>();
+        }
+    }
+
+    /// <summary>
+    /// 获取耗时基线分析数据
+    /// </summary>
+    public async Task<List<TopSlowJobDto>> GetTopSlowJobsAsync(
+        StatsQueryDto queryDto,
+        int topCount = 10,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var (startTime, endTime) = CalculateTimeRange(queryDto);
+            var logs = await LoadLogsAsync();
+
+            var filteredLogs = logs.Where(l =>
+                l.StartTime >= startTime
+                && l.StartTime <= endTime
+                && l.Status != LogStatus.Running
+                && l.Duration.HasValue
+            ).ToList();
+
+            var result = filteredLogs
+                .GroupBy(l => new { l.JobName, l.JobGroup })
+                .Select(g => new
+                {
+                    g.Key.JobName,
+                    g.Key.JobGroup,
+                    AvgDuration = g.Average(l => (double)l.Duration!.Value),
+                    MaxDuration = g.Max(l => (double)l.Duration!.Value),
+                    MinDuration = g.Min(l => (double)l.Duration!.Value),
+                    ExecutionCount = g.Count(),
+                    SuccessCount = g.Count(l => l.Status == LogStatus.Success),
+                    LastExecutionTime = g.Max(l => l.StartTime),
+                })
+                .OrderByDescending(g => g.AvgDuration)
+                .Take(topCount)
+                .Select(l => new TopSlowJobDto
+                {
+                    JobName = l.JobName,
+                    JobGroup = l.JobGroup,
+                    AvgDuration = Math.Round(l.AvgDuration, 0),
+                    MaxDuration = Math.Round(l.MaxDuration, 0),
+                    MinDuration = Math.Round(l.MinDuration, 0),
+                    ExecutionCount = l.ExecutionCount,
+                    SuccessRate = Math.Round((double)l.SuccessCount / l.ExecutionCount * 100, 1),
+                    LastExecutionTime = l.LastExecutionTime,
+                })
+                .ToList();
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("获取耗时基线分析数据", ex);
+            return new List<TopSlowJobDto>();
+        }
+    }
+
+    /// <summary>
     /// 计算时间范围
     /// </summary>
     /// <param name="queryDto">查询条件</param>

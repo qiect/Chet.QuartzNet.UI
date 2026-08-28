@@ -265,6 +265,41 @@ public interface IQuartzJobService
         CancellationToken cancellationToken = default
     );
 
+    /// <summary>
+    /// 获取作业健康概览数据
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>作业健康概览数据</returns>
+    Task<ApiResponseDto<List<JobHealthDto>>> GetJobHealthOverviewAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 获取作业执行热力图数据
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>热力图数据</returns>
+    Task<ApiResponseDto<List<JobExecutionHeatmapDto>>> GetJobExecutionHeatmapAsync(
+        StatsQueryDto queryDto,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 获取耗时基线分析数据
+    /// </summary>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="topCount">取前N条</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>耗时基线分析数据</returns>
+    Task<ApiResponseDto<List<TopSlowJobDto>>> GetTopSlowJobsAsync(
+        StatsQueryDto queryDto,
+        int topCount = 10,
+        CancellationToken cancellationToken = default
+    );
+
     #region 通知管理
 
     /// <summary>
