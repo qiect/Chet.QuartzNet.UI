@@ -71,19 +71,6 @@ export interface JobExecutionTrend {
   totalCount: number;         // 总执行次数
 }
 
-// 作业类型分布数据DTO
-export interface JobTypeDistribution {
-  type: string;               // 作业类型
-  count: number;              // 数量
-  percentage: number;         // 百分比
-}
-
-// 作业执行耗时数据DTO
-export interface JobExecutionTime {
-  timeRange: string;          // 耗时区间
-  count: number;              // 作业数量
-}
-
 // 统计查询DTO
 export interface StatsQueryDto {
   /** 时间范围类型：today, yesterday, thisWeek, thisMonth, custom */
@@ -405,34 +392,12 @@ export async function getJobStatusDistribution(query?: StatsQueryDto): Promise<A
 }
 
 /**
- * 获取作业类型分布数据
- * @param query 查询参数
- * @returns 作业类型分布数据
- */
-export async function getJobTypeDistribution(query?: StatsQueryDto): Promise<ApiResponse<JobTypeDistribution[]>> {
-  const response = await requestClient.post('/api/quartz/GetJobTypeDistribution', query);
-  return response;
-}
-
-/**
  * 获取作业执行趋势数据
  * @param query 查询参数
  * @returns 作业执行趋势数据
  */
 export async function getJobExecutionTrend(query?: StatsQueryDto): Promise<ApiResponse<JobExecutionTrend[]>> {
   const response = await requestClient.post('/api/quartz/GetJobExecutionTrend', query);
-  return response;
-}
-
-
-
-/**
- * 获取作业执行耗时数据
- * @param query 查询参数
- * @returns 作业执行耗时数据
- */
-export async function getJobExecutionTime(query?: StatsQueryDto): Promise<ApiResponse<JobExecutionTime[]>> {
-  const response = await requestClient.post('/api/quartz/GetJobExecutionTime', query);
   return response;
 }
 

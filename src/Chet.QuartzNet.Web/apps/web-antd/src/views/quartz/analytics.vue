@@ -23,7 +23,6 @@ import {
   getJobExecutionHeatmap,
   getTopSlowJobs,
   getJobStatusDistribution,
-  getJobTypeDistribution,
 } from '../../api/quartz/job';
 import type {
   JobStats,
@@ -33,7 +32,6 @@ import type {
   TopSlowJob,
   StatsQueryDto,
   JobStatusDistribution,
-  JobTypeDistribution,
 } from '../../api/quartz/job';
 import { useSystemConfig } from '../../composables/use-system-config';
 
@@ -72,7 +70,6 @@ const jobHealthData = shallowRef<JobHealth[]>([]);
 const heatmapData = shallowRef<JobExecutionHeatmap[]>([]);
 const topSlowData = shallowRef<TopSlowJob[]>([]);
 const jobStatusDistribution = shallowRef<JobStatusDistribution[]>([]);
-const jobTypeDistribution = shallowRef<JobTypeDistribution[]>([]);
 
 const normalCount = computed(
   () => jobStatusDistribution.value.find((d) => d.status === 'Normal')?.count || 0,
@@ -963,7 +960,7 @@ const topSlowColumns = computed(() => [
 
 const fetchData = async () => {
   loading.value = true;
-  const query: StatsQueryDto = { timeRangeType: 'last7Days' };
+  const query: StatsQueryDto = {};
 
   try {
     const [
@@ -973,7 +970,6 @@ const fetchData = async () => {
       heatmapRes,
       slowRes,
       statusDistributionRes,
-      typeDistributionRes,
     ] = await Promise.all([
       getJobStats(query),
       getJobExecutionTrend(query),
@@ -981,7 +977,6 @@ const fetchData = async () => {
       getJobExecutionHeatmap(query),
       getTopSlowJobs(query, 10),
       getJobStatusDistribution(query),
-      getJobTypeDistribution(query),
     ]);
 
     if (statsRes.success && statsRes.data) {
@@ -1001,10 +996,6 @@ const fetchData = async () => {
 
     jobStatusDistribution.value = statusDistributionRes?.success && statusDistributionRes.data
       ? statusDistributionRes.data
-      : [];
-
-    jobTypeDistribution.value = typeDistributionRes?.success && typeDistributionRes.data
-      ? typeDistributionRes.data
       : [];
 
     renderOverviewEnabled(getOverviewEnabledOption());

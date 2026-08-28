@@ -1630,68 +1630,6 @@ public class QuartzJobService : IQuartzJobService
     }
 
     /// <summary>
-    /// 获取作业类型分布数据
-    /// </summary>
-    /// <param name="queryDto">统计查询条件</param>
-    /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>作业类型分布列表</returns>
-    public async Task<ApiResponseDto<List<JobTypeDistributionDto>>> GetJobTypeDistributionAsync(
-        StatsQueryDto queryDto,
-        CancellationToken cancellationToken = default
-    )
-    {
-        try
-        {
-            var distribution = await _jobStorage.GetJobTypeDistributionAsync(
-                queryDto,
-                cancellationToken
-            );
-            return ApiResponseDto<List<JobTypeDistributionDto>>.SuccessResponse(
-                distribution,
-                "获取作业类型分布数据成功"
-            );
-        }
-        catch (Exception ex)
-        {
-            _logger.LogFailure("GetJobTypeDistribution", ex);
-            return ApiResponseDto<List<JobTypeDistributionDto>>.ErrorResponse(
-                $"获取作业类型分布数据失败: {ex.Message}"
-            );
-        }
-    }
-
-    /// <summary>
-    /// 获取作业执行耗时分布数据
-    /// </summary>
-    /// <param name="queryDto">统计查询条件</param>
-    /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>作业执行耗时分布列表</returns>
-    public async Task<ApiResponseDto<List<JobExecutionTimeDto>>> GetJobExecutionTimeAsync(
-        StatsQueryDto queryDto,
-        CancellationToken cancellationToken = default
-    )
-    {
-        try
-        {
-            var executionTime = await _jobStorage.GetJobExecutionTimeAsync(
-                queryDto,
-                cancellationToken
-            );
-            return ApiResponseDto<List<JobExecutionTimeDto>>.SuccessResponse(
-                executionTime,
-                "获取作业执行耗时数据成功"
-            );
-        }
-        catch (Exception ex)
-        {
-            _logger.LogFailure("GetJobExecutionTime", ex);
-            return ApiResponseDto<List<JobExecutionTimeDto>>.ErrorResponse(
-                $"获取作业执行耗时数据失败: {ex.Message}"
-            );
-        }
-    }
-
-    /// <summary>
     /// 获取作业健康概览数据
     /// </summary>
     public async Task<ApiResponseDto<List<JobHealthDto>>> GetJobHealthOverviewAsync(

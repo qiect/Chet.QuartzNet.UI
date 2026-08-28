@@ -115,43 +115,6 @@ public class JobExecutionTrendDto
 }
 
 /// <summary>
-/// 作业类型分布数据DTO
-/// </summary>
-public class JobTypeDistributionDto
-{
-    /// <summary>
-    /// 作业类型
-    /// </summary>
-    public string Type { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 数量
-    /// </summary>
-    public int Count { get; set; }
-
-    /// <summary>
-    /// 百分比
-    /// </summary>
-    public double Percentage { get; set; }
-}
-
-/// <summary>
-/// 作业执行耗时数据DTO
-/// </summary>
-public class JobExecutionTimeDto
-{
-    /// <summary>
-    /// 耗时区间
-    /// </summary>
-    public string TimeRange { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 作业数量
-    /// </summary>
-    public int Count { get; set; }
-}
-
-/// <summary>
 /// 作业健康概览数据DTO（用于散点气泡图）
 /// </summary>
 public class JobHealthDto
