@@ -17,12 +17,8 @@ import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 import { $t } from '#/locales';
 
 import {
-  getJobStats,
-  getJobExecutionTrend,
-  getJobHealthOverview,
-  getJobExecutionHeatmap,
-  getTopSlowJobs,
-  getJobStatusDistribution,
+  getAnalyticsOverview,
+  getAnalyticsJobPerformance,
 } from '../../api/quartz/analytics';
 import type {
   JobStats,
@@ -963,41 +959,26 @@ const fetchData = async () => {
   const query: StatsQueryDto = {};
 
   try {
-    const [
-      statsRes,
-      trendRes,
-      healthRes,
-      heatmapRes,
-      slowRes,
-      statusDistributionRes,
-    ] = await Promise.all([
-      getJobStats(query),
-      getJobExecutionTrend(query),
-      getJobHealthOverview(query),
-      getJobExecutionHeatmap(query),
-      getTopSlowJobs(query, 10),
-      getJobStatusDistribution(query),
+    const [overviewRes, perfRes] = await Promise.all([
+      getAnalyticsOverview(query),
+      getAnalyticsJobPerformance({ ...query, topCount: 10 }),
     ]);
 
-    if (statsRes.success && statsRes.data) {
-      statsOverview.value = statsRes.data;
+    if (overviewRes.success && overviewRes.data) {
+      statsOverview.value = overviewRes.data.stats;
+      jobStatusDistribution.value = overviewRes.data.statusDistribution;
+      trendData.value = overviewRes.data.executionTrend;
+      heatmapData.value = overviewRes.data.executionHeatmap;
     }
 
-    trendData.value = trendRes?.success && trendRes.data ? trendRes.data : [];
+    if (perfRes.success && perfRes.data) {
+      jobHealthData.value = perfRes.data.jobHealthOverview;
+      topSlowData.value = perfRes.data.topSlowJobs;
+    }
+
     renderTrend(getTrendOption(trendData.value));
-
-    jobHealthData.value = healthRes?.success && healthRes.data ? healthRes.data : [];
     renderHealth(getHealthOption(jobHealthData.value));
-
-    heatmapData.value = heatmapRes?.success && heatmapRes.data ? heatmapRes.data : [];
     renderHeatmap(getHeatmapOption(heatmapData.value));
-
-    topSlowData.value = slowRes?.success && slowRes.data ? slowRes.data : [];
-
-    jobStatusDistribution.value = statusDistributionRes?.success && statusDistributionRes.data
-      ? statusDistributionRes.data
-      : [];
-
     renderOverviewEnabled(getOverviewEnabledOption());
     renderOverviewStatus(getOverviewStatusOption());
     renderActivity(getActivityOption());

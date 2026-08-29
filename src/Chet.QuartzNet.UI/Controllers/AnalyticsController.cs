@@ -22,142 +22,48 @@ public class AnalyticsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取作业统计数据
+    /// 获取统计分析概览聚合数据（合并作业统计+状态分布+执行趋势+热力图）
     /// </summary>
-    [HttpPost("GetJobStats")]
-    public async Task<ActionResult<ApiResponseDto<JobStatsDto>>> GetJobStats(
+    [HttpPost("GetAnalyticsOverview")]
+    public async Task<ActionResult<ApiResponseDto<AnalyticsOverviewDto>>> GetAnalyticsOverview(
         [FromBody] StatsQueryDto query
     )
     {
         try
         {
-            var result = await _jobService.GetJobStatsAsync(query);
+            var result = await _jobService.GetAnalyticsOverviewAsync(query);
             return Ok(result);
         }
         catch (Exception ex)
         {
-            _logger.LogFailure("获取作业统计数据", ex);
+            _logger.LogFailure("获取统计分析概览数据", ex);
             return Ok(
-                ApiResponseDto<JobStatsDto>.ErrorResponse("获取作业统计数据失败: " + ex.Message)
-            );
-        }
-    }
-
-    /// <summary>
-    /// 获取作业状态分布数据
-    /// </summary>
-    [HttpPost("GetJobStatusDistribution")]
-    public async Task<
-        ActionResult<ApiResponseDto<List<JobStatusDistributionDto>>>
-    > GetJobStatusDistribution([FromBody] StatsQueryDto query)
-    {
-        try
-        {
-            var result = await _jobService.GetJobStatusDistributionAsync(query);
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogFailure("获取作业状态分布数据", ex);
-            return Ok(
-                ApiResponseDto<List<JobStatusDistributionDto>>.ErrorResponse(
-                    "获取作业状态分布数据失败: " + ex.Message
+                ApiResponseDto<AnalyticsOverviewDto>.ErrorResponse(
+                    "获取统计分析概览数据失败: " + ex.Message
                 )
             );
         }
     }
 
     /// <summary>
-    /// 获取作业执行趋势数据
+    /// 获取作业性能分析聚合数据（合并健康概览+耗时排行）
     /// </summary>
-    [HttpPost("GetJobExecutionTrend")]
+    [HttpPost("GetAnalyticsJobPerformance")]
     public async Task<
-        ActionResult<ApiResponseDto<List<JobExecutionTrendDto>>>
-    > GetJobExecutionTrend([FromBody] StatsQueryDto query)
+        ActionResult<ApiResponseDto<AnalyticsJobPerformanceDto>>
+    > GetAnalyticsJobPerformance([FromBody] JobPerformanceQueryDto query)
     {
         try
         {
-            var result = await _jobService.GetJobExecutionTrendAsync(query);
+            var result = await _jobService.GetAnalyticsJobPerformanceAsync(query, query.TopCount);
             return Ok(result);
         }
         catch (Exception ex)
         {
-            _logger.LogFailure("获取作业执行趋势数据", ex);
+            _logger.LogFailure("获取作业性能分析数据", ex);
             return Ok(
-                ApiResponseDto<List<JobExecutionTrendDto>>.ErrorResponse(
-                    "获取作业执行趋势数据失败: " + ex.Message
-                )
-            );
-        }
-    }
-
-    /// <summary>
-    /// 获取作业健康概览数据
-    /// </summary>
-    [HttpPost("GetJobHealthOverview")]
-    public async Task<
-        ActionResult<ApiResponseDto<List<JobHealthDto>>>
-    > GetJobHealthOverview([FromBody] StatsQueryDto query)
-    {
-        try
-        {
-            var result = await _jobService.GetJobHealthOverviewAsync(query);
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogFailure("获取作业健康概览数据", ex);
-            return Ok(
-                ApiResponseDto<List<JobHealthDto>>.ErrorResponse(
-                    "获取作业健康概览数据失败: " + ex.Message
-                )
-            );
-        }
-    }
-
-    /// <summary>
-    /// 获取作业执行热力图数据
-    /// </summary>
-    [HttpPost("GetJobExecutionHeatmap")]
-    public async Task<
-        ActionResult<ApiResponseDto<List<JobExecutionHeatmapDto>>>
-    > GetJobExecutionHeatmap([FromBody] StatsQueryDto query)
-    {
-        try
-        {
-            var result = await _jobService.GetJobExecutionHeatmapAsync(query);
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogFailure("获取作业执行热力图数据", ex);
-            return Ok(
-                ApiResponseDto<List<JobExecutionHeatmapDto>>.ErrorResponse(
-                    "获取作业执行热力图数据失败: " + ex.Message
-                )
-            );
-        }
-    }
-
-    /// <summary>
-    /// 获取耗时基线分析数据
-    /// </summary>
-    [HttpPost("GetTopSlowJobs")]
-    public async Task<
-        ActionResult<ApiResponseDto<List<TopSlowJobDto>>>
-    > GetTopSlowJobs([FromBody] StatsQueryDto query, int topCount = 10)
-    {
-        try
-        {
-            var result = await _jobService.GetTopSlowJobsAsync(query, topCount);
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogFailure("获取耗时基线分析数据", ex);
-            return Ok(
-                ApiResponseDto<List<TopSlowJobDto>>.ErrorResponse(
-                    "获取耗时基线分析数据失败: " + ex.Message
+                ApiResponseDto<AnalyticsJobPerformanceDto>.ErrorResponse(
+                    "获取作业性能分析数据失败: " + ex.Message
                 )
             );
         }

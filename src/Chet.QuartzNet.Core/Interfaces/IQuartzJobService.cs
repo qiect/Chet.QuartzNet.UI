@@ -211,68 +211,24 @@ public interface IQuartzJobService
     );
 
     /// <summary>
-    /// 获取作业统计数据
+    /// 获取统计分析概览聚合数据（合并作业统计+状态分布+执行趋势+热力图）
     /// </summary>
     /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>作业统计数据</returns>
-    Task<ApiResponseDto<JobStatsDto>> GetJobStatsAsync(
+    /// <returns>统计分析概览聚合数据</returns>
+    Task<ApiResponseDto<AnalyticsOverviewDto>> GetAnalyticsOverviewAsync(
         StatsQueryDto queryDto,
         CancellationToken cancellationToken = default
     );
 
     /// <summary>
-    /// 获取作业状态分布数据
+    /// 获取作业性能分析聚合数据（合并健康概览+耗时排行）
     /// </summary>
     /// <param name="queryDto">查询条件</param>
+    /// <param name="topCount">耗时排行取前N条</param>
     /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>作业状态分布数据</returns>
-    Task<ApiResponseDto<List<JobStatusDistributionDto>>> GetJobStatusDistributionAsync(
-        StatsQueryDto queryDto,
-        CancellationToken cancellationToken = default
-    );
-
-    /// <summary>
-    /// 获取作业执行趋势数据
-    /// </summary>
-    /// <param name="queryDto">查询条件</param>
-    /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>作业执行趋势数据</returns>
-    Task<ApiResponseDto<List<JobExecutionTrendDto>>> GetJobExecutionTrendAsync(
-        StatsQueryDto queryDto,
-        CancellationToken cancellationToken = default
-    );
-
-    /// <summary>
-    /// 获取作业健康概览数据
-    /// </summary>
-    /// <param name="queryDto">查询条件</param>
-    /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>作业健康概览数据</returns>
-    Task<ApiResponseDto<List<JobHealthDto>>> GetJobHealthOverviewAsync(
-        StatsQueryDto queryDto,
-        CancellationToken cancellationToken = default
-    );
-
-    /// <summary>
-    /// 获取作业执行热力图数据
-    /// </summary>
-    /// <param name="queryDto">查询条件</param>
-    /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>热力图数据</returns>
-    Task<ApiResponseDto<List<JobExecutionHeatmapDto>>> GetJobExecutionHeatmapAsync(
-        StatsQueryDto queryDto,
-        CancellationToken cancellationToken = default
-    );
-
-    /// <summary>
-    /// 获取耗时基线分析数据
-    /// </summary>
-    /// <param name="queryDto">查询条件</param>
-    /// <param name="topCount">取前N条</param>
-    /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>耗时基线分析数据</returns>
-    Task<ApiResponseDto<List<TopSlowJobDto>>> GetTopSlowJobsAsync(
+    /// <returns>作业性能分析聚合数据</returns>
+    Task<ApiResponseDto<AnalyticsJobPerformanceDto>> GetAnalyticsJobPerformanceAsync(
         StatsQueryDto queryDto,
         int topCount = 10,
         CancellationToken cancellationToken = default

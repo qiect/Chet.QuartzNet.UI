@@ -1547,139 +1547,38 @@ public class QuartzJobService : IQuartzJobService
     #endregion
 
     #region 统计分析
+
     /// <summary>
-    /// 获取作业统计数据
+    /// 获取统计分析概览聚合数据（合并作业统计+状态分布+执行趋势+热力图）
     /// </summary>
-    /// <param name="queryDto">统计查询条件</param>
+    /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>作业统计数据</returns>
-    public async Task<ApiResponseDto<JobStatsDto>> GetJobStatsAsync(
+    /// <returns>统计分析概览聚合数据</returns>
+    public async Task<ApiResponseDto<AnalyticsOverviewDto>> GetAnalyticsOverviewAsync(
         StatsQueryDto queryDto,
         CancellationToken cancellationToken = default
     )
     {
         try
         {
-            var stats = await _jobStorage.GetJobStatsAsync(queryDto, cancellationToken);
-            return ApiResponseDto<JobStatsDto>.SuccessResponse(stats, "获取作业统计数据成功");
+            var data = await _jobStorage.GetAnalyticsOverviewAsync(queryDto, cancellationToken);
+            return ApiResponseDto<AnalyticsOverviewDto>.SuccessResponse(data, "获取统计分析概览数据成功");
         }
         catch (Exception ex)
         {
-            _logger.LogFailure("GetJobStats", ex);
-            return ApiResponseDto<JobStatsDto>.ErrorResponse($"获取作业统计数据失败: {ex.Message}");
+            _logger.LogFailure("GetAnalyticsOverview", ex);
+            return ApiResponseDto<AnalyticsOverviewDto>.ErrorResponse($"获取统计分析概览数据失败: {ex.Message}");
         }
     }
 
     /// <summary>
-    /// 获取作业状态分布数据
+    /// 获取作业性能分析聚合数据（合并健康概览+耗时排行）
     /// </summary>
-    /// <param name="queryDto">统计查询条件</param>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="topCount">耗时排行取前N条</param>
     /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>作业状态分布列表</returns>
-    public async Task<ApiResponseDto<List<JobStatusDistributionDto>>> GetJobStatusDistributionAsync(
-        StatsQueryDto queryDto,
-        CancellationToken cancellationToken = default
-    )
-    {
-        try
-        {
-            var distribution = await _jobStorage.GetJobStatusDistributionAsync(
-                queryDto,
-                cancellationToken
-            );
-            return ApiResponseDto<List<JobStatusDistributionDto>>.SuccessResponse(
-                distribution,
-                "获取作业状态分布数据成功"
-            );
-        }
-        catch (Exception ex)
-        {
-            _logger.LogFailure("GetJobStatusDistribution", ex);
-            return ApiResponseDto<List<JobStatusDistributionDto>>.ErrorResponse(
-                $"获取作业状态分布数据失败: {ex.Message}"
-            );
-        }
-    }
-
-    /// <summary>
-    /// 获取作业执行趋势数据
-    /// </summary>
-    /// <param name="queryDto">统计查询条件</param>
-    /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>作业执行趋势列表</returns>
-    public async Task<ApiResponseDto<List<JobExecutionTrendDto>>> GetJobExecutionTrendAsync(
-        StatsQueryDto queryDto,
-        CancellationToken cancellationToken = default
-    )
-    {
-        try
-        {
-            var trend = await _jobStorage.GetJobExecutionTrendAsync(queryDto, cancellationToken);
-            return ApiResponseDto<List<JobExecutionTrendDto>>.SuccessResponse(
-                trend,
-                "获取作业执行趋势数据成功"
-            );
-        }
-        catch (Exception ex)
-        {
-            _logger.LogFailure("GetJobExecutionTrend", ex);
-            return ApiResponseDto<List<JobExecutionTrendDto>>.ErrorResponse(
-                $"获取作业执行趋势数据失败: {ex.Message}"
-            );
-        }
-    }
-
-    /// <summary>
-    /// 获取作业健康概览数据
-    /// </summary>
-    public async Task<ApiResponseDto<List<JobHealthDto>>> GetJobHealthOverviewAsync(
-        StatsQueryDto queryDto,
-        CancellationToken cancellationToken = default
-    )
-    {
-        try
-        {
-            var data = await _jobStorage.GetJobHealthOverviewAsync(queryDto, cancellationToken);
-            return ApiResponseDto<List<JobHealthDto>>.SuccessResponse(data, "获取作业健康概览数据成功");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogFailure("GetJobHealthOverview", ex);
-            return ApiResponseDto<List<JobHealthDto>>.ErrorResponse(
-                $"获取作业健康概览数据失败: {ex.Message}"
-            );
-        }
-    }
-
-    /// <summary>
-    /// 获取作业执行热力图数据
-    /// </summary>
-    public async Task<ApiResponseDto<List<JobExecutionHeatmapDto>>> GetJobExecutionHeatmapAsync(
-        StatsQueryDto queryDto,
-        CancellationToken cancellationToken = default
-    )
-    {
-        try
-        {
-            var data = await _jobStorage.GetJobExecutionHeatmapAsync(queryDto, cancellationToken);
-            return ApiResponseDto<List<JobExecutionHeatmapDto>>.SuccessResponse(
-                data,
-                "获取作业执行热力图数据成功"
-            );
-        }
-        catch (Exception ex)
-        {
-            _logger.LogFailure("GetJobExecutionHeatmap", ex);
-            return ApiResponseDto<List<JobExecutionHeatmapDto>>.ErrorResponse(
-                $"获取作业执行热力图数据失败: {ex.Message}"
-            );
-        }
-    }
-
-    /// <summary>
-    /// 获取耗时基线分析数据
-    /// </summary>
-    public async Task<ApiResponseDto<List<TopSlowJobDto>>> GetTopSlowJobsAsync(
+    /// <returns>作业性能分析聚合数据</returns>
+    public async Task<ApiResponseDto<AnalyticsJobPerformanceDto>> GetAnalyticsJobPerformanceAsync(
         StatsQueryDto queryDto,
         int topCount = 10,
         CancellationToken cancellationToken = default
@@ -1687,18 +1586,13 @@ public class QuartzJobService : IQuartzJobService
     {
         try
         {
-            var data = await _jobStorage.GetTopSlowJobsAsync(queryDto, topCount, cancellationToken);
-            return ApiResponseDto<List<TopSlowJobDto>>.SuccessResponse(
-                data,
-                "获取耗时基线分析数据成功"
-            );
+            var data = await _jobStorage.GetAnalyticsJobPerformanceAsync(queryDto, topCount, cancellationToken);
+            return ApiResponseDto<AnalyticsJobPerformanceDto>.SuccessResponse(data, "获取作业性能分析数据成功");
         }
         catch (Exception ex)
         {
-            _logger.LogFailure("GetTopSlowJobs", ex);
-            return ApiResponseDto<List<TopSlowJobDto>>.ErrorResponse(
-                $"获取耗时基线分析数据失败: {ex.Message}"
-            );
+            _logger.LogFailure("GetAnalyticsJobPerformance", ex);
+            return ApiResponseDto<AnalyticsJobPerformanceDto>.ErrorResponse($"获取作业性能分析数据失败: {ex.Message}");
         }
     }
 

@@ -202,6 +202,59 @@ public class JobExecutionHeatmapDto
 }
 
 /// <summary>
+/// 作业性能查询DTO（扩展StatsQueryDto，增加TopCount参数）
+/// </summary>
+public class JobPerformanceQueryDto : StatsQueryDto
+{
+    /// <summary>
+    /// 耗时排行取前N条，默认10
+    /// </summary>
+    public int TopCount { get; set; } = 10;
+}
+
+/// <summary>
+/// 统计分析概览聚合DTO（合并GetJobStats + GetJobStatusDistribution + GetJobExecutionTrend + GetJobExecutionHeatmap）
+/// </summary>
+public class AnalyticsOverviewDto
+{
+    /// <summary>
+    /// 作业统计概览
+    /// </summary>
+    public JobStatsDto Stats { get; set; } = new();
+
+    /// <summary>
+    /// 作业状态分布
+    /// </summary>
+    public List<JobStatusDistributionDto> StatusDistribution { get; set; } = [];
+
+    /// <summary>
+    /// 执行趋势数据
+    /// </summary>
+    public List<JobExecutionTrendDto> ExecutionTrend { get; set; } = [];
+
+    /// <summary>
+    /// 执行热力图数据
+    /// </summary>
+    public List<JobExecutionHeatmapDto> ExecutionHeatmap { get; set; } = [];
+}
+
+/// <summary>
+/// 作业性能分析聚合DTO（合并GetJobHealthOverview + GetTopSlowJobs）
+/// </summary>
+public class AnalyticsJobPerformanceDto
+{
+    /// <summary>
+    /// 作业健康概览数据
+    /// </summary>
+    public List<JobHealthDto> JobHealthOverview { get; set; } = [];
+
+    /// <summary>
+    /// 耗时基线分析数据
+    /// </summary>
+    public List<TopSlowJobDto> TopSlowJobs { get; set; } = [];
+}
+
+/// <summary>
 /// 耗时基线分析数据DTO（原Top慢作业排行）
 /// </summary>
 public class TopSlowJobDto
