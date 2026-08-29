@@ -1,16 +1,6 @@
 import { requestClient } from '../request';
 
-// API响应DTO
-export interface ApiResponse<T> {
-  /** 是否成功 */
-  success: boolean;
-  /** 消息 */
-  message: string;
-  /** 数据 */
-  data?: T;
-  /** 错误码 */
-  errorCode?: string;
-}
+import type { ApiResponse } from './job';
 
 // 系统配置DTO
 export interface SystemConfigDto {

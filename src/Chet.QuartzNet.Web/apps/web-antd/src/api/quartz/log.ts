@@ -1,16 +1,6 @@
 import { requestClient } from '../request';
 
-// API响应类型
-export interface ApiResponse<T> {
-  /** 成功状态 */
-  success: boolean;
-  /** 响应消息 */
-  message?: string;
-  /** 响应数据 */
-  data?: T;
-  /** 错误代码 */
-  errorCode?: string | null;
-}
+import type { ApiResponse } from './job';
 
 // 分页响应类型
 export interface PageResponse<T> {
@@ -173,5 +163,3 @@ export async function getLogStatistics(params?: { startTime?: string; endTime?: 
     cancelledCount: 0,
   };
 }
-
-

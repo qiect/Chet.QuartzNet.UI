@@ -46,16 +46,18 @@ import {
   triggerJob,
   pauseJob,
   resumeJob,
-  getSchedulerStatus,
-  startScheduler,
-  stopScheduler,
-  getJobClasses,
 } from '../../api/quartz/job';
 import type {
   QuartzJobDto,
   QuartzJobResponseDto,
   QuartzJobQueryDto,
 } from '../../api/quartz/job';
+import {
+  getSchedulerStatus,
+  startScheduler,
+  stopScheduler,
+} from '../../api/quartz/scheduler';
+import { getJobClasses } from '../../api/quartz/extension';
 
 // 作业类型和状态映射
 const jobTypeMap = {

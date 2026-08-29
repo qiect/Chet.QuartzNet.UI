@@ -176,7 +176,7 @@ import {
   Segmented,
 } from 'ant-design-vue';
 import { useDraggableModal } from '../composables/use-draggable-modal';
-import { validateCronExpression, getNextRunTimes } from '#/api/quartz/job';
+import { validateCronExpression, getNextRunTimes } from '#/api/quartz/extension';
 import { $t } from '#/locales';
 
 const props = defineProps<{ visible: boolean; currentExpression?: string }>();

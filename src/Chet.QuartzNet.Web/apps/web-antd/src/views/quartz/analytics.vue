@@ -23,7 +23,7 @@ import {
   getJobExecutionHeatmap,
   getTopSlowJobs,
   getJobStatusDistribution,
-} from '../../api/quartz/job';
+} from '../../api/quartz/analytics';
 import type {
   JobStats,
   JobExecutionTrend,
@@ -32,7 +32,7 @@ import type {
   TopSlowJob,
   StatsQueryDto,
   JobStatusDistribution,
-} from '../../api/quartz/job';
+} from '../../api/quartz/analytics';
 import { useSystemConfig } from '../../composables/use-system-config';
 
 const loading = ref(false);
