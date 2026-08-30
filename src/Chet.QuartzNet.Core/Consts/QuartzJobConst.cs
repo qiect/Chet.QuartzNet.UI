@@ -24,4 +24,9 @@ public static class QuartzJobConst
     /// 重试包装器中真实作业类型全名的Key
     /// </summary>
     public const string RealJobType = "RealJobType";
+
+    /// <summary>
+    /// 禁止并发执行的Key
+    /// </summary>
+    public const string DisallowConcurrentExecution = "DisallowConcurrentExecution";
 }

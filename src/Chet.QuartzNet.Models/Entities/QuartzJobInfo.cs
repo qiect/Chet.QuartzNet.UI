@@ -103,6 +103,11 @@ public class QuartzJobInfo
     public bool SkipSslValidation { get; set; } = false;
 
     /// <summary>
+    /// 禁止并发执行（同一作业上一次执行未完成时，新的触发会等待）
+    /// </summary>
+    public bool DisallowConcurrentExecution { get; set; } = false;
+
+    /// <summary>
     /// 开始时间
     /// </summary>
     public DateTime? StartTime { get; set; }

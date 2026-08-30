@@ -366,6 +366,7 @@ public class QuartzJobService : IQuartzJobService
                 RetryCount = jobDto.RetryCount,
                 RetryIntervalSeconds = jobDto.RetryIntervalSeconds,
                 SkipSslValidation = jobDto.SkipSslValidation,
+                DisallowConcurrentExecution = jobDto.DisallowConcurrentExecution,
                 StartTime = jobDto.StartTime,
                 EndTime = jobDto.EndTime,
                 IsEnabled = jobDto.IsEnabled,
@@ -463,6 +464,7 @@ public class QuartzJobService : IQuartzJobService
             existingJob.RetryCount = jobDto.RetryCount;
             existingJob.RetryIntervalSeconds = jobDto.RetryIntervalSeconds;
             existingJob.SkipSslValidation = jobDto.SkipSslValidation;
+            existingJob.DisallowConcurrentExecution = jobDto.DisallowConcurrentExecution;
             existingJob.StartTime = jobDto.StartTime;
             existingJob.EndTime = jobDto.EndTime;
             existingJob.IsEnabled = jobDto.IsEnabled;
@@ -847,6 +849,13 @@ public class QuartzJobService : IQuartzJobService
                     .WithIdentity(jobKey)
                     .WithDescription(jobInfo.Description ?? string.Empty)
                     .StoreDurably(true); // 没有触发器的作业必须设置为持久化
+
+                // 禁止并发执行：与 ScheduleJobAsync 保持一致，
+                // 手动触发兜底注册的作业同样需要携带该标志，否则并发开关在手动触发场景失效
+                if (jobInfo.DisallowConcurrentExecution)
+                {
+                    jobBuilder.DisallowConcurrentExecution();
+                }
 
                 // 根据作业类型设置作业类（配置了重试的注册为重试包装器）
                 Type? realJobType = jobInfo.JobType == JobTypeEnum.API ? typeof(ApiJob) : null;
@@ -1329,6 +1338,12 @@ public class QuartzJobService : IQuartzJobService
             .WithDescription(jobInfo.Description ?? string.Empty)
             .StoreDurably();
 
+        // 禁止并发执行：同一作业上一次执行未完成时，新的触发会等待
+        if (jobInfo.DisallowConcurrentExecution)
+        {
+            jobBuilder.DisallowConcurrentExecution();
+        }
+
         // 设置作业数据
         if (!string.IsNullOrEmpty(jobInfo.JobData))
         {
@@ -1410,6 +1425,7 @@ public class QuartzJobService : IQuartzJobService
             RetryCount = jobInfo.RetryCount,
             RetryIntervalSeconds = jobInfo.RetryIntervalSeconds,
             SkipSslValidation = jobInfo.SkipSslValidation,
+            DisallowConcurrentExecution = jobInfo.DisallowConcurrentExecution,
             StartTime = jobInfo.StartTime,
             EndTime = jobInfo.EndTime,
             Status = jobInfo.Status,
