@@ -42,14 +42,12 @@ const { renderEcharts: renderTrend } = useEcharts(trendChartRef);
 const { renderEcharts: renderHealth } = useEcharts(healthChartRef);
 const { renderEcharts: renderHeatmap } = useEcharts(heatmapChartRef);
 
-const overviewEnabledChartRef = ref<EchartsUIType | null>(null);
-const overviewStatusChartRef = ref<EchartsUIType | null>(null);
+const overviewChartRef = ref<EchartsUIType | null>(null);
 const activityChartRef = ref<EchartsUIType | null>(null);
 const qualityChartRef = ref<EchartsUIType | null>(null);
 const durationChartRef = ref<EchartsUIType | null>(null);
 
-const { renderEcharts: renderOverviewEnabled } = useEcharts(overviewEnabledChartRef);
-const { renderEcharts: renderOverviewStatus } = useEcharts(overviewStatusChartRef);
+const { renderEcharts: renderOverview } = useEcharts(overviewChartRef);
 const { renderEcharts: renderActivity } = useEcharts(activityChartRef);
 const { renderEcharts: renderQuality } = useEcharts(qualityChartRef);
 const { renderEcharts: renderDuration } = useEcharts(durationChartRef);
@@ -675,14 +673,14 @@ const getHeatmapOption = (data: JobExecutionHeatmap[]): EChartsOption => {
   };
 };
 
-const getOverviewEnabledOption = (): EChartsOption => {
+const getOverviewOption = (): EChartsOption => {
   const enabledPct = Number(enabledRatio.value.toFixed(0));
   return {
     backgroundColor: 'transparent',
     series: [
       {
         type: 'pie',
-        radius: ['60%', '78%'],
+        radius: ['62%', '80%'],
         center: ['50%', '50%'],
         silent: true,
         label: { show: false },
@@ -692,48 +690,9 @@ const getOverviewEnabledOption = (): EChartsOption => {
           { value: statsOverview.value.disabledJobs, itemStyle: { color: '#d9d9d9' } },
         ],
       },
-    ],
-    graphic: [
-      {
-        type: 'group',
-        left: 'center',
-        top: 'center',
-        children: [
-          {
-            type: 'text',
-            style: {
-              text: `${enabledPct}%`,
-              fill: '#262626',
-              fontSize: 14,
-              fontWeight: 700,
-              fontFamily: 'DIN Alternate, sans-serif',
-              textAlign: 'center',
-              y: -8,
-            },
-          },
-          {
-            type: 'text',
-            style: {
-              text: $t('page.quartz.analyticsPage.enabledStatus'),
-              fill: '#8c8c8c',
-              fontSize: 7,
-              textAlign: 'center',
-              y: 6,
-            },
-          },
-        ],
-      },
-    ],
-  };
-};
-
-const getOverviewStatusOption = (): EChartsOption => {
-  return {
-    backgroundColor: 'transparent',
-    series: [
       {
         type: 'pie',
-        radius: ['60%', '78%'],
+        radius: ['38%', '56%'],
         center: ['50%', '50%'],
         silent: true,
         label: { show: false },
@@ -753,23 +712,23 @@ const getOverviewStatusOption = (): EChartsOption => {
           {
             type: 'text',
             style: {
-              text: `${normalCount.value}`,
+              text: `${enabledPct}%`,
               fill: '#262626',
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: 700,
               fontFamily: 'DIN Alternate, sans-serif',
               textAlign: 'center',
-              y: -8,
+              y: -7,
             },
           },
           {
             type: 'text',
             style: {
-              text: $t('page.quartz.analyticsPage.normalStatus'),
+              text: $t('page.quartz.analyticsPage.enabledStatus'),
               fill: '#8c8c8c',
               fontSize: 7,
               textAlign: 'center',
-              y: 6,
+              y: 7,
             },
           },
         ],
@@ -981,8 +940,7 @@ const fetchData = async () => {
     renderTrend(getTrendOption(trendData.value));
     renderHealth(getHealthOption(jobHealthData.value));
     renderHeatmap(getHeatmapOption(heatmapData.value));
-    renderOverviewEnabled(getOverviewEnabledOption());
-    renderOverviewStatus(getOverviewStatusOption());
+    renderOverview(getOverviewOption());
     renderActivity(getActivityOption());
     renderQuality(getQualityOption());
     renderDuration(getDurationOption());
@@ -1037,8 +995,8 @@ watch(locale, () => {
       </p>
     </template>
 
-    <Row :gutter="[16, 16]">
-      <Col :xs="24" :sm="12" :lg="6">
+    <Row :gutter="[16, 16]" align="stretch">
+      <Col :xs="24" :sm="12" :lg="12" :xl="6">
         <Card class="stat-card stat-card--blue" :loading="loading" :bordered="false">
           <div class="stat-content">
             <div class="stat-main">
@@ -1048,9 +1006,8 @@ watch(locale, () => {
                 <small class="stat-unit">{{ $t('page.quartz.analyticsPage.jobsUnit') }}</small>
               </span>
             </div>
-            <div class="stat-mini-chart stat-mini-chart--dual">
-              <EchartsUI ref="overviewEnabledChartRef" style="height: 80px; width: 78px" />
-              <EchartsUI ref="overviewStatusChartRef" style="height: 80px; width: 78px" />
+            <div class="stat-mini-chart">
+              <EchartsUI ref="overviewChartRef" style="height: 100px; width: 100px" />
             </div>
           </div>
           <div class="stat-footer">
@@ -1070,7 +1027,7 @@ watch(locale, () => {
         </Card>
       </Col>
 
-      <Col :xs="24" :sm="12" :lg="6">
+      <Col :xs="24" :sm="12" :lg="12" :xl="6">
         <Card class="stat-card stat-card--green" :loading="loading" :bordered="false">
           <div class="stat-content">
             <div class="stat-main">
@@ -1097,7 +1054,7 @@ watch(locale, () => {
         </Card>
       </Col>
 
-      <Col :xs="24" :sm="12" :lg="6">
+      <Col :xs="24" :sm="12" :lg="12" :xl="6">
         <Card class="stat-card stat-card--orange" :loading="loading" :bordered="false">
           <div class="stat-content">
             <div class="stat-main">
@@ -1108,7 +1065,7 @@ watch(locale, () => {
               </span>
             </div>
             <div class="stat-mini-chart">
-              <EchartsUI ref="qualityChartRef" style="height: 80px; width: 88px" />
+              <EchartsUI ref="qualityChartRef" style="height: 100px; width: 100px" />
             </div>
           </div>
           <div class="stat-footer">
@@ -1122,7 +1079,7 @@ watch(locale, () => {
         </Card>
       </Col>
 
-      <Col :xs="24" :sm="12" :lg="6">
+      <Col :xs="24" :sm="12" :lg="12" :xl="6">
         <Card class="stat-card stat-card--purple" :loading="loading" :bordered="false">
           <div class="stat-content">
             <div class="stat-main">
@@ -1353,6 +1310,7 @@ watch(locale, () => {
   box-shadow: 0 1px 2px hsl(var(--foreground) / 0.03);
   overflow: hidden;
   position: relative;
+  height: 100%;
   min-height: 152px;
 }
 
@@ -1368,7 +1326,7 @@ watch(locale, () => {
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 12px;
-  min-height: 72px;
+  height: 88px;
 }
 
 .stat-main {
@@ -1403,8 +1361,8 @@ watch(locale, () => {
 
 .stat-number-row {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .stat-badge {
@@ -1412,9 +1370,9 @@ watch(locale, () => {
   align-items: center;
   font-size: 11px;
   font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 4px;
-  line-height: 1.6;
+  padding: 0 4px;
+  border-radius: 3px;
+  line-height: 1.5;
 }
 
 .stat-badge--up {
@@ -1430,12 +1388,6 @@ watch(locale, () => {
 .stat-mini-chart {
   flex-shrink: 0;
   margin-left: 8px;
-}
-
-.stat-mini-chart--dual {
-  display: flex;
-  gap: 4px;
-  align-items: center;
 }
 
 .stat-footer {
@@ -1596,6 +1548,11 @@ watch(locale, () => {
 
   .stat-mini-chart {
     display: none;
+  }
+
+  .stat-content {
+    height: auto;
+    min-height: 52px;
   }
 
   .chart-title__desc {
