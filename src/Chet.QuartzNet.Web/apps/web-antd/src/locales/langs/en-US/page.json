@@ -377,7 +377,7 @@
       "delete": "Delete",
       "search": "Search",
       "reset": "Reset",
-      "notificationStatus": "Notification Status",
+      "notificationStatus": "Status",
       "placeholderStatus": "Select status",
       "placeholderTriggeredBy": "Enter trigger source",
       "statusPending": "Pending",

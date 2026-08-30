@@ -13,6 +13,7 @@ import {
   DescriptionsItem,
   Modal,
   Tag,
+  Tooltip,
   message,
 } from 'ant-design-vue';
 
@@ -142,6 +143,7 @@ const columns = computed(() => [
     slots: { default: 'duration' },
   },
   {
+    field: 'action',
     title: $t('page.quartz.logPage.action'),
     width: 70,
     align: 'center' as const,

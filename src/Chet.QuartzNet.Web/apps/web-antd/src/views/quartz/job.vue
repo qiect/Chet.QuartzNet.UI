@@ -260,6 +260,7 @@ const columns = computed(() => [
     slots: { default: 'datetime' },
   },
   {
+    field: 'action',
     title: $t('page.quartz.jobPage.action'),
     width: 70,
     align: 'center' as const,

@@ -177,6 +177,7 @@ const columns = computed(() => [
     slots: { default: 'datetime' },
   },
   {
+    field: 'action',
     title: $t('page.quartz.notificationPage.action'),
     width: 90,
     align: 'center' as const,

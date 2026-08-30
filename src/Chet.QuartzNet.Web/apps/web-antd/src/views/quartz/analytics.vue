@@ -1049,8 +1049,8 @@ watch(locale, () => {
               </span>
             </div>
             <div class="stat-mini-chart stat-mini-chart--dual">
-              <EchartsUI ref="overviewEnabledChartRef" style="height: 72px; width: 68px" />
-              <EchartsUI ref="overviewStatusChartRef" style="height: 72px; width: 68px" />
+              <EchartsUI ref="overviewEnabledChartRef" style="height: 80px; width: 78px" />
+              <EchartsUI ref="overviewStatusChartRef" style="height: 80px; width: 78px" />
             </div>
           </div>
           <div class="stat-footer">
@@ -1086,7 +1086,7 @@ watch(locale, () => {
               </div>
             </div>
             <div class="stat-mini-chart">
-              <EchartsUI ref="activityChartRef" style="height: 72px; width: 88px" />
+              <EchartsUI ref="activityChartRef" style="height: 80px; width: 88px" />
             </div>
           </div>
           <div class="stat-footer">
@@ -1108,7 +1108,7 @@ watch(locale, () => {
               </span>
             </div>
             <div class="stat-mini-chart">
-              <EchartsUI ref="qualityChartRef" style="height: 72px; width: 72px" />
+              <EchartsUI ref="qualityChartRef" style="height: 80px; width: 88px" />
             </div>
           </div>
           <div class="stat-footer">
@@ -1132,7 +1132,7 @@ watch(locale, () => {
               </span>
             </div>
             <div class="stat-mini-chart">
-              <EchartsUI ref="durationChartRef" style="height: 72px; width: 88px" />
+              <EchartsUI ref="durationChartRef" style="height: 80px; width: 88px" />
             </div>
           </div>
           <div class="stat-footer">
