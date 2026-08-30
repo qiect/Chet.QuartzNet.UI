@@ -23,6 +23,8 @@ import {
   Dropdown,
   Menu,
   Tooltip,
+  Textarea,
+  Alert,
 } from 'ant-design-vue';
 import type { FormInstance } from 'ant-design-vue';
 // 导入Cron帮助组件
@@ -481,6 +483,7 @@ const handleAdd = async () => {
   });
   // 默认作业类型是DLL，加载作业类列表
   await loadJobClasses();
+  initHeaderEditor();
   editModalVisible.value = true;
 };
 
@@ -527,6 +530,7 @@ const handleCopyJob = async (job: QuartzJobResponseDto) => {
       await loadJobClasses();
     }
 
+    initHeaderEditor();
     editModalVisible.value = true;
   } catch (error) {
     message.error($t('page.quartz.jobPage.jobDetailFailed'));
@@ -579,6 +583,7 @@ const handleEdit = async (job: QuartzJobResponseDto) => {
       await loadJobClasses();
     }
 
+    initHeaderEditor();
     editModalVisible.value = true;
   } catch (error) {
     message.error($t('page.quartz.jobPage.jobDetailFailed'));
@@ -593,6 +598,8 @@ const handleSave = async () => {
   if (!formRef.value) return;
 
   try {
+    syncHeadersToJson();
+
     await formRef.value.validate();
 
     loading.value = true;
@@ -860,7 +867,105 @@ const handleStopScheduler = () => {
   });
 };
 
-// JSON 格式化函数
+const API_METHOD_COLORS: Record<string, string> = {
+  GET: '#52c41a',
+  POST: '#1890ff',
+  PUT: '#fa8c16',
+  DELETE: '#ff4d4f',
+  PATCH: '#722ed1',
+};
+
+const COMMON_HEADERS = [
+  'Content-Type',
+  'Authorization',
+  'Accept',
+  'Cache-Control',
+  'User-Agent',
+  'X-Request-ID',
+  'X-API-Key',
+];
+
+interface HeaderRow {
+  key: string;
+  value: string;
+  id: number;
+}
+
+let headerRowIdCounter = 0;
+
+const headerRows = ref<HeaderRow[]>([]);
+const selectedCommonHeader = ref<string | undefined>(undefined);
+
+const isBodyDiscouraged = computed(() => {
+  return editForm.apiMethod === 'GET' || editForm.apiMethod === 'DELETE';
+});
+
+const parseJsonToHeaders = (json: string): HeaderRow[] => {
+  if (!json || !json.trim()) return [];
+  try {
+    const obj = JSON.parse(json);
+    if (typeof obj !== 'object' || Array.isArray(obj)) return [];
+    return Object.entries(obj).map(([k, v]) => ({
+      key: k,
+      value: String(v),
+      id: ++headerRowIdCounter,
+    }));
+  } catch {
+    return [];
+  }
+};
+
+const syncHeadersToJson = () => {
+  const validRows = headerRows.value.filter((r) => r.key.trim());
+  if (validRows.length === 0) {
+    editForm.apiHeaders = '';
+    return;
+  }
+  const obj: Record<string, string> = {};
+  validRows.forEach((r) => {
+    obj[r.key.trim()] = r.value;
+  });
+  editForm.apiHeaders = JSON.stringify(obj, null, 2);
+};
+
+const addHeaderRow = (key = '', value = '') => {
+  headerRows.value.push({ key, value, id: ++headerRowIdCounter });
+  syncHeadersToJson();
+};
+
+const removeHeaderRow = (id: number) => {
+  headerRows.value = headerRows.value.filter((r) => r.id !== id);
+  syncHeadersToJson();
+};
+
+const handleAddHeaderRow = () => {
+  const headerKey = selectedCommonHeader.value;
+  if (headerKey) {
+    const exists = headerRows.value.some((r) => r.key === headerKey);
+    if (exists) {
+      message.warning($t('page.quartz.jobPage.apiHeadersDuplicate'));
+      return;
+    }
+    const defaultValues: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ',
+      Accept: 'application/json',
+    };
+    addHeaderRow(headerKey, defaultValues[headerKey] || '');
+    selectedCommonHeader.value = undefined;
+  } else {
+    addHeaderRow();
+  }
+};
+
+const initHeaderEditor = () => {
+  if (editForm.apiHeaders && editForm.apiHeaders.trim()) {
+    headerRows.value = parseJsonToHeaders(editForm.apiHeaders);
+  } else {
+    headerRows.value = [];
+  }
+};
+
 const formatJson = (property: keyof QuartzJobDto) => {
   try {
     const value = editForm[property];
@@ -871,6 +976,18 @@ const formatJson = (property: keyof QuartzJobDto) => {
     }
   } catch (error) {
     message.error($t('page.quartz.jobPage.invalidJson'));
+  }
+};
+
+const formatJsonOnBlur = (property: keyof QuartzJobDto) => {
+  try {
+    const value = editForm[property];
+    if (value && value.trim()) {
+      const parsed = JSON.parse(value as string);
+      (editForm as any)[property] = JSON.stringify(parsed, null, 2);
+    }
+  } catch {
+    // silent on blur
   }
 };
 
@@ -996,7 +1113,7 @@ onMounted(async () => {
           <!-- 基本信息 -->
           <div class="form-section-title">{{ $t('page.quartz.jobPage.sectionBasic') }}</div>
           <Row :gutter="16">
-            <Col :xs="24" :md="12">
+            <Col :xs="24">
               <Form.Item :label="$t('page.quartz.jobPage.jobName')" name="jobName"
                 :rules="[{ required: true, message: $t('page.quartz.jobPage.jobNameRequired') }, { max: 100, message: $t('page.quartz.jobPage.jobNameMaxLen') }]">
                 <Input v-model:value="editForm.jobName" :placeholder="$t('page.quartz.jobPage.placeholderJobName')"
@@ -1024,15 +1141,25 @@ onMounted(async () => {
           <!-- 调度设置 -->
           <div class="form-section-title">{{ $t('page.quartz.jobPage.sectionSchedule') }}</div>
           <Row :gutter="16">
-            <Col :xs="24">
+            <Col :xs="24" :md="16">
               <Form.Item :label="$t('page.quartz.jobPage.cronExpression')" name="cronExpression"
                 :rules="[{ required: true, message: $t('page.quartz.jobPage.cronRequired') }, { max: 200, message: $t('page.quartz.jobPage.cronMaxLen') }]">
                 <Space.Compact style="width: 100%">
                   <Input v-model:value="editForm.cronExpression"
                     :placeholder="$t('page.quartz.jobPage.cronPlaceholder')" style="flex: 1" />
                   <Button @click="openCronHelper">{{ $t('page.quartz.jobPage.cronGenerator') }}</Button>
-
                 </Space.Compact>
+              </Form.Item>
+            </Col>
+            <Col :xs="24" :md="8">
+              <Form.Item name="disallowConcurrentExecution">
+                <template #label>
+                  <Tooltip :title="$t('page.quartz.jobPage.disallowConcurrentHint')">
+                    <i class="vxe-icon-warning-circle retry-hint-icon" style="color: hsl(var(--warning)); cursor: help;"></i>
+                    {{ $t('page.quartz.jobPage.disallowConcurrent') }}
+                  </Tooltip>
+                </template>
+                <Switch v-model:checked="editForm.disallowConcurrentExecution" />
               </Form.Item>
             </Col>
             <!-- 失败重试 + 禁止并发：同一行布局 -->
@@ -1042,7 +1169,7 @@ onMounted(async () => {
               ]">
                 <template #label>
                   <Tooltip :title="$t('page.quartz.jobPage.retryCountHint')">
-                    <i class="vxe-icon-question-circle-fill retry-hint-icon"></i>
+                    <i class="vxe-icon-warning-circle retry-hint-icon" style="color: hsl(var(--warning)); cursor: help;"></i>
                     {{ $t('page.quartz.jobPage.retryLabel') }}
                   </Tooltip>
                 </template>
@@ -1057,14 +1184,6 @@ onMounted(async () => {
                     :placeholder="$t('page.quartz.jobPage.placeholderRetryInterval')"
                     :disabled="!editForm.retryCount" />
                   <span class="retry-group__unit">{{ $t('page.quartz.jobPage.retrySecondsUnit') }}</span>
-                  <span class="retry-group__divider" aria-hidden="true"></span>
-                  <Tooltip :title="$t('page.quartz.jobPage.disallowConcurrentHint')">
-                    <span class="retry-group__inline-label" style="cursor: help;">
-                      <i class="vxe-icon-question-circle-fill retry-hint-icon"></i>
-                      {{ $t('page.quartz.jobPage.disallowConcurrent') }}
-                    </span>
-                  </Tooltip>
-                  <Switch v-model:checked="editForm.disallowConcurrentExecution" />
                 </div>
               </Form.Item>
             </Col>
@@ -1073,11 +1192,11 @@ onMounted(async () => {
           <!-- 作业配置 -->
           <div class="form-section-title">{{ $t('page.quartz.jobPage.sectionConfig') }}</div>
           <Row :gutter="16">
-            <Col :xs="24">
-              <Form.Item :label="$t('page.quartz.jobPage.jobClassOrApi')" name="jobClassOrApi"
-                :rules="[{ required: true, message: $t('page.quartz.jobPage.jobClassOrApiRequired') }, { max: 500, message: $t('page.quartz.jobPage.jobClassOrApiMaxLen') }]">
+            <Col :xs="24" v-if="editForm.jobType === JobTypeEnum.DLL">
+              <Form.Item :label="$t('page.quartz.jobPage.jobClassName')" name="jobClassOrApi"
+                :rules="[{ required: true, message: $t('page.quartz.jobPage.jobClassNameRequired') }, { max: 500, message: $t('page.quartz.jobPage.jobClassNameMaxLen') }]">
                 <Select v-model:value="editForm.jobClassOrApi"
-                  :placeholder="$t('page.quartz.jobPage.selectJobClassOrApi')" showSearch allowClear
+                  :placeholder="$t('page.quartz.jobPage.placeholderJobClassName')" showSearch allowClear
                   mode="SECRET_COMBOBOX_MODE_DO_NOT_USE" :filter-option="(input, option) => {
                     return (option?.label || '')
                       .toLowerCase()
@@ -1088,6 +1207,13 @@ onMounted(async () => {
                     {{ jobClass }}
                   </Select.Option>
                 </Select>
+              </Form.Item>
+            </Col>
+            <Col :xs="24" v-if="editForm.jobType === JobTypeEnum.API">
+              <Form.Item :label="$t('page.quartz.jobPage.apiUrl')" name="jobClassOrApi"
+                :rules="[{ required: true, message: $t('page.quartz.jobPage.apiUrlRequired') }, { max: 500, message: $t('page.quartz.jobPage.apiUrlMaxLen') }]">
+                <Input v-model:value="editForm.jobClassOrApi"
+                  :placeholder="$t('page.quartz.jobPage.placeholderApiUrl')" />
               </Form.Item>
             </Col>
             <!-- DLL: 作业数据 -->
@@ -1106,8 +1232,9 @@ onMounted(async () => {
                 },
               ]">
                 <div class="json-field">
-                  <Input.TextArea v-model:value="editForm.jobData"
-                    :placeholder="$t('page.quartz.jobPage.placeholderJobData')" :rows="4" />
+                  <Textarea v-model:value="editForm.jobData"
+                    :placeholder="$t('page.quartz.jobPage.placeholderJobData')" :rows="3"
+                    class="json-textarea" @blur="formatJsonOnBlur('jobData')" />
                   <Tooltip :title="$t('page.quartz.jobPage.jsonFormat')">
                     <Button type="link" size="small" class="json-format-btn" @click="formatJson('jobData')">
                       {{ $t('page.quartz.jobPage.jsonFormat') }}
@@ -1122,10 +1249,31 @@ onMounted(async () => {
                 <Form.Item :label="$t('page.quartz.jobPage.apiMethod')" name="apiMethod"
                   :rules="[{ required: true, message: $t('page.quartz.jobPage.placeholderApiMethod') }, { max: 10, message: $t('page.quartz.jobPage.apiMethodMaxLen') }]">
                   <Select v-model:value="editForm.apiMethod">
-                    <Select.Option value="GET">GET</Select.Option>
-                    <Select.Option value="POST">POST</Select.Option>
-                    <Select.Option value="PUT">PUT</Select.Option>
-                    <Select.Option value="DELETE">DELETE</Select.Option>
+                    <Select.Option value="GET">
+                      <span class="api-method-option">
+                        <span class="api-method-dot" :style="{ background: API_METHOD_COLORS['GET'] }"></span>GET
+                      </span>
+                    </Select.Option>
+                    <Select.Option value="POST">
+                      <span class="api-method-option">
+                        <span class="api-method-dot" :style="{ background: API_METHOD_COLORS['POST'] }"></span>POST
+                      </span>
+                    </Select.Option>
+                    <Select.Option value="PUT">
+                      <span class="api-method-option">
+                        <span class="api-method-dot" :style="{ background: API_METHOD_COLORS['PUT'] }"></span>PUT
+                      </span>
+                    </Select.Option>
+                    <Select.Option value="DELETE">
+                      <span class="api-method-option">
+                        <span class="api-method-dot" :style="{ background: API_METHOD_COLORS['DELETE'] }"></span>DELETE
+                      </span>
+                    </Select.Option>
+                    <Select.Option value="PATCH">
+                      <span class="api-method-option">
+                        <span class="api-method-dot" :style="{ background: API_METHOD_COLORS['PATCH'] }"></span>PATCH
+                      </span>
+                    </Select.Option>
                   </Select>
                 </Form.Item>
               </Col>
@@ -1138,12 +1286,22 @@ onMounted(async () => {
                   },
                   { type: 'number', min: 1, max: 99999, message: $t('page.quartz.jobPage.apiTimeoutRange') },
                 ]">
-                  <Input type="number" v-model:value.number="editForm.apiTimeout"
-                    :placeholder="$t('page.quartz.jobPage.placeholderApiTimeout')" />
+                  <div class="api-timeout-field">
+                    <InputNumber v-model:value="editForm.apiTimeout" :min="1" :max="99999" :step="10"
+                      style="flex: 1"
+                      :placeholder="$t('page.quartz.jobPage.placeholderApiTimeout')" />
+                    <span class="api-timeout-unit">{{ $t('page.quartz.jobPage.apiTimeoutUnit') }}</span>
+                  </div>
                 </Form.Item>
               </Col>
               <Col :xs="24">
-                <Form.Item :label="$t('page.quartz.jobPage.skipSsl')" name="skipSslValidation" valuePropName="checked">
+                <Form.Item name="skipSslValidation" valuePropName="checked">
+                  <template #label>
+                    <Tooltip :title="$t('page.quartz.jobPage.skipSslWarning')">
+                      <i class="vxe-icon-warning-circle retry-hint-icon" style="color: hsl(var(--warning)); cursor: help;"></i>
+                      {{ $t('page.quartz.jobPage.skipSsl') }}
+                    </Tooltip>
+                  </template>
                   <Switch v-model:checked="editForm.skipSslValidation" />
                 </Form.Item>
               </Col>
@@ -1161,14 +1319,31 @@ onMounted(async () => {
                     },
                   },
                 ]">
-                  <div class="json-field">
-                    <Input.TextArea v-model:value="editForm.apiHeaders"
-                      :placeholder="$t('page.quartz.jobPage.placeholderApiHeaders')" :rows="3" />
-                    <Tooltip :title="$t('page.quartz.jobPage.jsonFormat')">
-                      <Button type="link" size="small" class="json-format-btn" @click="formatJson('apiHeaders')">
-                        {{ $t('page.quartz.jobPage.jsonFormat') }}
+                  <div class="api-headers-editor">
+                    <div v-for="row in headerRows" :key="row.id" class="header-row">
+                      <Input v-model:value="row.key" class="header-row__key"
+                        :placeholder="$t('page.quartz.jobPage.apiHeadersKey')"
+                        @change="syncHeadersToJson" />
+                      <Input v-model:value="row.value" class="header-row__value"
+                        :placeholder="$t('page.quartz.jobPage.apiHeadersValue')"
+                        @change="syncHeadersToJson" />
+                      <Button type="text" danger size="small" class="header-row__remove"
+                        @click="removeHeaderRow(row.id)">
+                        <i class="vxe-icon-close"></i>
                       </Button>
-                    </Tooltip>
+                    </div>
+                    <div class="header-actions">
+                      <Select size="small" class="header-common-select"
+                        v-model:value="selectedCommonHeader"
+                        :placeholder="$t('page.quartz.jobPage.apiHeadersCommon')"
+                        allowClear>
+                        <Select.Option v-for="h in COMMON_HEADERS" :key="h" :value="h">{{ h }}</Select.Option>
+                      </Select>
+                      <Button type="dashed" size="small" @click="handleAddHeaderRow">
+                        <i class="vxe-icon-plus" style="margin-right: 4px;"></i>
+                        {{ $t('page.quartz.jobPage.apiHeadersAdd') }}
+                      </Button>
+                    </div>
                   </div>
                 </Form.Item>
               </Col>
@@ -1186,14 +1361,19 @@ onMounted(async () => {
                     },
                   },
                 ]">
-                  <div class="json-field">
-                    <Input.TextArea v-model:value="editForm.apiBody"
-                      :placeholder="$t('page.quartz.jobPage.placeholderApiBody')" :rows="4" />
-                    <Tooltip :title="$t('page.quartz.jobPage.jsonFormat')">
-                      <Button type="link" size="small" class="json-format-btn" @click="formatJson('apiBody')">
-                        {{ $t('page.quartz.jobPage.jsonFormat') }}
-                      </Button>
-                    </Tooltip>
+                  <div class="api-body-editor">
+                    <Alert v-if="isBodyDiscouraged" type="warning" show-icon class="api-body-hint"
+                      :message="$t('page.quartz.jobPage.apiBodyNoBodyHint', { method: editForm.apiMethod })" />
+                    <div class="json-field">
+                      <Textarea v-model:value="editForm.apiBody"
+                        :placeholder="$t('page.quartz.jobPage.placeholderApiBody')" :rows="3"
+                        class="json-textarea" @blur="formatJsonOnBlur('apiBody')" />
+                      <Tooltip :title="$t('page.quartz.jobPage.jsonFormat')">
+                        <Button type="link" size="small" class="json-format-btn" @click="formatJson('apiBody')">
+                          {{ $t('page.quartz.jobPage.jsonFormat') }}
+                        </Button>
+                      </Tooltip>
+                    </div>
                   </div>
                 </Form.Item>
               </Col>
@@ -1206,7 +1386,7 @@ onMounted(async () => {
             <Col :xs="24">
               <Form.Item :label="$t('page.quartz.jobPage.description')" name="description"
                 :rules="[{ max: 500, message: $t('page.quartz.jobPage.descriptionMaxLen') }]">
-                <Input.TextArea v-model:value="editForm.description"
+                <Textarea v-model:value="editForm.description"
                   :placeholder="$t('page.quartz.jobPage.placeholderDescription')" :rows="3" />
               </Form.Item>
             </Col>
@@ -1323,13 +1503,6 @@ onMounted(async () => {
   background: hsl(var(--border));
 }
 
-.retry-group__divider {
-  width: 1px;
-  height: 20px;
-  margin: 0 8px;
-  background: hsl(var(--border));
-}
-
 /* ====== JSON 字段格式化按钮 ====== */
 .json-field {
   position: relative;
@@ -1343,6 +1516,93 @@ onMounted(async () => {
   height: 22px;
   font-size: 12px;
   z-index: 1;
+}
+
+:deep(.json-textarea) textarea,
+.json-textarea :deep(textarea) {
+  font-family: 'Consolas', 'Monaco', 'Menlo', 'Courier New', monospace !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
+/* ====== API 方法颜色标签 ====== */
+.api-method-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.api-method-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* ====== API 超时字段 ====== */
+.api-timeout-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.api-timeout-unit {
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+/* ====== API 请求头 Key-Value 编辑器 ====== */
+.api-headers-editor {
+  width: 100%;
+}
+
+.header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.header-row__key {
+  flex: 2;
+  min-width: 0;
+}
+
+.header-row__value {
+  flex: 3;
+  min-width: 0;
+}
+
+.header-row__remove {
+  flex-shrink: 0;
+  padding: 0 4px !important;
+  height: 24px;
+  width: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.header-common-select {
+  width: 160px;
+}
+
+/* ====== API 请求体编辑器 ====== */
+.api-body-editor {
+  width: 100%;
+}
+
+.api-body-hint {
+  margin-bottom: 8px;
 }
 
 /* ====== 调度器状态条 ====== */
