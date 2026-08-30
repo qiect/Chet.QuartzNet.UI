@@ -8,7 +8,7 @@ public class StatsQueryDto
     /// <summary>
     /// 时间范围类型：today, yesterday, thisWeek, thisMonth, custom
     /// </summary>
-    public string? TimeRangeType { get; set; } = "today";
+    public string? TimeRangeType { get; set; }
 
     /// <summary>
     /// 自定义开始时间
