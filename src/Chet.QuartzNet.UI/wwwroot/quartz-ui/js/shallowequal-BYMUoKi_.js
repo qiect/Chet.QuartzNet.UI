@@ -1,5 +1,0 @@
-<<<<<<<< HEAD:src/Chet.QuartzNet.UI/wwwroot/quartz-ui/js/shallowequal-NNn7eiet.js
-import{t}from"../jse/index-index-8vdDZFRF.js";function e(e,n){return function(t,e){let n;if(void 0!==n)return!!n;if(t===e)return!0;if("object"!=typeof t||!t||"object"!=typeof e||!e)return!1;const r=Object.keys(t),o=Object.keys(e);if(r.length!==o.length)return!1;const i=Object.prototype.hasOwnProperty.bind(e);for(let f=0;f<r.length;f++){const o=r[f];if(!i(o))return!1;const s=t[o],c=e[o];if(n=void 0,!1===n||void 0===n&&s!==c)return!1}return!0}(t(e),t(n))}export{e as s};
-========
-import{t}from"../jse/index-index-CTLECNLm.js";function e(e,n){return function(t,e){let n;if(void 0!==n)return!!n;if(t===e)return!0;if("object"!=typeof t||!t||"object"!=typeof e||!e)return!1;const r=Object.keys(t),o=Object.keys(e);if(r.length!==o.length)return!1;const i=Object.prototype.hasOwnProperty.bind(e);for(let f=0;f<r.length;f++){const o=r[f];if(!i(o))return!1;const s=t[o],c=e[o];if(n=void 0,!1===n||void 0===n&&s!==c)return!1}return!0}(t(e),t(n))}export{e as s};
->>>>>>>> qiect:src/Chet.QuartzNet.UI/wwwroot/quartz-ui/js/shallowequal-BYMUoKi_.js

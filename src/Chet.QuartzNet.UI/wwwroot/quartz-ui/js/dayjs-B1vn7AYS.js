@@ -1,5 +1,0 @@
-<<<<<<<< HEAD:src/Chet.QuartzNet.UI/wwwroot/quartz-ui/js/dayjs-B1vn7AYS.js
-import{_ as e}from"./bootstrap-DyUus-Rx.js";import{g as r,a}from"./index-zIlziEwd.js";const{DatePicker:n,WeekPicker:o,MonthPicker:c,YearPicker:i,TimePicker:t,QuarterPicker:m,RangePicker:k}=r(a),s=e(n,{WeekPicker:o,MonthPicker:c,YearPicker:i,RangePicker:k,TimePicker:t,QuarterPicker:m,install:e=>(e.component(n.name,n),e.component(k.name,k),e.component(c.name,c),e.component(o.name,o),e.component(m.name,m),e)});export{s as D,c as M,m as Q,k as R,o as W};
-========
-import{_ as e}from"./bootstrap-BiMn3h3Z.js";import{g as r,a}from"./index-L3QXw45T.js";const{DatePicker:n,WeekPicker:o,MonthPicker:c,YearPicker:i,TimePicker:t,QuarterPicker:m,RangePicker:k}=r(a),s=e(n,{WeekPicker:o,MonthPicker:c,YearPicker:i,RangePicker:k,TimePicker:t,QuarterPicker:m,install:e=>(e.component(n.name,n),e.component(k.name,k),e.component(c.name,c),e.component(o.name,o),e.component(m.name,m),e)});export{s as D,c as M,m as Q,k as R,o as W};
->>>>>>>> qiect:src/Chet.QuartzNet.UI/wwwroot/quartz-ui/js/dayjs-BHPX3FRq.js
