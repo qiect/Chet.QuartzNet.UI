@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, shallowRef, onMounted, computed, h } from 'vue';
+import { ref, shallowRef, onMounted, computed, h, watch } from 'vue';
 import { Page } from '@vben/common-ui';
 import {
   Card,
@@ -15,6 +15,7 @@ import type { EchartsUIType } from '@vben/plugins/echarts';
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
 import { $t } from '#/locales';
+import { useI18n } from '@vben/locales';
 
 import {
   getAnalyticsOverview,
@@ -32,6 +33,7 @@ import type {
 import { useSystemConfig } from '../../composables/use-system-config';
 
 const loading = ref(false);
+const { locale } = useI18n();
 const trendChartRef = ref<EchartsUIType | null>(null);
 const healthChartRef = ref<EchartsUIType | null>(null);
 const heatmapChartRef = ref<EchartsUIType | null>(null);
@@ -1008,6 +1010,10 @@ const hasServiceName = computed(() => !!systemConfig.value.serviceName);
 
 onMounted(() => {
   loadSystemConfig();
+  fetchData();
+});
+
+watch(locale, () => {
   fetchData();
 });
 </script>

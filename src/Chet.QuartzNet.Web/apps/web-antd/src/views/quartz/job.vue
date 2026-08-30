@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive, nextTick } from 'vue';
+import { ref, computed, onMounted, reactive, nextTick, watch } from 'vue';
 // 导入日期格式化工具
 import { formatDateTime } from '@vben/utils';
 import { Page } from '@vben/common-ui';
@@ -34,6 +34,7 @@ import { useDraggableModal } from './composables/use-draggable-modal';
 
 // 导入i18n
 import { $t } from '#/locales';
+import { useI18n } from '@vben/locales';
 
 // 导入作业API服务
 import {
@@ -60,6 +61,8 @@ import {
   stopScheduler,
 } from '../../api/quartz/scheduler';
 import { getJobClasses } from '../../api/quartz/extension';
+
+const { locale } = useI18n();
 
 // 作业类型和状态映射
 const jobTypeMap = {
@@ -182,7 +185,7 @@ const editModalDisplayTitle = computed(() => {
 const isEditMode = computed(() => editModalTitle.value === 'edit');
 
 // 列配置
-const columns = [
+const columns = computed(() => [
   { type: 'checkbox', width: 50, fixed: 'left' },
   { type: 'seq', width: 60, title: '#', fixed: 'left' },
   {
@@ -263,7 +266,7 @@ const columns = [
     fixed: 'right',
     slots: { default: 'action' },
   },
-];
+]);
 
 // 排序持久化：读取上次排序列
 const SORT_KEY = 'quartz-job-sort';
@@ -289,7 +292,7 @@ const savedSearch = (() => {
 // 构造 Vxe Grid 配置
 const gridOptions: VxeTableGridOptions<QuartzJobResponseDto> = {
   id: 'quartz-job-grid',
-  columns: columns as any,
+  columns: columns.value as any,
   height: 'auto',
   showOverflow: true,
   rowConfig: { keyField: '_rowKey', isHover: true },
@@ -457,6 +460,52 @@ const [Grid, gridApi] = useVbenVxeGrid({
 useDraggableModal(editModalVisible, 'quartz-job-edit-modal');
 
 // 搜索/重置由 VbenForm 内置提交按钮触发，无需手动处理
+
+// 监听语言切换，更新表格列头和搜索表单
+watch(locale, () => {
+  gridApi.setGridOptions({ columns: columns.value as any });
+  gridApi.formApi.updateSchema([
+    {
+      fieldName: 'jobName',
+      label: $t('page.quartz.jobPage.jobName'),
+      componentProps: { placeholder: $t('page.quartz.jobPage.placeholderJobName') },
+    },
+    {
+      fieldName: 'jobGroup',
+      label: $t('page.quartz.jobPage.jobGroup'),
+      componentProps: { placeholder: $t('page.quartz.jobPage.placeholderJobGroup') },
+    },
+    {
+      fieldName: 'status',
+      label: $t('page.quartz.jobPage.status'),
+      componentProps: {
+        allowClear: true,
+        placeholder: $t('page.quartz.jobPage.placeholderStatus'),
+        options: [
+          { label: $t('page.quartz.jobPage.statusNormal'), value: JobStatusEnum.Normal },
+          { label: $t('page.quartz.jobPage.statusPaused'), value: JobStatusEnum.Paused },
+        ],
+      },
+    },
+    {
+      fieldName: 'jobClassOrApi',
+      label: $t('page.quartz.jobPage.jobClassOrApi'),
+      componentProps: { placeholder: $t('page.quartz.jobPage.placeholderJobClassOrApi') },
+    },
+    {
+      fieldName: 'isEnabled',
+      label: $t('page.quartz.jobPage.isEnabled'),
+      componentProps: {
+        allowClear: true,
+        placeholder: $t('page.quartz.jobPage.placeholderIsEnabled'),
+        options: [
+          { label: $t('page.quartz.jobPage.enabledYes'), value: true },
+          { label: $t('page.quartz.jobPage.enabledNo'), value: false },
+        ],
+      },
+    },
+  ]);
+});
 
 // 打开新增对话框
 const handleAdd = async () => {
@@ -1105,7 +1154,7 @@ onMounted(async () => {
       </Grid>
 
       <!-- 新增编辑对话框 -->
-      <Modal v-model:open="editModalVisible" :title="editModalDisplayTitle" width="760px"
+      <Modal v-model:open="editModalVisible" :title="editModalDisplayTitle" width="800px"
         :body-style="{ padding: '24px' }" wrapClassName="quartz-job-edit-modal" destroyOnClose
         @cancel="editModalVisible = false">
         <Form ref="formRef" :model="editForm" layout="horizontal" :label-col="{ style: { width: '110px' } }"

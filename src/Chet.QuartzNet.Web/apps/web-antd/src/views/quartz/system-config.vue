@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref } from 'vue';
+import { ref, computed, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -7,6 +7,7 @@ import { Card, message } from 'ant-design-vue';
 
 import { useVbenForm, z } from '#/adapter/form';
 import { $t } from '#/locales';
+import { useI18n } from '@vben/locales';
 
 import { getSystemConfig, saveSystemConfig } from '../../api/quartz/system-config';
 import { useSystemConfig } from '../../composables/use-system-config';
@@ -14,13 +15,15 @@ import { useSystemConfig } from '../../composables/use-system-config';
 // 加载状态
 const loading = ref(false);
 
+const { locale } = useI18n();
+
 // 环境选项
-const environmentOptions = [
+const environmentOptions = computed(() => [
   { label: $t('page.quartz.systemConfigPage.envDEV'), value: 'DEV' },
   { label: $t('page.quartz.systemConfigPage.envTEST'), value: 'TEST' },
   { label: $t('page.quartz.systemConfigPage.envUAT'), value: 'UAT' },
   { label: $t('page.quartz.systemConfigPage.envPROD'), value: 'PROD' },
-];
+]);
 
 const [BaseForm, formApi] = useVbenForm({
   commonConfig: {
@@ -28,6 +31,7 @@ const [BaseForm, formApi] = useVbenForm({
     componentProps: {
       class: 'w-full',
     },
+    labelWidth: 140,
   },
   layout: 'horizontal',
   // 提交与重置由 VbenForm 内置按钮触发
@@ -52,7 +56,7 @@ const [BaseForm, formApi] = useVbenForm({
     {
       component: 'Select',
       componentProps: {
-        options: environmentOptions,
+        options: environmentOptions.value,
         placeholder: $t('page.quartz.systemConfigPage.environmentPlaceholder'),
       },
       fieldName: 'environment',
@@ -93,6 +97,35 @@ async function loadConfig() {
     loading.value = false;
   }
 }
+
+// 监听语言切换，更新表单标签和选项
+watch(locale, () => {
+  formApi.updateSchema([
+    {
+      fieldName: 'serviceName',
+      label: $t('page.quartz.systemConfigPage.serviceName'),
+      componentProps: { placeholder: $t('page.quartz.systemConfigPage.serviceNamePlaceholder') },
+      rules: z.string().min(1, $t('page.quartz.systemConfigPage.serviceNameRequired')),
+    },
+    {
+      fieldName: 'environment',
+      label: $t('page.quartz.systemConfigPage.environment'),
+      componentProps: {
+        options: environmentOptions.value,
+        placeholder: $t('page.quartz.systemConfigPage.environmentPlaceholder'),
+      },
+    },
+    {
+      fieldName: 'serviceDescription',
+      label: $t('page.quartz.systemConfigPage.serviceDescription'),
+      componentProps: { placeholder: $t('page.quartz.systemConfigPage.serviceDescriptionPlaceholder') },
+    },
+  ]);
+  formApi.setState({
+    submitButtonOptions: { content: $t('page.quartz.systemConfigPage.save') },
+    resetButtonOptions: { content: $t('page.quartz.systemConfigPage.reset') },
+  });
+});
 
 // 保存（由 VbenForm handleSubmit 调用，values 已经过校验）
 async function handleSubmit(values: Record<string, any>) {

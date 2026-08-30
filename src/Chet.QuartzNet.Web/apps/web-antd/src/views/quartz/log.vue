@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, nextTick, watch } from 'vue';
 // 导入日期格式化工具
 import { formatDateTime } from '@vben/utils';
 import dayjs from 'dayjs';
@@ -18,6 +18,7 @@ import {
 
 // 导入i18n
 import { $t } from '#/locales';
+import { useI18n } from '@vben/locales';
 
 // 导入日志相关类型和API
 import {
@@ -28,6 +29,8 @@ import {
 import type { LogQueryParams, LogResponseDto } from '../../api/quartz/log';
 // 导入可拖动 Modal 组合式函数
 import { useDraggableModal } from './composables/use-draggable-modal';
+
+const { locale } = useI18n();
 
 // 日志状态映射
 const logStatusMap = {
@@ -93,7 +96,7 @@ const logStatusColor = computed(() => {
 });
 
 // 列配置
-const columns = [
+const columns = computed(() => [
   { type: 'seq', width: 60, title: '#', fixed: 'left' },
   {
     field: 'jobName',
@@ -145,7 +148,7 @@ const columns = [
     fixed: 'right',
     slots: { default: 'action' },
   },
-];
+]);
 
 // 排序持久化：读取上次排序列
 const SORT_KEY = 'quartz-log-sort';
@@ -171,7 +174,7 @@ const savedSearch = (() => {
 // 构造 Vxe Grid 配置
 const gridOptions: VxeTableGridOptions<LogResponseDto> = {
   id: 'quartz-log-grid',
-  columns: columns as any,
+  columns: columns.value as any,
   height: 'auto',
   showOverflow: true,
   rowConfig: { keyField: 'logId', isHover: true },
@@ -361,6 +364,44 @@ const [Grid, gridApi] = useVbenVxeGrid({
 // 详情对话框支持拖动
 useDraggableModal(detailModalVisible, 'quartz-log-detail-modal');
 
+// 监听语言切换，更新表格列头和搜索表单
+watch(locale, () => {
+  gridApi.setGridOptions({ columns: columns.value as any });
+  gridApi.formApi.updateSchema([
+    {
+      fieldName: 'jobName',
+      label: $t('page.quartz.logPage.jobName'),
+      componentProps: { placeholder: $t('page.quartz.logPage.placeholderJobName') },
+    },
+    {
+      fieldName: 'jobGroup',
+      label: $t('page.quartz.logPage.jobGroup'),
+      componentProps: { placeholder: $t('page.quartz.logPage.placeholderJobGroup') },
+    },
+    {
+      fieldName: 'status',
+      label: $t('page.quartz.logPage.executionStatus'),
+      componentProps: {
+        allowClear: true,
+        placeholder: $t('page.quartz.logPage.placeholderStatus'),
+        options: [
+          { label: $t('page.quartz.logPage.statusSuccess'), value: LogStatusEnum.SUCCESS },
+          { label: $t('page.quartz.logPage.statusError'), value: LogStatusEnum.ERROR },
+          { label: $t('page.quartz.logPage.statusRunning'), value: LogStatusEnum.RUNNING },
+        ],
+      },
+    },
+    {
+      fieldName: 'startTimeRange',
+      label: $t('page.quartz.logPage.startTime'),
+    },
+    {
+      fieldName: 'endTimeRange',
+      label: $t('page.quartz.logPage.endTime'),
+    },
+  ]);
+});
+
 // 搜索/重置由 VbenForm 内置提交按钮触发，无需手动处理
 
 // 清空日志
@@ -476,7 +517,7 @@ onMounted(async () => {
       </Grid>
 
       <!-- 详情对话框 -->
-      <Modal v-model:open="detailModalVisible" :title="$t('page.quartz.logPage.logDetail')" width="720px" :footer="null"
+      <Modal v-model:open="detailModalVisible" :title="$t('page.quartz.logPage.logDetail')" width="800px" :footer="null"
         :destroyOnClose="true" centered wrapClassName="quartz-log-detail-modal">
         <div v-if="logDetail" class="log-detail">
           <!-- 顶部：标题 + 状态标签 -->
@@ -488,8 +529,8 @@ onMounted(async () => {
           </div>
 
           <!-- 元数据：Descriptions 组件统一展示 -->
-          <Descriptions :column="3" size="small" bordered class="detail-desc">
-            <DescriptionsItem :label="$t('page.quartz.logPage.executionDuration')">
+          <Descriptions :column="3" size="small" bordered class="detail-desc" :labelStyle="{ minWidth: '100px' }">
+            <DescriptionsItem :label="$t('page.quartz.logPage.executionDuration')" :span="1">
               {{ formatDuration(logDetail.duration) }}
             </DescriptionsItem>
             <DescriptionsItem :label="$t('page.quartz.logPage.startTime')">
