@@ -63,8 +63,15 @@ public static class ServiceCollectionExtensions
         // 认证
         AddQuartzUIAuthentication(services, options);
 
-        // 注册RCL中的控制器
-        services.AddControllers().AddApplicationPart(typeof(ServiceCollectionExtensions).Assembly);
+        // 注册RCL中的控制器，配置JSON序列化确保DateTimeOffset带时区偏移
+        services
+            .AddControllers()
+            .AddApplicationPart(typeof(ServiceCollectionExtensions).Assembly)
+            .AddJsonOptions(options =>
+                JsonSerializationConfig.ConfigureMvcJsonOptions(
+                    options.JsonSerializerOptions
+                )
+            );
 
         return services;
     }

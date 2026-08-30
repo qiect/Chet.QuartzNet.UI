@@ -176,7 +176,7 @@ import {
   Segmented,
 } from 'ant-design-vue';
 import { useDraggableModal } from '../composables/use-draggable-modal';
-import { validateCronExpression, getNextRunTimes } from '#/api/quartz/job';
+import { validateCronExpression, getNextRunTimes } from '#/api/quartz/extension';
 import { $t } from '#/locales';
 
 const props = defineProps<{ visible: boolean; currentExpression?: string }>();
@@ -413,11 +413,27 @@ async function loadPreview() {
   }
 }
 
-// 格式化日期：后端返回 DateTimeOffset（ISO 带时区），new Date 自动转本地时区
+// 将后端返回的时间字符串转为Date对象
+// 后端可能返回：带偏移的ISO（2026-08-28T13:02:00+00:00）、
+// 无偏移的ISO（2026-08-28T13:02:00）、空格分隔（2026-08-28 13:02:00）
+// 兜底：无时区偏移时视为UTC，先规范化为标准ISO格式再解析
+function parseTime(time: string): Date {
+  if (!time) return new Date(NaN);
+  // 规范化：空格分隔 → T 分隔（兼容 "2026-08-28 13:02:00" 格式）
+  let normalized = time.replace(/^(\d{4}-\d{2}-\d{2})\s/, '$1T');
+  // 已含时区偏移（Z / +HH:mm / +HHmm），直接解析
+  if (/Z|[+-]\d{2}:\d{2}$|[+-]\d{4}$/.test(normalized)) {
+    return new Date(normalized);
+  }
+  // 无时区偏移，视为UTC追加Z
+  return new Date(normalized + 'Z');
+}
+
+// 格式化日期
 function formatDate(time: string): string {
   if (!time) return '';
   try {
-    const d = new Date(time);
+    const d = parseTime(time);
     if (isNaN(d.getTime())) return time;
     const y = d.getFullYear();
     const mo = String(d.getMonth() + 1).padStart(2, '0');
@@ -432,7 +448,7 @@ function formatDate(time: string): string {
 function formatClock(time: string): string {
   if (!time) return '';
   try {
-    const d = new Date(time);
+    const d = parseTime(time);
     if (isNaN(d.getTime())) return '';
     const h = String(d.getHours()).padStart(2, '0');
     const mi = String(d.getMinutes()).padStart(2, '0');
@@ -445,7 +461,7 @@ function formatClock(time: string): string {
 
 // 与今天相差的天数（0=今天，按自然日计算）
 function dayDiff(time: string): number {
-  const d = new Date(time);
+  const d = parseTime(time);
   if (isNaN(d.getTime())) return Number.NaN;
   const now = new Date();
   const d0 = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
@@ -459,7 +475,7 @@ function dayLabel(time: string): string {
   if (diff === 0) return $t('page.quartz.cronHelper.today');
   if (diff === 1) return $t('page.quartz.cronHelper.tomorrow');
   if (diff === 2) return $t('page.quartz.cronHelper.dayAfterTomorrow');
-  const d = new Date(time);
+  const d = parseTime(time);
   if (isNaN(d.getTime())) return '';
   const weekdays = $t('page.quartz.cronHelper.weekdays').split(',');
   return weekdays[d.getDay()] ?? '';
@@ -474,7 +490,7 @@ function isNearDay(time: string): boolean {
 // 相对时间
 function relativeTime(time: string): string {
   try {
-    const d = new Date(time);
+    const d = parseTime(time);
     if (isNaN(d.getTime())) return '';
     const diff = d.getTime() - Date.now();
     if (diff < 0) return $t('page.quartz.cronHelper.expired');

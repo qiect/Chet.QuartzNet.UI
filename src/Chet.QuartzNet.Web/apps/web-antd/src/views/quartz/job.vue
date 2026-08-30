@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive, nextTick } from 'vue';
+import { ref, computed, onMounted, reactive, nextTick, watch } from 'vue';
 // 导入日期格式化工具
 import { formatDateTime } from '@vben/utils';
 import { Page } from '@vben/common-ui';
@@ -23,6 +23,8 @@ import {
   Dropdown,
   Menu,
   Tooltip,
+  Textarea,
+  Alert,
 } from 'ant-design-vue';
 import type { FormInstance } from 'ant-design-vue';
 // 导入Cron帮助组件
@@ -32,6 +34,7 @@ import { useDraggableModal } from './composables/use-draggable-modal';
 
 // 导入i18n
 import { $t } from '#/locales';
+import { useI18n } from '@vben/locales';
 
 // 导入作业API服务
 import {
@@ -46,16 +49,20 @@ import {
   triggerJob,
   pauseJob,
   resumeJob,
-  getSchedulerStatus,
-  startScheduler,
-  stopScheduler,
-  getJobClasses,
 } from '../../api/quartz/job';
 import type {
   QuartzJobDto,
   QuartzJobResponseDto,
   QuartzJobQueryDto,
 } from '../../api/quartz/job';
+import {
+  getSchedulerStatus,
+  startScheduler,
+  stopScheduler,
+} from '../../api/quartz/scheduler';
+import { getJobClasses } from '../../api/quartz/extension';
+
+const { locale } = useI18n();
 
 // 作业类型和状态映射
 const jobTypeMap = {
@@ -77,6 +84,7 @@ const jobStatusMap = {
 
 // 响应式数据
 const loading = ref(false);
+const toggleLoadingKeys = ref<Set<string>>(new Set());
 // 批量删除相关
 const selectedRows = ref<QuartzJobResponseDto[]>([]);
 
@@ -114,6 +122,7 @@ const editForm = reactive<QuartzJobDto>({
   retryCount: 0,
   retryIntervalSeconds: 30,
   skipSslValidation: false,
+  disallowConcurrentExecution: false,
   startTime: undefined,
   endTime: undefined,
   isEnabled: true,
@@ -176,7 +185,7 @@ const editModalDisplayTitle = computed(() => {
 const isEditMode = computed(() => editModalTitle.value === 'edit');
 
 // 列配置
-const columns = [
+const columns = computed(() => [
   { type: 'checkbox', width: 50, fixed: 'left' },
   { type: 'seq', width: 60, title: '#', fixed: 'left' },
   {
@@ -251,13 +260,14 @@ const columns = [
     slots: { default: 'datetime' },
   },
   {
+    field: 'action',
     title: $t('page.quartz.jobPage.action'),
     width: 70,
     align: 'center' as const,
     fixed: 'right',
     slots: { default: 'action' },
   },
-];
+]);
 
 // 排序持久化：读取上次排序列
 const SORT_KEY = 'quartz-job-sort';
@@ -283,7 +293,7 @@ const savedSearch = (() => {
 // 构造 Vxe Grid 配置
 const gridOptions: VxeTableGridOptions<QuartzJobResponseDto> = {
   id: 'quartz-job-grid',
-  columns: columns as any,
+  columns: columns.value as any,
   height: 'auto',
   showOverflow: true,
   rowConfig: { keyField: '_rowKey', isHover: true },
@@ -329,14 +339,16 @@ const gridOptions: VxeTableGridOptions<QuartzJobResponseDto> = {
           pageSize: page.pageSize,
           jobName: currentValues?.jobName,
           jobGroup: currentValues?.jobGroup,
+          jobClassOrApi: currentValues?.jobClassOrApi,
           status: currentValues?.status,
+          isEnabled: currentValues?.isEnabled,
           sortBy: sortField ?? '',
           sortOrder,
         };
         // 持久化搜索条件（仅保存非空值，避免 localStorage 膨胀）
         try {
           const persisted: Record<string, any> = {};
-          for (const k of ['jobName', 'jobGroup', 'status']) {
+          for (const k of ['jobName', 'jobGroup', 'jobClassOrApi', 'status', 'isEnabled']) {
             if (currentValues[k] != null && currentValues[k] !== '') {
               persisted[k] = currentValues[k];
             }
@@ -400,6 +412,25 @@ const [Grid, gridApi] = useVbenVxeGrid({
         fieldName: 'status',
         label: $t('page.quartz.jobPage.status'),
       },
+      {
+        component: 'Input',
+        componentProps: { placeholder: $t('page.quartz.jobPage.placeholderJobClassOrApi') },
+        fieldName: 'jobClassOrApi',
+        label: $t('page.quartz.jobPage.jobClassOrApi'),
+      },
+      {
+        component: 'Select',
+        componentProps: {
+          allowClear: true,
+          placeholder: $t('page.quartz.jobPage.placeholderIsEnabled'),
+          options: [
+            { label: $t('page.quartz.jobPage.enabledYes'), value: true },
+            { label: $t('page.quartz.jobPage.enabledNo'), value: false },
+          ],
+        },
+        fieldName: 'isEnabled',
+        label: $t('page.quartz.jobPage.isEnabled'),
+      },
     ],
     showCollapseButton: false,
     submitOnChange: false,
@@ -431,6 +462,52 @@ useDraggableModal(editModalVisible, 'quartz-job-edit-modal');
 
 // 搜索/重置由 VbenForm 内置提交按钮触发，无需手动处理
 
+// 监听语言切换，更新表格列头和搜索表单
+watch(locale, () => {
+  gridApi.setGridOptions({ columns: columns.value as any });
+  gridApi.formApi.updateSchema([
+    {
+      fieldName: 'jobName',
+      label: $t('page.quartz.jobPage.jobName'),
+      componentProps: { placeholder: $t('page.quartz.jobPage.placeholderJobName') },
+    },
+    {
+      fieldName: 'jobGroup',
+      label: $t('page.quartz.jobPage.jobGroup'),
+      componentProps: { placeholder: $t('page.quartz.jobPage.placeholderJobGroup') },
+    },
+    {
+      fieldName: 'status',
+      label: $t('page.quartz.jobPage.status'),
+      componentProps: {
+        allowClear: true,
+        placeholder: $t('page.quartz.jobPage.placeholderStatus'),
+        options: [
+          { label: $t('page.quartz.jobPage.statusNormal'), value: JobStatusEnum.Normal },
+          { label: $t('page.quartz.jobPage.statusPaused'), value: JobStatusEnum.Paused },
+        ],
+      },
+    },
+    {
+      fieldName: 'jobClassOrApi',
+      label: $t('page.quartz.jobPage.jobClassOrApi'),
+      componentProps: { placeholder: $t('page.quartz.jobPage.placeholderJobClassOrApi') },
+    },
+    {
+      fieldName: 'isEnabled',
+      label: $t('page.quartz.jobPage.isEnabled'),
+      componentProps: {
+        allowClear: true,
+        placeholder: $t('page.quartz.jobPage.placeholderIsEnabled'),
+        options: [
+          { label: $t('page.quartz.jobPage.enabledYes'), value: true },
+          { label: $t('page.quartz.jobPage.enabledNo'), value: false },
+        ],
+      },
+    },
+  ]);
+});
+
 // 打开新增对话框
 const handleAdd = async () => {
   editModalTitle.value = 'add';
@@ -449,12 +526,14 @@ const handleAdd = async () => {
     retryCount: 0,
     retryIntervalSeconds: 30,
     skipSslValidation: false,
+    disallowConcurrentExecution: false,
     startTime: undefined,
     endTime: undefined,
     isEnabled: true,
   });
   // 默认作业类型是DLL，加载作业类列表
   await loadJobClasses();
+  initHeaderEditor();
   editModalVisible.value = true;
 };
 
@@ -489,6 +568,7 @@ const handleCopyJob = async (job: QuartzJobResponseDto) => {
       retryCount: response.data?.retryCount ?? 0,
       retryIntervalSeconds: response.data?.retryIntervalSeconds ?? 30,
       skipSslValidation: response.data?.skipSslValidation || false,
+      disallowConcurrentExecution: response.data?.disallowConcurrentExecution || false,
       startTime: response.data?.startTime || undefined,
       endTime: response.data?.endTime || undefined,
       isEnabled: response.data?.isEnabled !== false,
@@ -500,6 +580,7 @@ const handleCopyJob = async (job: QuartzJobResponseDto) => {
       await loadJobClasses();
     }
 
+    initHeaderEditor();
     editModalVisible.value = true;
   } catch (error) {
     message.error($t('page.quartz.jobPage.jobDetailFailed'));
@@ -540,6 +621,7 @@ const handleEdit = async (job: QuartzJobResponseDto) => {
       retryCount: response.data?.retryCount ?? 0,
       retryIntervalSeconds: response.data?.retryIntervalSeconds ?? 30,
       skipSslValidation: response.data?.skipSslValidation || false,
+      disallowConcurrentExecution: response.data?.disallowConcurrentExecution || false,
       startTime: response.data?.startTime || undefined,
       endTime: response.data?.endTime || undefined,
       isEnabled: response.data?.isEnabled !== false,
@@ -551,6 +633,7 @@ const handleEdit = async (job: QuartzJobResponseDto) => {
       await loadJobClasses();
     }
 
+    initHeaderEditor();
     editModalVisible.value = true;
   } catch (error) {
     message.error($t('page.quartz.jobPage.jobDetailFailed'));
@@ -565,6 +648,8 @@ const handleSave = async () => {
   if (!formRef.value) return;
 
   try {
+    syncHeadersToJson();
+
     await formRef.value.validate();
 
     loading.value = true;
@@ -585,6 +670,7 @@ const handleSave = async () => {
       retryCount: editForm.retryCount ?? 0,
       retryIntervalSeconds: editForm.retryIntervalSeconds ?? 30,
       skipSslValidation: editForm.skipSslValidation,
+      disallowConcurrentExecution: editForm.disallowConcurrentExecution,
       startTime: editForm.startTime,
       endTime: editForm.endTime,
       isEnabled: editForm.isEnabled,
@@ -691,6 +777,52 @@ const handleExecute = async (job: QuartzJobResponseDto) => {
   }
 };
 
+// 切换作业启用状态
+const handleToggleEnabled = (job: QuartzJobResponseDto, checked: boolean) => {
+  const key = `${job.jobName}:${job.jobGroup}`;
+  const action = checked ? $t('page.quartz.jobPage.enable') : $t('page.quartz.jobPage.disable');
+  Modal.confirm({
+    title: $t('page.quartz.jobPage.toggleEnabledTitle'),
+    content: $t('page.quartz.jobPage.toggleEnabledContent', { action, name: job.jobName }),
+    okText: $t('page.quartz.jobPage.ok'),
+    cancelText: $t('page.quartz.jobPage.cancel'),
+    onOk: async () => {
+      toggleLoadingKeys.value = new Set([...toggleLoadingKeys.value, key]);
+      try {
+        await updateJob({
+          jobName: job.jobName,
+          jobGroup: job.jobGroup,
+          jobType: job.jobType,
+          jobClassOrApi: job.jobClassOrApi,
+          cronExpression: job.cronExpression,
+          description: job.description,
+          jobData: job.jobData,
+          apiMethod: job.apiMethod,
+          apiHeaders: job.apiHeaders,
+          apiBody: job.apiBody,
+          apiTimeout: job.apiTimeout,
+          retryCount: job.retryCount,
+          retryIntervalSeconds: job.retryIntervalSeconds,
+          skipSslValidation: job.skipSslValidation,
+          disallowConcurrentExecution: job.disallowConcurrentExecution,
+          startTime: job.startTime,
+          endTime: job.endTime,
+          isEnabled: checked,
+        });
+        message.success($t('page.quartz.jobPage.toggleEnabledSuccess', { action }));
+        gridApi.query();
+      } catch (error) {
+        message.error($t('page.quartz.jobPage.toggleEnabledFailed', { action }));
+        console.error($t('page.quartz.jobPage.toggleEnabledFailed', { action }), error);
+      } finally {
+        const next = new Set(toggleLoadingKeys.value);
+        next.delete(key);
+        toggleLoadingKeys.value = next;
+      }
+    },
+  });
+};
+
 // 批量删除作业
 const handleBatchDelete = () => {
   if (selectedRows.value.length === 0) {
@@ -785,7 +917,105 @@ const handleStopScheduler = () => {
   });
 };
 
-// JSON 格式化函数
+const API_METHOD_COLORS: Record<string, string> = {
+  GET: '#52c41a',
+  POST: '#1890ff',
+  PUT: '#fa8c16',
+  DELETE: '#ff4d4f',
+  PATCH: '#722ed1',
+};
+
+const COMMON_HEADERS = [
+  'Content-Type',
+  'Authorization',
+  'Accept',
+  'Cache-Control',
+  'User-Agent',
+  'X-Request-ID',
+  'X-API-Key',
+];
+
+interface HeaderRow {
+  key: string;
+  value: string;
+  id: number;
+}
+
+let headerRowIdCounter = 0;
+
+const headerRows = ref<HeaderRow[]>([]);
+const selectedCommonHeader = ref<string | undefined>(undefined);
+
+const isBodyDiscouraged = computed(() => {
+  return editForm.apiMethod === 'GET' || editForm.apiMethod === 'DELETE';
+});
+
+const parseJsonToHeaders = (json: string): HeaderRow[] => {
+  if (!json || !json.trim()) return [];
+  try {
+    const obj = JSON.parse(json);
+    if (typeof obj !== 'object' || Array.isArray(obj)) return [];
+    return Object.entries(obj).map(([k, v]) => ({
+      key: k,
+      value: String(v),
+      id: ++headerRowIdCounter,
+    }));
+  } catch {
+    return [];
+  }
+};
+
+const syncHeadersToJson = () => {
+  const validRows = headerRows.value.filter((r) => r.key.trim());
+  if (validRows.length === 0) {
+    editForm.apiHeaders = '';
+    return;
+  }
+  const obj: Record<string, string> = {};
+  validRows.forEach((r) => {
+    obj[r.key.trim()] = r.value;
+  });
+  editForm.apiHeaders = JSON.stringify(obj, null, 2);
+};
+
+const addHeaderRow = (key = '', value = '') => {
+  headerRows.value.push({ key, value, id: ++headerRowIdCounter });
+  syncHeadersToJson();
+};
+
+const removeHeaderRow = (id: number) => {
+  headerRows.value = headerRows.value.filter((r) => r.id !== id);
+  syncHeadersToJson();
+};
+
+const handleAddHeaderRow = () => {
+  const headerKey = selectedCommonHeader.value;
+  if (headerKey) {
+    const exists = headerRows.value.some((r) => r.key === headerKey);
+    if (exists) {
+      message.warning($t('page.quartz.jobPage.apiHeadersDuplicate'));
+      return;
+    }
+    const defaultValues: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ',
+      Accept: 'application/json',
+    };
+    addHeaderRow(headerKey, defaultValues[headerKey] || '');
+    selectedCommonHeader.value = undefined;
+  } else {
+    addHeaderRow();
+  }
+};
+
+const initHeaderEditor = () => {
+  if (editForm.apiHeaders && editForm.apiHeaders.trim()) {
+    headerRows.value = parseJsonToHeaders(editForm.apiHeaders);
+  } else {
+    headerRows.value = [];
+  }
+};
+
 const formatJson = (property: keyof QuartzJobDto) => {
   try {
     const value = editForm[property];
@@ -796,6 +1026,18 @@ const formatJson = (property: keyof QuartzJobDto) => {
     }
   } catch (error) {
     message.error($t('page.quartz.jobPage.invalidJson'));
+  }
+};
+
+const formatJsonOnBlur = (property: keyof QuartzJobDto) => {
+  try {
+    const value = editForm[property];
+    if (value && value.trim()) {
+      const parsed = JSON.parse(value as string);
+      (editForm as any)[property] = JSON.stringify(parsed, null, 2);
+    }
+  } catch {
+    // silent on blur
   }
 };
 
@@ -868,7 +1110,7 @@ onMounted(async () => {
 
         <!-- 是否启用 -->
         <template #isEnabled="{ row }">
-          <Switch :checked="row.isEnabled" disabled />
+          <Switch :checked="row.isEnabled" :loading="toggleLoadingKeys.has(`${row.jobName}:${row.jobGroup}`)" @change="(checked: boolean) => handleToggleEnabled(row, checked)" />
         </template>
 
         <!-- 通用日期时间渲染 -->
@@ -879,7 +1121,7 @@ onMounted(async () => {
         <!-- 操作列 -->
         <template #action="{ row }">
           <Dropdown :trigger="['hover']" placement="bottomRight">
-            <i class="vxe-icon-menu text-base cursor-pointer hover:opacity-80" :class="{ 'opacity-50': loading }"></i>
+            <i class="vxe-icon-ellipsis-h text-base cursor-pointer hover:opacity-80" :class="{ 'opacity-50': loading }"></i>
             <template #overlay>
               <Menu>
                 <Menu.Item key="edit" @click="handleEdit(row)">
@@ -913,7 +1155,7 @@ onMounted(async () => {
       </Grid>
 
       <!-- 新增编辑对话框 -->
-      <Modal v-model:open="editModalVisible" :title="editModalDisplayTitle" width="760px"
+      <Modal v-model:open="editModalVisible" :title="editModalDisplayTitle" width="800px"
         :body-style="{ padding: '24px' }" wrapClassName="quartz-job-edit-modal" destroyOnClose
         @cancel="editModalVisible = false">
         <Form ref="formRef" :model="editForm" layout="horizontal" :label-col="{ style: { width: '110px' } }"
@@ -921,7 +1163,7 @@ onMounted(async () => {
           <!-- 基本信息 -->
           <div class="form-section-title">{{ $t('page.quartz.jobPage.sectionBasic') }}</div>
           <Row :gutter="16">
-            <Col :xs="24" :md="12">
+            <Col :xs="24">
               <Form.Item :label="$t('page.quartz.jobPage.jobName')" name="jobName"
                 :rules="[{ required: true, message: $t('page.quartz.jobPage.jobNameRequired') }, { max: 100, message: $t('page.quartz.jobPage.jobNameMaxLen') }]">
                 <Input v-model:value="editForm.jobName" :placeholder="$t('page.quartz.jobPage.placeholderJobName')"
@@ -949,22 +1191,38 @@ onMounted(async () => {
           <!-- 调度设置 -->
           <div class="form-section-title">{{ $t('page.quartz.jobPage.sectionSchedule') }}</div>
           <Row :gutter="16">
-            <Col :xs="24">
+            <Col :xs="24" :md="16">
               <Form.Item :label="$t('page.quartz.jobPage.cronExpression')" name="cronExpression"
                 :rules="[{ required: true, message: $t('page.quartz.jobPage.cronRequired') }, { max: 200, message: $t('page.quartz.jobPage.cronMaxLen') }]">
                 <Space.Compact style="width: 100%">
                   <Input v-model:value="editForm.cronExpression"
                     :placeholder="$t('page.quartz.jobPage.cronPlaceholder')" style="flex: 1" />
                   <Button @click="openCronHelper">{{ $t('page.quartz.jobPage.cronGenerator') }}</Button>
-
                 </Space.Compact>
               </Form.Item>
             </Col>
-            <!-- 失败重试配置：紧凑组合控件，次数为 0 时间隔置灰，避免布局跳动 -->
+            <Col :xs="24" :md="8">
+              <Form.Item name="disallowConcurrentExecution">
+                <template #label>
+                  <Tooltip :title="$t('page.quartz.jobPage.disallowConcurrentHint')">
+                    <i class="vxe-icon-warning-circle retry-hint-icon" style="color: hsl(var(--warning)); cursor: help;"></i>
+                    {{ $t('page.quartz.jobPage.disallowConcurrent') }}
+                  </Tooltip>
+                </template>
+                <Switch v-model:checked="editForm.disallowConcurrentExecution" />
+              </Form.Item>
+            </Col>
+            <!-- 失败重试 + 禁止并发：同一行布局 -->
             <Col :xs="24">
-              <Form.Item :label="$t('page.quartz.jobPage.retryLabel')" name="retryCount" :rules="[
+              <Form.Item name="retryCount" :rules="[
                 { type: 'number', min: 0, max: 10, message: $t('page.quartz.jobPage.retryCountRange') },
               ]">
+                <template #label>
+                  <Tooltip :title="$t('page.quartz.jobPage.retryCountHint')">
+                    <i class="vxe-icon-warning-circle retry-hint-icon" style="color: hsl(var(--warning)); cursor: help;"></i>
+                    {{ $t('page.quartz.jobPage.retryLabel') }}
+                  </Tooltip>
+                </template>
                 <div class="retry-group">
                   <InputNumber v-model:value="editForm.retryCount" :min="0" :max="10" class="retry-group__input"
                     :placeholder="$t('page.quartz.jobPage.placeholderRetryCount')" />
@@ -977,7 +1235,6 @@ onMounted(async () => {
                     :disabled="!editForm.retryCount" />
                   <span class="retry-group__unit">{{ $t('page.quartz.jobPage.retrySecondsUnit') }}</span>
                 </div>
-                <div class="field-hint">{{ $t('page.quartz.jobPage.retryCountHint') }}</div>
               </Form.Item>
             </Col>
           </Row>
@@ -985,11 +1242,11 @@ onMounted(async () => {
           <!-- 作业配置 -->
           <div class="form-section-title">{{ $t('page.quartz.jobPage.sectionConfig') }}</div>
           <Row :gutter="16">
-            <Col :xs="24">
-              <Form.Item :label="$t('page.quartz.jobPage.jobClassOrApi')" name="jobClassOrApi"
-                :rules="[{ required: true, message: $t('page.quartz.jobPage.jobClassOrApiRequired') }, { max: 500, message: $t('page.quartz.jobPage.jobClassOrApiMaxLen') }]">
+            <Col :xs="24" v-if="editForm.jobType === JobTypeEnum.DLL">
+              <Form.Item :label="$t('page.quartz.jobPage.jobClassName')" name="jobClassOrApi"
+                :rules="[{ required: true, message: $t('page.quartz.jobPage.jobClassNameRequired') }, { max: 500, message: $t('page.quartz.jobPage.jobClassNameMaxLen') }]">
                 <Select v-model:value="editForm.jobClassOrApi"
-                  :placeholder="$t('page.quartz.jobPage.selectJobClassOrApi')" showSearch allowClear
+                  :placeholder="$t('page.quartz.jobPage.placeholderJobClassName')" showSearch allowClear
                   mode="SECRET_COMBOBOX_MODE_DO_NOT_USE" :filter-option="(input, option) => {
                     return (option?.label || '')
                       .toLowerCase()
@@ -1000,6 +1257,13 @@ onMounted(async () => {
                     {{ jobClass }}
                   </Select.Option>
                 </Select>
+              </Form.Item>
+            </Col>
+            <Col :xs="24" v-if="editForm.jobType === JobTypeEnum.API">
+              <Form.Item :label="$t('page.quartz.jobPage.apiUrl')" name="jobClassOrApi"
+                :rules="[{ required: true, message: $t('page.quartz.jobPage.apiUrlRequired') }, { max: 500, message: $t('page.quartz.jobPage.apiUrlMaxLen') }]">
+                <Input v-model:value="editForm.jobClassOrApi"
+                  :placeholder="$t('page.quartz.jobPage.placeholderApiUrl')" />
               </Form.Item>
             </Col>
             <!-- DLL: 作业数据 -->
@@ -1018,8 +1282,9 @@ onMounted(async () => {
                 },
               ]">
                 <div class="json-field">
-                  <Input.TextArea v-model:value="editForm.jobData"
-                    :placeholder="$t('page.quartz.jobPage.placeholderJobData')" :rows="4" />
+                  <Textarea v-model:value="editForm.jobData"
+                    :placeholder="$t('page.quartz.jobPage.placeholderJobData')" :rows="3"
+                    class="json-textarea" @blur="formatJsonOnBlur('jobData')" />
                   <Tooltip :title="$t('page.quartz.jobPage.jsonFormat')">
                     <Button type="link" size="small" class="json-format-btn" @click="formatJson('jobData')">
                       {{ $t('page.quartz.jobPage.jsonFormat') }}
@@ -1034,10 +1299,31 @@ onMounted(async () => {
                 <Form.Item :label="$t('page.quartz.jobPage.apiMethod')" name="apiMethod"
                   :rules="[{ required: true, message: $t('page.quartz.jobPage.placeholderApiMethod') }, { max: 10, message: $t('page.quartz.jobPage.apiMethodMaxLen') }]">
                   <Select v-model:value="editForm.apiMethod">
-                    <Select.Option value="GET">GET</Select.Option>
-                    <Select.Option value="POST">POST</Select.Option>
-                    <Select.Option value="PUT">PUT</Select.Option>
-                    <Select.Option value="DELETE">DELETE</Select.Option>
+                    <Select.Option value="GET">
+                      <span class="api-method-option">
+                        <span class="api-method-dot" :style="{ background: API_METHOD_COLORS['GET'] }"></span>GET
+                      </span>
+                    </Select.Option>
+                    <Select.Option value="POST">
+                      <span class="api-method-option">
+                        <span class="api-method-dot" :style="{ background: API_METHOD_COLORS['POST'] }"></span>POST
+                      </span>
+                    </Select.Option>
+                    <Select.Option value="PUT">
+                      <span class="api-method-option">
+                        <span class="api-method-dot" :style="{ background: API_METHOD_COLORS['PUT'] }"></span>PUT
+                      </span>
+                    </Select.Option>
+                    <Select.Option value="DELETE">
+                      <span class="api-method-option">
+                        <span class="api-method-dot" :style="{ background: API_METHOD_COLORS['DELETE'] }"></span>DELETE
+                      </span>
+                    </Select.Option>
+                    <Select.Option value="PATCH">
+                      <span class="api-method-option">
+                        <span class="api-method-dot" :style="{ background: API_METHOD_COLORS['PATCH'] }"></span>PATCH
+                      </span>
+                    </Select.Option>
                   </Select>
                 </Form.Item>
               </Col>
@@ -1050,12 +1336,22 @@ onMounted(async () => {
                   },
                   { type: 'number', min: 1, max: 99999, message: $t('page.quartz.jobPage.apiTimeoutRange') },
                 ]">
-                  <Input type="number" v-model:value.number="editForm.apiTimeout"
-                    :placeholder="$t('page.quartz.jobPage.placeholderApiTimeout')" />
+                  <div class="api-timeout-field">
+                    <InputNumber v-model:value="editForm.apiTimeout" :min="1" :max="99999" :step="10"
+                      style="flex: 1"
+                      :placeholder="$t('page.quartz.jobPage.placeholderApiTimeout')" />
+                    <span class="api-timeout-unit">{{ $t('page.quartz.jobPage.apiTimeoutUnit') }}</span>
+                  </div>
                 </Form.Item>
               </Col>
               <Col :xs="24">
-                <Form.Item :label="$t('page.quartz.jobPage.skipSsl')" name="skipSslValidation" valuePropName="checked">
+                <Form.Item name="skipSslValidation" valuePropName="checked">
+                  <template #label>
+                    <Tooltip :title="$t('page.quartz.jobPage.skipSslWarning')">
+                      <i class="vxe-icon-warning-circle retry-hint-icon" style="color: hsl(var(--warning)); cursor: help;"></i>
+                      {{ $t('page.quartz.jobPage.skipSsl') }}
+                    </Tooltip>
+                  </template>
                   <Switch v-model:checked="editForm.skipSslValidation" />
                 </Form.Item>
               </Col>
@@ -1073,14 +1369,31 @@ onMounted(async () => {
                     },
                   },
                 ]">
-                  <div class="json-field">
-                    <Input.TextArea v-model:value="editForm.apiHeaders"
-                      :placeholder="$t('page.quartz.jobPage.placeholderApiHeaders')" :rows="3" />
-                    <Tooltip :title="$t('page.quartz.jobPage.jsonFormat')">
-                      <Button type="link" size="small" class="json-format-btn" @click="formatJson('apiHeaders')">
-                        {{ $t('page.quartz.jobPage.jsonFormat') }}
+                  <div class="api-headers-editor">
+                    <div v-for="row in headerRows" :key="row.id" class="header-row">
+                      <Input v-model:value="row.key" class="header-row__key"
+                        :placeholder="$t('page.quartz.jobPage.apiHeadersKey')"
+                        @change="syncHeadersToJson" />
+                      <Input v-model:value="row.value" class="header-row__value"
+                        :placeholder="$t('page.quartz.jobPage.apiHeadersValue')"
+                        @change="syncHeadersToJson" />
+                      <Button type="text" danger size="small" class="header-row__remove"
+                        @click="removeHeaderRow(row.id)">
+                        <i class="vxe-icon-close"></i>
                       </Button>
-                    </Tooltip>
+                    </div>
+                    <div class="header-actions">
+                      <Select size="small" class="header-common-select"
+                        v-model:value="selectedCommonHeader"
+                        :placeholder="$t('page.quartz.jobPage.apiHeadersCommon')"
+                        allowClear>
+                        <Select.Option v-for="h in COMMON_HEADERS" :key="h" :value="h">{{ h }}</Select.Option>
+                      </Select>
+                      <Button type="dashed" size="small" @click="handleAddHeaderRow">
+                        <i class="vxe-icon-plus" style="margin-right: 4px;"></i>
+                        {{ $t('page.quartz.jobPage.apiHeadersAdd') }}
+                      </Button>
+                    </div>
                   </div>
                 </Form.Item>
               </Col>
@@ -1098,14 +1411,19 @@ onMounted(async () => {
                     },
                   },
                 ]">
-                  <div class="json-field">
-                    <Input.TextArea v-model:value="editForm.apiBody"
-                      :placeholder="$t('page.quartz.jobPage.placeholderApiBody')" :rows="4" />
-                    <Tooltip :title="$t('page.quartz.jobPage.jsonFormat')">
-                      <Button type="link" size="small" class="json-format-btn" @click="formatJson('apiBody')">
-                        {{ $t('page.quartz.jobPage.jsonFormat') }}
-                      </Button>
-                    </Tooltip>
+                  <div class="api-body-editor">
+                    <Alert v-if="isBodyDiscouraged" type="warning" show-icon class="api-body-hint"
+                      :message="$t('page.quartz.jobPage.apiBodyNoBodyHint', { method: editForm.apiMethod })" />
+                    <div class="json-field">
+                      <Textarea v-model:value="editForm.apiBody"
+                        :placeholder="$t('page.quartz.jobPage.placeholderApiBody')" :rows="3"
+                        class="json-textarea" @blur="formatJsonOnBlur('apiBody')" />
+                      <Tooltip :title="$t('page.quartz.jobPage.jsonFormat')">
+                        <Button type="link" size="small" class="json-format-btn" @click="formatJson('apiBody')">
+                          {{ $t('page.quartz.jobPage.jsonFormat') }}
+                        </Button>
+                      </Tooltip>
+                    </div>
                   </div>
                 </Form.Item>
               </Col>
@@ -1118,7 +1436,7 @@ onMounted(async () => {
             <Col :xs="24">
               <Form.Item :label="$t('page.quartz.jobPage.description')" name="description"
                 :rules="[{ max: 500, message: $t('page.quartz.jobPage.descriptionMaxLen') }]">
-                <Input.TextArea v-model:value="editForm.description"
+                <Textarea v-model:value="editForm.description"
                   :placeholder="$t('page.quartz.jobPage.placeholderDescription')" :rows="3" />
               </Form.Item>
             </Col>
@@ -1186,13 +1504,7 @@ onMounted(async () => {
   margin-top: 8px;
 }
 
-/* ====== 表单字段辅助提示 ====== */
-.field-hint {
-  margin-top: 2px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: hsl(var(--muted-foreground));
-}
+
 
 /* ====== 失败重试紧凑配置组 ====== */
 .retry-group {
@@ -1222,6 +1534,18 @@ onMounted(async () => {
   color: hsl(var(--foreground));
 }
 
+/* ====== 表单字段辅助提示 ====== */
+.retry-hint-icon {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.retry-hint-icon:hover {
+  color: hsl(var(--primary));
+}
+
 .retry-group__sep {
   width: 1px;
   height: 16px;
@@ -1242,6 +1566,93 @@ onMounted(async () => {
   height: 22px;
   font-size: 12px;
   z-index: 1;
+}
+
+:deep(.json-textarea) textarea,
+.json-textarea :deep(textarea) {
+  font-family: 'Consolas', 'Monaco', 'Menlo', 'Courier New', monospace !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
+/* ====== API 方法颜色标签 ====== */
+.api-method-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.api-method-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* ====== API 超时字段 ====== */
+.api-timeout-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.api-timeout-unit {
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+/* ====== API 请求头 Key-Value 编辑器 ====== */
+.api-headers-editor {
+  width: 100%;
+}
+
+.header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.header-row__key {
+  flex: 2;
+  min-width: 0;
+}
+
+.header-row__value {
+  flex: 3;
+  min-width: 0;
+}
+
+.header-row__remove {
+  flex-shrink: 0;
+  padding: 0 4px !important;
+  height: 24px;
+  width: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.header-common-select {
+  width: 160px;
+}
+
+/* ====== API 请求体编辑器 ====== */
+.api-body-editor {
+  width: 100%;
+}
+
+.api-body-hint {
+  margin-bottom: 8px;
 }
 
 /* ====== 调度器状态条 ====== */

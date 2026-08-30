@@ -366,6 +366,7 @@ public class QuartzJobService : IQuartzJobService
                 RetryCount = jobDto.RetryCount,
                 RetryIntervalSeconds = jobDto.RetryIntervalSeconds,
                 SkipSslValidation = jobDto.SkipSslValidation,
+                DisallowConcurrentExecution = jobDto.DisallowConcurrentExecution,
                 StartTime = jobDto.StartTime,
                 EndTime = jobDto.EndTime,
                 IsEnabled = jobDto.IsEnabled,
@@ -463,6 +464,7 @@ public class QuartzJobService : IQuartzJobService
             existingJob.RetryCount = jobDto.RetryCount;
             existingJob.RetryIntervalSeconds = jobDto.RetryIntervalSeconds;
             existingJob.SkipSslValidation = jobDto.SkipSslValidation;
+            existingJob.DisallowConcurrentExecution = jobDto.DisallowConcurrentExecution;
             existingJob.StartTime = jobDto.StartTime;
             existingJob.EndTime = jobDto.EndTime;
             existingJob.IsEnabled = jobDto.IsEnabled;
@@ -847,6 +849,13 @@ public class QuartzJobService : IQuartzJobService
                     .WithIdentity(jobKey)
                     .WithDescription(jobInfo.Description ?? string.Empty)
                     .StoreDurably(true); // 没有触发器的作业必须设置为持久化
+
+                // 禁止并发执行：与 ScheduleJobAsync 保持一致，
+                // 手动触发兜底注册的作业同样需要携带该标志，否则并发开关在手动触发场景失效
+                if (jobInfo.DisallowConcurrentExecution)
+                {
+                    jobBuilder.DisallowConcurrentExecution();
+                }
 
                 // 根据作业类型设置作业类（配置了重试的注册为重试包装器）
                 Type? realJobType = jobInfo.JobType == JobTypeEnum.API ? typeof(ApiJob) : null;
@@ -1329,6 +1338,12 @@ public class QuartzJobService : IQuartzJobService
             .WithDescription(jobInfo.Description ?? string.Empty)
             .StoreDurably();
 
+        // 禁止并发执行：同一作业上一次执行未完成时，新的触发会等待
+        if (jobInfo.DisallowConcurrentExecution)
+        {
+            jobBuilder.DisallowConcurrentExecution();
+        }
+
         // 设置作业数据
         if (!string.IsNullOrEmpty(jobInfo.JobData))
         {
@@ -1410,6 +1425,7 @@ public class QuartzJobService : IQuartzJobService
             RetryCount = jobInfo.RetryCount,
             RetryIntervalSeconds = jobInfo.RetryIntervalSeconds,
             SkipSslValidation = jobInfo.SkipSslValidation,
+            DisallowConcurrentExecution = jobInfo.DisallowConcurrentExecution,
             StartTime = jobInfo.StartTime,
             EndTime = jobInfo.EndTime,
             Status = jobInfo.Status,
@@ -1547,149 +1563,55 @@ public class QuartzJobService : IQuartzJobService
     #endregion
 
     #region 统计分析
+
     /// <summary>
-    /// 获取作业统计数据
+    /// 获取统计分析概览聚合数据（合并作业统计+状态分布+执行趋势+热力图）
     /// </summary>
-    /// <param name="queryDto">统计查询条件</param>
+    /// <param name="queryDto">查询条件</param>
     /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>作业统计数据</returns>
-    public async Task<ApiResponseDto<JobStatsDto>> GetJobStatsAsync(
+    /// <returns>统计分析概览聚合数据</returns>
+    public async Task<ApiResponseDto<AnalyticsOverviewDto>> GetAnalyticsOverviewAsync(
         StatsQueryDto queryDto,
         CancellationToken cancellationToken = default
     )
     {
         try
         {
-            var stats = await _jobStorage.GetJobStatsAsync(queryDto, cancellationToken);
-            return ApiResponseDto<JobStatsDto>.SuccessResponse(stats, "获取作业统计数据成功");
+            var data = await _jobStorage.GetAnalyticsOverviewAsync(queryDto, cancellationToken);
+            return ApiResponseDto<AnalyticsOverviewDto>.SuccessResponse(data, "获取统计分析概览数据成功");
         }
         catch (Exception ex)
         {
-            _logger.LogFailure("GetJobStats", ex);
-            return ApiResponseDto<JobStatsDto>.ErrorResponse($"获取作业统计数据失败: {ex.Message}");
+            _logger.LogFailure("GetAnalyticsOverview", ex);
+            return ApiResponseDto<AnalyticsOverviewDto>.ErrorResponse($"获取统计分析概览数据失败: {ex.Message}");
         }
     }
 
     /// <summary>
-    /// 获取作业状态分布数据
+    /// 获取作业性能分析聚合数据（合并健康概览+耗时排行）
     /// </summary>
-    /// <param name="queryDto">统计查询条件</param>
+    /// <param name="queryDto">查询条件</param>
+    /// <param name="topCount">耗时排行取前N条</param>
     /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>作业状态分布列表</returns>
-    public async Task<ApiResponseDto<List<JobStatusDistributionDto>>> GetJobStatusDistributionAsync(
+    /// <returns>作业性能分析聚合数据</returns>
+    public async Task<ApiResponseDto<AnalyticsJobPerformanceDto>> GetAnalyticsJobPerformanceAsync(
         StatsQueryDto queryDto,
+        int topCount = 10,
         CancellationToken cancellationToken = default
     )
     {
         try
         {
-            var distribution = await _jobStorage.GetJobStatusDistributionAsync(
-                queryDto,
-                cancellationToken
-            );
-            return ApiResponseDto<List<JobStatusDistributionDto>>.SuccessResponse(
-                distribution,
-                "获取作业状态分布数据成功"
-            );
+            var data = await _jobStorage.GetAnalyticsJobPerformanceAsync(queryDto, topCount, cancellationToken);
+            return ApiResponseDto<AnalyticsJobPerformanceDto>.SuccessResponse(data, "获取作业性能分析数据成功");
         }
         catch (Exception ex)
         {
-            _logger.LogFailure("GetJobStatusDistribution", ex);
-            return ApiResponseDto<List<JobStatusDistributionDto>>.ErrorResponse(
-                $"获取作业状态分布数据失败: {ex.Message}"
-            );
+            _logger.LogFailure("GetAnalyticsJobPerformance", ex);
+            return ApiResponseDto<AnalyticsJobPerformanceDto>.ErrorResponse($"获取作业性能分析数据失败: {ex.Message}");
         }
     }
 
-    /// <summary>
-    /// 获取作业执行趋势数据
-    /// </summary>
-    /// <param name="queryDto">统计查询条件</param>
-    /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>作业执行趋势列表</returns>
-    public async Task<ApiResponseDto<List<JobExecutionTrendDto>>> GetJobExecutionTrendAsync(
-        StatsQueryDto queryDto,
-        CancellationToken cancellationToken = default
-    )
-    {
-        try
-        {
-            var trend = await _jobStorage.GetJobExecutionTrendAsync(queryDto, cancellationToken);
-            return ApiResponseDto<List<JobExecutionTrendDto>>.SuccessResponse(
-                trend,
-                "获取作业执行趋势数据成功"
-            );
-        }
-        catch (Exception ex)
-        {
-            _logger.LogFailure("GetJobExecutionTrend", ex);
-            return ApiResponseDto<List<JobExecutionTrendDto>>.ErrorResponse(
-                $"获取作业执行趋势数据失败: {ex.Message}"
-            );
-        }
-    }
-
-    /// <summary>
-    /// 获取作业类型分布数据
-    /// </summary>
-    /// <param name="queryDto">统计查询条件</param>
-    /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>作业类型分布列表</returns>
-    public async Task<ApiResponseDto<List<JobTypeDistributionDto>>> GetJobTypeDistributionAsync(
-        StatsQueryDto queryDto,
-        CancellationToken cancellationToken = default
-    )
-    {
-        try
-        {
-            var distribution = await _jobStorage.GetJobTypeDistributionAsync(
-                queryDto,
-                cancellationToken
-            );
-            return ApiResponseDto<List<JobTypeDistributionDto>>.SuccessResponse(
-                distribution,
-                "获取作业类型分布数据成功"
-            );
-        }
-        catch (Exception ex)
-        {
-            _logger.LogFailure("GetJobTypeDistribution", ex);
-            return ApiResponseDto<List<JobTypeDistributionDto>>.ErrorResponse(
-                $"获取作业类型分布数据失败: {ex.Message}"
-            );
-        }
-    }
-
-    /// <summary>
-    /// 获取作业执行耗时分布数据
-    /// </summary>
-    /// <param name="queryDto">统计查询条件</param>
-    /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>作业执行耗时分布列表</returns>
-    public async Task<ApiResponseDto<List<JobExecutionTimeDto>>> GetJobExecutionTimeAsync(
-        StatsQueryDto queryDto,
-        CancellationToken cancellationToken = default
-    )
-    {
-        try
-        {
-            var executionTime = await _jobStorage.GetJobExecutionTimeAsync(
-                queryDto,
-                cancellationToken
-            );
-            return ApiResponseDto<List<JobExecutionTimeDto>>.SuccessResponse(
-                executionTime,
-                "获取作业执行耗时数据成功"
-            );
-        }
-        catch (Exception ex)
-        {
-            _logger.LogFailure("GetJobExecutionTime", ex);
-            return ApiResponseDto<List<JobExecutionTimeDto>>.ErrorResponse(
-                $"获取作业执行耗时数据失败: {ex.Message}"
-            );
-        }
-    }
     #endregion
 
     #region 通知管理

@@ -129,6 +129,12 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasDefaultValue(false)
                         .HasComment("是否跳过SSL验证");
 
+                    b.Property<bool>("DisallowConcurrentExecution")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasComment("禁止并发执行");
+
                     b.Property<DateTime?>("StartTime")
                         .HasColumnType("datetime(6)")
                         .HasComment("开始时间");

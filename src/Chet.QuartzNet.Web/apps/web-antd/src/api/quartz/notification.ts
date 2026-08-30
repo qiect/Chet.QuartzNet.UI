@@ -1,5 +1,7 @@
 import { requestClient } from '../request';
 
+import type { ApiResponse } from './job';
+
 // 通知状态枚举
 export enum NotificationStatusEnum {
   Pending = 0,
@@ -63,18 +65,6 @@ export interface PagedResponseDto<T> {
   totalCount: number;
   pageIndex: number;
   pageSize: number;
-}
-
-// API响应DTO
-export interface ApiResponse<T> {
-  /** 是否成功 */
-  success: boolean;
-  /** 消息 */
-  message: string;
-  /** 数据 */
-  data?: T;
-  /** 错误码 */
-  errorCode?: string;
 }
 
 // 获取PushPlus配置

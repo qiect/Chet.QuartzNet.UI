@@ -1,51 +1,72 @@
 import type {
-  // 系列类型的定义后缀都为 SeriesOption
   BarSeriesOption,
+  HeatmapSeriesOption,
   LineSeriesOption,
+  PieSeriesOption,
+  ScatterSeriesOption,
 } from 'echarts/charts';
 import type {
   DatasetComponentOption,
   GridComponentOption,
-  // 组件类型的定义后缀都为 ComponentOption
   TitleComponentOption,
   TooltipComponentOption,
+  VisualMapComponentOption,
 } from 'echarts/components';
 import type { ComposeOption } from 'echarts/core';
 
-import { BarChart, LineChart } from 'echarts/charts';
 import {
-  // 数据集组件
+  BarChart,
+  HeatmapChart,
+  LineChart,
+  PieChart,
+  ScatterChart,
+} from 'echarts/charts';
+import {
   DatasetComponent,
   GridComponent,
+  GraphicComponent,
   LegendComponent,
+  MarkAreaComponent,
+  MarkLineComponent,
+  MarkPointComponent,
   TitleComponent,
   TooltipComponent,
-  // 内置数据转换器组件 (filter, sort)
   TransformComponent,
+  VisualMapComponent,
 } from 'echarts/components';
 import * as echarts from 'echarts/core';
 import { LabelLayout, UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 
-// 通过 ComposeOption 来组合出一个只有必须组件和图表的 Option 类型
 export type ECOption = ComposeOption<
   | BarSeriesOption
   | DatasetComponentOption
   | GridComponentOption
+  | HeatmapSeriesOption
   | LineSeriesOption
+  | PieSeriesOption
+  | ScatterSeriesOption
   | TitleComponentOption
   | TooltipComponentOption
+  | VisualMapComponentOption
 >;
 
-// 注册必须的组件
 echarts.use([
   TitleComponent,
   TooltipComponent,
   GridComponent,
   DatasetComponent,
   TransformComponent,
+  GraphicComponent,
+  VisualMapComponent,
+  MarkLineComponent,
+  MarkPointComponent,
+  MarkAreaComponent,
   BarChart,
   LineChart,
+  PieChart,
+  ScatterChart,
+  HeatmapChart,
   LabelLayout,
   UniversalTransition,
   CanvasRenderer,

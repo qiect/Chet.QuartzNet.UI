@@ -31,8 +31,8 @@ namespace Chet.QuartzNet.File.Example.Jobs
                 await Task.Delay(500);
 
                 // 模拟随机异常
-                //if (DateTime.Now.Second % 2 == 0)
-                if (true)
+                if (DateTime.Now.Second % 2 == 0)
+                //if (true)
                 {
                     throw new InvalidOperationException("模拟业务异常");
                 }

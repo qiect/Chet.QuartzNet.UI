@@ -8,7 +8,7 @@ public class StatsQueryDto
     /// <summary>
     /// 时间范围类型：today, yesterday, thisWeek, thisMonth, custom
     /// </summary>
-    public string? TimeRangeType { get; set; } = "today";
+    public string? TimeRangeType { get; set; }
 
     /// <summary>
     /// 自定义开始时间
@@ -115,38 +115,187 @@ public class JobExecutionTrendDto
 }
 
 /// <summary>
-/// 作业类型分布数据DTO
+/// 作业健康概览数据DTO（用于散点气泡图）
 /// </summary>
-public class JobTypeDistributionDto
+public class JobHealthDto
 {
     /// <summary>
-    /// 作业类型
+    /// 作业名称
     /// </summary>
-    public string Type { get; set; } = string.Empty;
+    public string JobName { get; set; } = string.Empty;
 
     /// <summary>
-    /// 数量
+    /// 作业分组
     /// </summary>
-    public int Count { get; set; }
+    public string JobGroup { get; set; } = string.Empty;
 
     /// <summary>
-    /// 百分比
+    /// 作业状态
     /// </summary>
-    public double Percentage { get; set; }
+    public string Status { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 是否启用
+    /// </summary>
+    public bool IsEnabled { get; set; }
+
+    /// <summary>
+    /// 成功率（0-100）
+    /// </summary>
+    public double SuccessRate { get; set; }
+
+    /// <summary>
+    /// 平均执行耗时（毫秒）
+    /// </summary>
+    public double AvgDuration { get; set; }
+
+    /// <summary>
+    /// 最大执行耗时（毫秒）
+    /// </summary>
+    public double MaxDuration { get; set; }
+
+    /// <summary>
+    /// 执行次数
+    /// </summary>
+    public int ExecutionCount { get; set; }
+
+    /// <summary>
+    /// 最近执行时间
+    /// </summary>
+    public DateTime? LastExecutionTime { get; set; }
+
+    /// <summary>
+    /// Cron表达式
+    /// </summary>
+    public string? CronExpression { get; set; }
 }
 
 /// <summary>
-/// 作业执行耗时数据DTO
+/// 作业执行热力图数据DTO
 /// </summary>
-public class JobExecutionTimeDto
+public class JobExecutionHeatmapDto
 {
     /// <summary>
-    /// 耗时区间
+    /// 星期几（1=周一...7=周日）
     /// </summary>
-    public string TimeRange { get; set; } = string.Empty;
+    public int DayOfWeek { get; set; }
 
     /// <summary>
-    /// 作业数量
+    /// 小时（0-23）
+    /// </summary>
+    public int Hour { get; set; }
+
+    /// <summary>
+    /// 执行次数
     /// </summary>
     public int Count { get; set; }
+
+    /// <summary>
+    /// 成功次数
+    /// </summary>
+    public int SuccessCount { get; set; }
+
+    /// <summary>
+    /// 失败次数
+    /// </summary>
+    public int FailedCount { get; set; }
+}
+
+/// <summary>
+/// 作业性能查询DTO（扩展StatsQueryDto，增加TopCount参数）
+/// </summary>
+public class JobPerformanceQueryDto : StatsQueryDto
+{
+    /// <summary>
+    /// 耗时排行取前N条，默认10
+    /// </summary>
+    public int TopCount { get; set; } = 10;
+}
+
+/// <summary>
+/// 统计分析概览聚合DTO（合并GetJobStats + GetJobStatusDistribution + GetJobExecutionTrend + GetJobExecutionHeatmap）
+/// </summary>
+public class AnalyticsOverviewDto
+{
+    /// <summary>
+    /// 作业统计概览
+    /// </summary>
+    public JobStatsDto Stats { get; set; } = new();
+
+    /// <summary>
+    /// 作业状态分布
+    /// </summary>
+    public List<JobStatusDistributionDto> StatusDistribution { get; set; } = [];
+
+    /// <summary>
+    /// 执行趋势数据
+    /// </summary>
+    public List<JobExecutionTrendDto> ExecutionTrend { get; set; } = [];
+
+    /// <summary>
+    /// 执行热力图数据
+    /// </summary>
+    public List<JobExecutionHeatmapDto> ExecutionHeatmap { get; set; } = [];
+}
+
+/// <summary>
+/// 作业性能分析聚合DTO（合并GetJobHealthOverview + GetTopSlowJobs）
+/// </summary>
+public class AnalyticsJobPerformanceDto
+{
+    /// <summary>
+    /// 作业健康概览数据
+    /// </summary>
+    public List<JobHealthDto> JobHealthOverview { get; set; } = [];
+
+    /// <summary>
+    /// 耗时基线分析数据
+    /// </summary>
+    public List<TopSlowJobDto> TopSlowJobs { get; set; } = [];
+}
+
+/// <summary>
+/// 耗时基线分析数据DTO（原Top慢作业排行）
+/// </summary>
+public class TopSlowJobDto
+{
+    /// <summary>
+    /// 作业名称
+    /// </summary>
+    public string JobName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 作业分组
+    /// </summary>
+    public string JobGroup { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 平均执行耗时（毫秒）
+    /// </summary>
+    public double AvgDuration { get; set; }
+
+    /// <summary>
+    /// 最大执行耗时（毫秒）
+    /// </summary>
+    public double MaxDuration { get; set; }
+
+    /// <summary>
+    /// 最小执行耗时（毫秒）
+    /// </summary>
+    public double MinDuration { get; set; }
+
+    /// <summary>
+    /// 执行次数
+    /// </summary>
+    public int ExecutionCount { get; set; }
+
+    /// <summary>
+    /// 成功率（0-100）
+    /// </summary>
+    public double SuccessRate { get; set; }
+
+    /// <summary>
+    /// 最近执行时间
+    /// </summary>
+    public DateTime? LastExecutionTime { get; set; }
 }

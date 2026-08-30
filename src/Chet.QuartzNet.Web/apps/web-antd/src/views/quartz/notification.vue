@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted, nextTick } from 'vue';
+import { ref, computed, reactive, onMounted, nextTick, watch } from 'vue';
 import { formatDateTime } from '@vben/utils';
 import { Page } from '@vben/common-ui';
 // 导入 vbenadmin 的 Vxe Table 适配器
@@ -27,6 +27,7 @@ import type { FormInstance } from 'ant-design-vue';
 
 // 导入i18n
 import { $t } from '#/locales';
+import { useI18n } from '@vben/locales';
 
 import {
   NotificationStatusEnum,
@@ -44,6 +45,8 @@ import type {
 } from '../../api/quartz/notification';
 // 导入可拖动 Modal 组合式函数
 import { useDraggableModal } from './composables/use-draggable-modal';
+
+const { locale } = useI18n();
 
 // 通知状态映射
 const notificationStatusMap = {
@@ -128,7 +131,7 @@ const channelTipMessage = computed(() => {
 });
 
 // 列配置
-const columns = [
+const columns = computed(() => [
   { type: 'seq', width: 60, title: '#', fixed: 'left' },
   {
     field: 'title',
@@ -174,13 +177,14 @@ const columns = [
     slots: { default: 'datetime' },
   },
   {
+    field: 'action',
     title: $t('page.quartz.notificationPage.action'),
     width: 90,
     align: 'center' as const,
     fixed: 'right',
     slots: { default: 'action' },
   },
-];
+]);
 
 // 排序持久化：读取上次排序列
 const SORT_KEY = 'quartz-notification-sort';
@@ -206,7 +210,7 @@ const savedSearch = (() => {
 // 构造 Vxe Grid 配置
 const gridOptions: VxeTableGridOptions<QuartzNotificationDto> = {
   id: 'quartz-notification-grid',
-  columns: columns as any,
+  columns: columns.value as any,
   height: 'auto',
   showOverflow: true,
   rowConfig: { keyField: 'notificationId', isHover: true },
@@ -351,6 +355,31 @@ const [Grid, gridApi] = useVbenVxeGrid({
 // 对话框支持拖动
 useDraggableModal(configModalVisible, 'quartz-notification-config-modal');
 useDraggableModal(detailModalVisible, 'quartz-notification-detail-modal');
+
+// 监听语言切换，更新表格列头和搜索表单
+watch(locale, () => {
+  gridApi.setGridOptions({ columns: columns.value as any });
+  gridApi.formApi.updateSchema([
+    {
+      fieldName: 'status',
+      label: $t('page.quartz.notificationPage.notificationStatus'),
+      componentProps: {
+        allowClear: true,
+        placeholder: $t('page.quartz.notificationPage.placeholderStatus'),
+        options: [
+          { label: $t('page.quartz.notificationPage.statusPending'), value: NotificationStatusEnum.Pending },
+          { label: $t('page.quartz.notificationPage.statusSent'), value: NotificationStatusEnum.Sent },
+          { label: $t('page.quartz.notificationPage.statusFailed'), value: NotificationStatusEnum.Failed },
+        ],
+      },
+    },
+    {
+      fieldName: 'triggeredBy',
+      label: $t('page.quartz.notificationPage.triggeredBy'),
+      componentProps: { placeholder: $t('page.quartz.notificationPage.placeholderTriggeredBy') },
+    },
+  ]);
+});
 
 // 搜索/重置由 VbenForm 内置提交按钮触发，无需手动处理
 
@@ -532,7 +561,7 @@ onMounted(async () => {
         <template #action="{ row }">
           <div class="flex items-center justify-center gap-3">
             <Tooltip :title="$t('page.quartz.notificationPage.detail')">
-              <i class="vxe-icon-eye-fill text-primary cursor-pointer hover:opacity-80" @click="handleDetail(row)"></i>
+              <i class="vxe-icon-info-circle-fill text-primary cursor-pointer hover:opacity-80" @click="handleDetail(row)"></i>
             </Tooltip>
             <Tooltip :title="$t('page.quartz.notificationPage.delete')">
               <i class="vxe-icon-delete cursor-pointer hover:opacity-80" style="color: var(--ant-color-error)" @click="handleDelete(row)"></i>
@@ -677,7 +706,7 @@ onMounted(async () => {
       </Modal>
 
       <!-- 详情对话框 -->
-      <Modal v-model:open="detailModalVisible" :title="$t('page.quartz.notificationPage.notificationDetail')" width="720px"
+      <Modal v-model:open="detailModalVisible" :title="$t('page.quartz.notificationPage.notificationDetail')" width="800px"
         :footer="null" :destroyOnClose="true" centered wrapClassName="quartz-notification-detail-modal">
         <div v-if="currentNotification" class="notification-detail">
           <!-- 顶部：标题 + 状态标签 -->
