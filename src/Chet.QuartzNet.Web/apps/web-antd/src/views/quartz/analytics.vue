@@ -388,6 +388,14 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
     Blocked: '#8c8c8c',
   };
 
+  const statusGradientMap: Record<string, { from: string; to: string }> = {
+    Normal: { from: '#69b1ff', to: '#1677ff' },
+    Paused: { from: '#ffd666', to: '#faad14' },
+    Completed: { from: '#5cdbd3', to: '#13c2c2' },
+    Error: { from: '#ff7875', to: '#ff4d4f' },
+    Blocked: { from: '#bfbfbf', to: '#8c8c8c' },
+  };
+
   const maxExecCount = Math.max(...data.map((d) => d.executionCount), 1);
 
   const sortedDurations = [...data.map((d) => d.avgDuration)].sort((a, b) => a - b);
@@ -397,6 +405,25 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
 
   const successThreshold = 80;
   const durationThreshold = medianDuration || 1;
+
+  const getQuadrant = (successRate: number, avgDuration: number) => {
+    if (successRate >= successThreshold && avgDuration <= durationThreshold)
+      return { key: 'healthy', color: '#52c41a', bg: 'rgba(82,196,26,0.08)' };
+    if (successRate >= successThreshold && avgDuration > durationThreshold)
+      return { key: 'slow', color: '#faad14', bg: 'rgba(250,173,20,0.08)' };
+    if (successRate < successThreshold && avgDuration <= durationThreshold)
+      return { key: 'unstable', color: '#fa8c16', bg: 'rgba(250,140,22,0.08)' };
+    return { key: 'critical', color: '#ff4d4f', bg: 'rgba(255,77,79,0.08)' };
+  };
+
+  const quadrantLabelMap: Record<string, string> = {
+    healthy: $t('page.quartz.analyticsPage.quadrantHealthy'),
+    slow: $t('page.quartz.analyticsPage.quadrantSlow'),
+    unstable: $t('page.quartz.analyticsPage.quadrantUnstable'),
+    critical: $t('page.quartz.analyticsPage.quadrantCritical'),
+  };
+
+  const sortedData = [...data].sort((a, b) => b.executionCount - a.executionCount);
 
   return {
     backgroundColor: 'transparent',
@@ -413,25 +440,11 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
         const enabledText = d.isEnabled
           ? $t('page.quartz.analyticsPage.enabled')
           : $t('page.quartz.analyticsPage.disabled');
-        const quadrant =
-          d.successRate >= successThreshold && d.avgDuration <= durationThreshold
-            ? $t('page.quartz.analyticsPage.quadrantHealthy')
-            : d.successRate >= successThreshold && d.avgDuration > durationThreshold
-              ? $t('page.quartz.analyticsPage.quadrantSlow')
-              : d.successRate < successThreshold && d.avgDuration <= durationThreshold
-                ? $t('page.quartz.analyticsPage.quadrantUnstable')
-                : $t('page.quartz.analyticsPage.quadrantCritical');
-        const quadrantColor =
-          d.successRate >= successThreshold && d.avgDuration <= durationThreshold
-            ? '#52c41a'
-            : d.successRate >= successThreshold && d.avgDuration > durationThreshold
-              ? '#faad14'
-              : d.successRate < successThreshold && d.avgDuration <= durationThreshold
-                ? '#fa8c16'
-                : '#ff4d4f';
+        const q = getQuadrant(d.successRate, d.avgDuration);
+        const quadrant = quadrantLabelMap[q.key];
         return `
           <div style="font-weight:600;color:#262626;font-size:13px;margin-bottom:6px;">${d.jobName}</div>
-          <div style="display:inline-block;padding:1px 8px;border-radius:3px;font-size:11px;font-weight:500;color:${quadrantColor};background:${quadrantColor}14;margin-bottom:4px;">${quadrant}</div>
+          <div style="display:inline-block;padding:1px 8px;border-radius:3px;font-size:11px;font-weight:500;color:${q.color};background:${q.color}14;margin-bottom:4px;">${quadrant}</div>
           <div style="color:#8c8c8c;font-size:12px;line-height:20px;">
             ${$t('page.quartz.analyticsPage.jobGroup')}: ${d.jobGroup}<br/>
             ${$t('page.quartz.analyticsPage.jobStatus')}: ${enabledText}<br/>
@@ -529,35 +542,75 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
     series: [
       {
         type: 'scatter',
-        symbolSize: (_val: number[], params: any) => {
+        symbolSize: (val: number[], params: any) => {
           const count = params.data.executionCount;
-          return Math.max(10, Math.min(44, (count / maxExecCount) * 44));
+          return Math.max(8, Math.min(40, (count / maxExecCount) * 40));
         },
-        data: data.map((d) => ({
-          value: [d.successRate, d.avgDuration],
-          jobName: d.jobName,
-          jobGroup: d.jobGroup,
-          status: d.status,
-          isEnabled: d.isEnabled,
-          successRate: d.successRate,
-          avgDuration: d.avgDuration,
-          executionCount: d.executionCount,
-          itemStyle: {
-            color: statusColorMap[d.status] || '#8c8c8c',
-            opacity: d.isEnabled ? 0.85 : 0.3,
-            shadowBlur: 6,
-            shadowColor: 'rgba(0,0,0,0.1)',
-            borderColor: 'rgba(255,255,255,0.75)',
-            borderWidth: 1.5,
-          },
-        })),
+        data: sortedData.map((d) => {
+          const gradient = statusGradientMap[d.status] || { from: '#bfbfbf', to: '#8c8c8c' };
+          const q = getQuadrant(d.successRate, d.avgDuration);
+          return {
+            value: [d.successRate, d.avgDuration],
+            jobName: d.jobName,
+            jobGroup: d.jobGroup,
+            status: d.status,
+            isEnabled: d.isEnabled,
+            successRate: d.successRate,
+            avgDuration: d.avgDuration,
+            executionCount: d.executionCount,
+            itemStyle: {
+              color: {
+                type: 'radial',
+                x: 0.3,
+                y: 0.3,
+                r: 1,
+                colorStops: [
+                  { offset: 0, color: gradient.from },
+                  { offset: 1, color: gradient.to },
+                ],
+              },
+              opacity: d.isEnabled ? 0.88 : 0.28,
+              shadowBlur: d.isEnabled ? 8 : 0,
+              shadowColor: 'rgba(0,0,0,0.12)',
+              shadowOffsetY: 2,
+              borderColor: d.isEnabled ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.3)',
+              borderWidth: 1.5,
+            },
+            label: {
+              show: d.isEnabled && d.executionCount >= maxExecCount * 0.3,
+              formatter: () => d.jobName.length > 6 ? d.jobName.slice(0, 6) + '…' : d.jobName,
+              position: 'inside',
+              fontSize: 9,
+              fontWeight: 600,
+              color: '#fff',
+              textShadowBlur: 2,
+              textShadowColor: 'rgba(0,0,0,0.3)',
+            },
+          };
+        }),
         emphasis: {
+          scale: 1.6,
           focus: 'self',
           itemStyle: {
-            shadowBlur: 14,
-            shadowColor: 'rgba(0,0,0,0.2)',
+            shadowBlur: 20,
+            shadowColor: 'rgba(0,0,0,0.25)',
+            shadowOffsetY: 4,
             borderColor: '#fff',
-            borderWidth: 2,
+            borderWidth: 2.5,
+          },
+          label: {
+            show: true,
+            fontSize: 11,
+            fontWeight: 700,
+          },
+        },
+        selectedMode: 'single',
+        select: {
+          itemStyle: {
+            borderColor: '#1890ff',
+            borderWidth: 2.5,
+            shadowBlur: 16,
+            shadowColor: 'rgba(24,144,255,0.35)',
           },
         },
         markArea: {
@@ -567,7 +620,7 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
               {
                 xAxis: successThreshold,
                 yAxis: 0,
-                itemStyle: { color: 'rgba(82,196,26,0.04)' },
+                itemStyle: { color: 'rgba(82,196,26,0.06)' },
                 label: { show: false },
               },
               { xAxis: 100, yAxis: durationThreshold },
@@ -576,7 +629,7 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
               {
                 xAxis: successThreshold,
                 yAxis: durationThreshold,
-                itemStyle: { color: 'rgba(250,173,20,0.04)' },
+                itemStyle: { color: 'rgba(250,173,20,0.06)' },
                 label: { show: false },
               },
               { xAxis: 100 },
@@ -585,7 +638,7 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
               {
                 xAxis: 0,
                 yAxis: 0,
-                itemStyle: { color: 'rgba(250,140,22,0.04)' },
+                itemStyle: { color: 'rgba(250,140,22,0.06)' },
                 label: { show: false },
               },
               { xAxis: successThreshold, yAxis: durationThreshold },
@@ -594,7 +647,7 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
               {
                 xAxis: 0,
                 yAxis: durationThreshold,
-                itemStyle: { color: 'rgba(255,77,79,0.04)' },
+                itemStyle: { color: 'rgba(255,77,79,0.06)' },
                 label: { show: false },
               },
               { xAxis: successThreshold },
@@ -604,7 +657,7 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
         markLine: {
           silent: true,
           symbol: 'none',
-          lineStyle: { color: '#e0e0e0', type: 'dashed', width: 1 },
+          lineStyle: { color: '#d9d9d9', type: 'dashed', width: 1 },
           label: { show: false },
           data: [
             { xAxis: successThreshold },
