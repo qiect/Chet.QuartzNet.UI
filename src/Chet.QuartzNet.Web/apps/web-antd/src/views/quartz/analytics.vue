@@ -76,7 +76,27 @@ const pausedCount = computed(
 const enabledRatio = computed(() =>
   (statsOverview.value.enabledJobs / (statsOverview.value.totalJobs || 1)) * 100,
 );
-const recent7Data = computed(() => trendData.value.slice(-7));
+const dailyTrendData = computed(() => {
+  const map = new Map<string, { time: string; successCount: number; failedCount: number; totalCount: number }>();
+  for (const item of trendData.value) {
+    const day = item.time.slice(0, 10);
+    const existing = map.get(day);
+    if (existing) {
+      existing.successCount += item.successCount;
+      existing.failedCount += item.failedCount;
+      existing.totalCount += item.totalCount;
+    } else {
+      map.set(day, {
+        time: day,
+        successCount: item.successCount,
+        failedCount: item.failedCount,
+        totalCount: item.totalCount,
+      });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.time.localeCompare(b.time));
+});
+const recent7Data = computed(() => dailyTrendData.value.slice(-7));
 const recent7TotalExecutions = computed(() =>
   recent7Data.value.reduce((sum, d) => sum + d.totalCount, 0),
 );
@@ -154,8 +174,9 @@ const getTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
     }
   }
 
-  const recent7 = totalValues.slice(-7);
-  const prev7 = totalValues.slice(-14, -7);
+  const dailyTotalValues = dailyTrendData.value.map((d) => d.totalCount);
+  const recent7 = dailyTotalValues.slice(-7);
+  const prev7 = dailyTotalValues.slice(-14, -7);
   const recent7Avg = recent7.length > 0 ? recent7.reduce((a, b) => a + b, 0) / recent7.length : 0;
   const prev7Avg = prev7.length > 0 ? prev7.reduce((a, b) => a + b, 0) / prev7.length : 0;
   const changePercent = prev7Avg > 0 ? Number((((recent7Avg - prev7Avg) / prev7Avg) * 100).toFixed(1)) : 0;
