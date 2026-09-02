@@ -361,7 +361,7 @@ public class EFCoreJobStorage : IJobStorage
     {
         try
         {
-            return await _dbContext.QuartzJobs.ToListAsync(cancellationToken);
+            return await _dbContext.QuartzJobs.AsNoTracking().ToListAsync(cancellationToken);
         }
         catch (Exception ex)
         {
@@ -729,7 +729,7 @@ public class EFCoreJobStorage : IJobStorage
             var (startTime, endTime) = CalculateTimeRange(queryDto);
 
             // 一次查询QuartzJobs，同时生成Stats和StatusDistribution
-            var jobs = await _dbContext.QuartzJobs.ToListAsync(cancellationToken);
+            var jobs = await _dbContext.QuartzJobs.AsNoTracking().ToListAsync(cancellationToken);
             var totalJobs = jobs.Count;
             var enabledJobs = jobs.Count(j => j.IsEnabled);
             var disabledJobs = jobs.Count(j => !j.IsEnabled);
@@ -745,44 +745,69 @@ public class EFCoreJobStorage : IJobStorage
                 })
                 .ToList();
 
-            // 一次查询QuartzJobLogs，同时生成ExecutionTrend和ExecutionHeatmap
-            var logs = await _dbContext
-                .QuartzJobLogs.Where(l => l.StartTime >= startTime && l.StartTime <= endTime)
+            // 数据库侧按小时聚合（执行趋势），避免全量加载日志到内存
+            var trendRaw = await _dbContext
+                .QuartzJobLogs.AsNoTracking()
+                .Where(l => l.StartTime >= startTime && l.StartTime <= endTime)
+                .GroupBy(l => new
+                {
+                    l.StartTime.Year,
+                    l.StartTime.Month,
+                    l.StartTime.Day,
+                    l.StartTime.Hour,
+                })
+                .Select(g => new
+                {
+                    g.Key.Year,
+                    g.Key.Month,
+                    g.Key.Day,
+                    g.Key.Hour,
+                    SuccessCount = g.Count(l => l.Status == LogStatus.Success),
+                    FailedCount = g.Count(l => l.Status == LogStatus.Failed),
+                    TotalCount = g.Count(),
+                })
                 .ToListAsync(cancellationToken);
 
-            // 按小时分组统计（执行趋势）
-            var trend = logs
-                .GroupBy(l => new DateTime(l.StartTime.Year, l.StartTime.Month, l.StartTime.Day, l.StartTime.Hour, 0, 0))
-                .Select(group => new JobExecutionTrendDto
+            var trend = trendRaw
+                .Select(t => new JobExecutionTrendDto
                 {
-                    Time = group.Key.ToString("yyyy-MM-dd HH:00"),
-                    SuccessCount = group.Count(l => l.Status == LogStatus.Success),
-                    FailedCount = group.Count(l => l.Status == LogStatus.Failed),
-                    TotalCount = group.Count(),
+                    Time = new DateTime(t.Year, t.Month, t.Day, t.Hour, 0, 0).ToString("yyyy-MM-dd HH:00"),
+                    SuccessCount = t.SuccessCount,
+                    FailedCount = t.FailedCount,
+                    TotalCount = t.TotalCount,
                 })
                 .OrderBy(t => t.Time)
                 .ToList();
 
-            // 按星期×小时分组统计（热力图）
-            var heatmap = logs
-                .GroupBy(l => new
+            // 数据库侧按星期×小时聚合（热力图）
+            var heatmapRaw = await _dbContext
+                .QuartzJobLogs.AsNoTracking()
+                .Where(l => l.StartTime >= startTime && l.StartTime <= endTime)
+                .GroupBy(l => new { l.StartTime.DayOfWeek, l.StartTime.Hour })
+                .Select(g => new
                 {
-                    DayOfWeek = ((int)l.StartTime.DayOfWeek + 6) % 7 + 1,
-                    Hour = l.StartTime.Hour,
-                })
-                .Select(g => new JobExecutionHeatmapDto
-                {
-                    DayOfWeek = g.Key.DayOfWeek,
-                    Hour = g.Key.Hour,
+                    g.Key.DayOfWeek,
+                    g.Key.Hour,
                     Count = g.Count(),
                     SuccessCount = g.Count(l => l.Status == LogStatus.Success),
                     FailedCount = g.Count(l => l.Status == LogStatus.Failed),
                 })
+                .ToListAsync(cancellationToken);
+
+            var heatmap = heatmapRaw
+                .Select(g => new JobExecutionHeatmapDto
+                {
+                    DayOfWeek = ((int)g.DayOfWeek + 6) % 7 + 1,
+                    Hour = g.Hour,
+                    Count = g.Count,
+                    SuccessCount = g.SuccessCount,
+                    FailedCount = g.FailedCount,
+                })
                 .ToList();
 
-            // 统计日志信息
-            var successCount = logs.Count(l => l.Status == LogStatus.Success);
-            var failedCount = logs.Count(l => l.Status == LogStatus.Failed);
+            // 统计日志信息（复用聚合结果，避免再次查询）
+            var successCount = trendRaw.Sum(t => t.SuccessCount);
+            var failedCount = trendRaw.Sum(t => t.FailedCount);
 
             return new AnalyticsOverviewDto
             {
@@ -824,11 +849,12 @@ public class EFCoreJobStorage : IJobStorage
         {
             var (startTime, endTime) = CalculateTimeRange(queryDto);
 
-            var jobs = await _dbContext.QuartzJobs.ToListAsync(cancellationToken);
+            var jobs = await _dbContext.QuartzJobs.AsNoTracking().ToListAsync(cancellationToken);
 
             // 一次查询日志，按作业分组聚合
             var logGroups = await _dbContext
-                .QuartzJobLogs.Where(l => l.StartTime >= startTime && l.StartTime <= endTime)
+                .QuartzJobLogs.AsNoTracking()
+                .Where(l => l.StartTime >= startTime && l.StartTime <= endTime)
                 .GroupBy(l => new { l.JobName, l.JobGroup })
                 .Select(g => new
                 {
