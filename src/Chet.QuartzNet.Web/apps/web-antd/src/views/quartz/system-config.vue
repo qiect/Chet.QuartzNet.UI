@@ -17,24 +17,6 @@ import {
   FormItem,
 } from 'ant-design-vue';
 
-import {
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  SyncOutlined,
-  CloudUploadOutlined,
-  ExclamationCircleOutlined,
-  MinusCircleOutlined,
-  ClockCircleOutlined,
-  FolderOutlined,
-  DatabaseOutlined,
-  DownOutlined,
-  AppstoreOutlined,
-  GlobalOutlined,
-  FileTextOutlined,
-  SaveOutlined,
-  UndoOutlined,
-} from '@ant-design/icons-vue';
-
 import { $t } from '#/locales';
 import { useI18n } from '@vben/locales';
 
@@ -164,15 +146,6 @@ const overallStatusColor = computed(() => {
   return 'default';
 });
 
-const overallStatusIcon = computed(() => {
-  const s = migrationStatus.value;
-  if (!s) return ClockCircleOutlined;
-  if (s.isRunning) return SyncOutlined;
-  if (s.isCompleted && s.isSuccess) return CheckCircleOutlined;
-  if (s.isCompleted && !s.isSuccess) return CloseCircleOutlined;
-  return ClockCircleOutlined;
-});
-
 const progressStatus = computed(() => {
   const s = migrationStatus.value;
   if (!s) return 'normal' as const;
@@ -192,16 +165,6 @@ function formatDuration(ms?: number): string {
   if (ms === undefined || ms === null) return '-';
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
-}
-
-function getStepIcon(status: number) {
-  switch (status) {
-    case MigrationStepStatus.Completed: return CheckCircleOutlined;
-    case MigrationStepStatus.Running: return SyncOutlined;
-    case MigrationStepStatus.Failed: return CloseCircleOutlined;
-    case MigrationStepStatus.Skipped: return MinusCircleOutlined;
-    default: return ClockCircleOutlined;
-  }
 }
 
 function getStepDotColor(status: number): string {
@@ -290,7 +253,6 @@ loadMigrationStatus();
         <!-- 服务名称 -->
         <div class="rounded-lg border border-gray-150 bg-gray-50/60 p-3">
           <div class="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-            <AppstoreOutlined />
             {{ $t('page.quartz.systemConfigPage.serviceName') }}
           </div>
           <Input
@@ -305,7 +267,6 @@ loadMigrationStatus();
         <div class="rounded-lg border border-gray-150 bg-gray-50/60 p-3">
           <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-2 text-xs text-muted-foreground">
-              <GlobalOutlined />
               {{ $t('page.quartz.systemConfigPage.environment') }}
             </div>
             <Tag :color="envTagColor" size="small" class="text-xs">{{ environment }}</Tag>
@@ -323,7 +284,6 @@ loadMigrationStatus();
       <!-- 服务描述 -->
       <div class="rounded-lg border border-gray-150 bg-gray-50/60 p-3 mb-4">
         <div class="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-          <FileTextOutlined />
           {{ $t('page.quartz.systemConfigPage.serviceDescription') }}
         </div>
         <Input.TextArea
@@ -339,11 +299,9 @@ loadMigrationStatus();
       <!-- 操作按钮 -->
       <div class="flex gap-2">
         <Button type="primary" :loading="saveLoading" @click="handleSave">
-          <template #icon><SaveOutlined /></template>
           {{ $t('page.quartz.systemConfigPage.save') }}
         </Button>
         <Button @click="handleReset">
-          <template #icon><UndoOutlined /></template>
           {{ $t('page.quartz.systemConfigPage.reset') }}
         </Button>
       </div>
@@ -354,7 +312,6 @@ loadMigrationStatus();
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div class="rounded-lg border border-gray-150 bg-gray-50/60 p-3">
           <div class="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
-            <FolderOutlined />
             {{ $t('page.quartz.systemConfigPage.migrationFileStoragePath') }}
           </div>
           <div class="flex items-center gap-2">
@@ -374,7 +331,6 @@ loadMigrationStatus();
         </div>
         <div class="rounded-lg border border-gray-150 bg-gray-50/60 p-3">
           <div class="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
-            <DatabaseOutlined />
             {{ $t('page.quartz.systemConfigPage.migrationStorageType') }}
           </div>
           <div class="flex items-center gap-2">
@@ -393,9 +349,6 @@ loadMigrationStatus();
       <div class="mb-4">
         <div class="flex items-center justify-between mb-2">
           <Tag :color="overallStatusColor" class="text-sm">
-            <template #icon>
-              <component :is="overallStatusIcon" :spin="migrationStatus?.isRunning" />
-            </template>
             {{ overallStatusText }}
           </Tag>
           <span
@@ -418,9 +371,7 @@ loadMigrationStatus();
           :message="`${$t('page.quartz.systemConfigPage.migrationCurrentStep')}: ${migrationStatus.currentStep}`"
           type="info"
           show-icon
-        >
-          <template #icon><SyncOutlined spin /></template>
-        </Alert>
+        />
       </div>
 
       <div v-if="migrationStatus?.isCompleted && !migrationStatus?.isSuccess && migrationStatus?.errorMessage" class="mb-4">
@@ -432,7 +383,10 @@ loadMigrationStatus();
           class="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors"
           @click="showDetail = !showDetail"
         >
-          <DownOutlined :rotate="showDetail ? 0 : -90" class="text-xs transition-transform duration-200" />
+          <span
+            class="text-xs transition-transform duration-200"
+            :style="{ display: 'inline-block', transform: showDetail ? 'rotate(0deg)' : 'rotate(-90deg)' }"
+          >▼</span>
           {{ $t('page.quartz.systemConfigPage.migrationSummary') }}
         </div>
 
@@ -455,15 +409,9 @@ loadMigrationStatus();
                 />
                 <div class="flex items-start gap-3">
                   <div
-                    class="w-[15px] h-[15px] rounded-full mt-0.5 shrink-0 flex items-center justify-center"
+                    class="w-[15px] h-[15px] rounded-full mt-0.5 shrink-0"
                     :class="getStepDotColor(step.status)"
-                  >
-                    <component
-                      :is="getStepIcon(step.status)"
-                      class="text-white text-[9px]"
-                      :spin="step.status === MigrationStepStatus.Running"
-                    />
-                  </div>
+                  />
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 flex-wrap">
                       <span class="font-medium text-sm">{{ step.name }}</span>
@@ -482,7 +430,7 @@ loadMigrationStatus();
                       </span>
                     </div>
                     <div v-if="step.status === MigrationStepStatus.Failed && step.errorMessage" class="mt-1 text-xs text-red-500">
-                      <ExclamationCircleOutlined class="mr-1" />{{ step.errorMessage }}
+                      {{ step.errorMessage }}
                     </div>
                   </div>
                 </div>
@@ -514,10 +462,6 @@ loadMigrationStatus();
           :disabled="!canTrigger || !migrationStatus?.fileStoragePathExists || migrationStatus?.storageType !== 'Database'"
           @click="handleTriggerMigration(false)"
         >
-          <template #icon>
-            <CloudUploadOutlined v-if="!migrationLoading && !migrationStatus?.isRunning" />
-            <SyncOutlined v-else spin />
-          </template>
           {{ migrationStatus?.isRunning ? $t('page.quartz.systemConfigPage.migrationTriggering') : $t('page.quartz.systemConfigPage.migrationTrigger') }}
         </Button>
         <Tooltip
@@ -529,7 +473,6 @@ loadMigrationStatus();
             :disabled="migrationStatus?.isRunning"
             @click="handleTriggerMigration(true)"
           >
-            <template #icon><SyncOutlined /></template>
             {{ $t('page.quartz.systemConfigPage.migrationTriggerForce') }}
           </Button>
         </Tooltip>
