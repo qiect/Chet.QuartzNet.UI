@@ -71,7 +71,11 @@
       "migrationNotDatabase": "Current storage type is not database, please switch to database storage first",
       "migrationSummary": "Migration Summary",
       "migrationNoSteps": "No migration steps",
-      "migrationRecords": "records"
+      "migrationRecords": "records",
+      "migrationStepJobs": "Job Data",
+      "migrationStepLogs": "Job Logs",
+      "migrationStepSettings": "System Settings",
+      "migrationStepNotifications": "Notifications"
     },
     "analyticsPage": {
       "title": "Analytics",

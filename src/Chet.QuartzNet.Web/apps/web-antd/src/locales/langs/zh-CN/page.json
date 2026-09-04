@@ -71,7 +71,11 @@
       "migrationNotDatabase": "当前存储类型不是数据库，请先切换为数据库存储",
       "migrationSummary": "迁移摘要",
       "migrationNoSteps": "暂无迁移步骤",
-      "migrationRecords": "条记录"
+      "migrationRecords": "条记录",
+      "migrationStepJobs": "作业数据",
+      "migrationStepLogs": "作业日志",
+      "migrationStepSettings": "系统设置",
+      "migrationStepNotifications": "通知消息"
     },
     "analyticsPage": {
       "title": "分析页",
