@@ -1,4 +1,4 @@
-import type { CSSOptions, UserConfig } from 'vite';
+import type { CSSOptions, PluginOption, UserConfig } from 'vite';
 
 import type { DefineApplicationOptions } from '../typing';
 
@@ -13,6 +13,46 @@ import { defaultImportmapOptions, getDefaultPwaOptions } from '../options';
 import { loadApplicationPlugins } from '../plugins';
 import { loadAndConvertEnv } from '../utils/env';
 import { getCommonConfig } from './common';
+
+const NODE_ONLY_PACKAGES = [
+  'jiti',
+  'c12',
+  'untyped',
+  '@nuxt/kit',
+  '@nuxt/schema',
+  'defu',
+  'pathe',
+  'pkg-types',
+  'giget',
+  'nypm',
+  'ofetch',
+  'ohash',
+  'ufo',
+  'hookable',
+  'scule',
+  'mlly',
+  'acorn',
+];
+
+function viteNodeOnlyExternalPlugin(): PluginOption {
+  const emptyModule = 'export default {};';
+  return {
+    apply: 'build',
+    name: 'vite:node-only-external',
+    resolveId(id) {
+      if (NODE_ONLY_PACKAGES.some((pkg) => id === pkg || id.startsWith(`${pkg}/`))) {
+        return `\0virtual:${id}`;
+      }
+      return null;
+    },
+    load(id) {
+      if (id.startsWith('\0virtual:')) {
+        return emptyModule;
+      }
+      return null;
+    },
+  };
+}
 
 function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
   return defineConfig(async (config) => {
@@ -77,7 +117,7 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
           : [],
         legalComments: 'none',
       },
-      plugins,
+      plugins: [...plugins, viteNodeOnlyExternalPlugin()],
       server: {
         host: true,
         port,

@@ -16,6 +16,7 @@ import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
 import { $t } from '#/locales';
 import { useI18n } from '@vben/locales';
+import { usePreferences } from '@vben/preferences';
 
 import {
   getAnalyticsOverview,
@@ -34,12 +35,16 @@ import { useSystemConfig } from '../../composables/use-system-config';
 
 const loading = ref(false);
 const { locale } = useI18n();
+const { isDark } = usePreferences();
 const trendChartRef = ref<EchartsUIType | null>(null);
 const healthChartRef = ref<EchartsUIType | null>(null);
 const heatmapChartRef = ref<EchartsUIType | null>(null);
 
 const { renderEcharts: renderTrend } = useEcharts(trendChartRef);
-const { renderEcharts: renderHealth } = useEcharts(healthChartRef);
+const {
+  renderEcharts: renderHealth,
+  getChartInstance: getHealthInstance,
+} = useEcharts(healthChartRef);
 const { renderEcharts: renderHeatmap } = useEcharts(heatmapChartRef);
 
 const overviewChartRef = ref<EchartsUIType | null>(null);
@@ -76,7 +81,27 @@ const pausedCount = computed(
 const enabledRatio = computed(() =>
   (statsOverview.value.enabledJobs / (statsOverview.value.totalJobs || 1)) * 100,
 );
-const recent7Data = computed(() => trendData.value.slice(-7));
+const dailyTrendData = computed(() => {
+  const map = new Map<string, { time: string; successCount: number; failedCount: number; totalCount: number }>();
+  for (const item of trendData.value) {
+    const day = item.time.slice(0, 10);
+    const existing = map.get(day);
+    if (existing) {
+      existing.successCount += item.successCount;
+      existing.failedCount += item.failedCount;
+      existing.totalCount += item.totalCount;
+    } else {
+      map.set(day, {
+        time: day,
+        successCount: item.successCount,
+        failedCount: item.failedCount,
+        totalCount: item.totalCount,
+      });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.time.localeCompare(b.time));
+});
+const recent7Data = computed(() => dailyTrendData.value.slice(-7));
 const recent7TotalExecutions = computed(() =>
   recent7Data.value.reduce((sum, d) => sum + d.totalCount, 0),
 );
@@ -129,6 +154,30 @@ const getTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
     d.totalCount > 0 ? Number(((d.successCount / d.totalCount) * 100).toFixed(1)) : 0,
   );
 
+  const detectTimeGranularity = (times: string[]): 'day' | 'hour' | 'minute' | 'unknown' => {
+    if (times.length === 0) return 'unknown';
+    const sample = times[0]!;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(sample)) return 'day';
+    if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/.test(sample) || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(sample)) {
+      if (times.length >= 2) {
+        const t1 = new Date(times[0]!).getTime();
+        const t2 = new Date(times[1]!).getTime();
+        const diffMs = Math.abs(t2 - t1);
+        if (diffMs <= 60 * 60 * 1000) return 'hour';
+        if (diffMs <= 24 * 60 * 60 * 1000) return 'day';
+      }
+      return 'hour';
+    }
+    return 'unknown';
+  };
+
+  const granularity = detectTimeGranularity(dates);
+  const periodLabel = granularity === 'day'
+    ? $t('page.quartz.analyticsPage.dayOverDay')
+    : granularity === 'hour'
+      ? $t('page.quartz.analyticsPage.hourOverHour')
+      : $t('page.quartz.analyticsPage.periodOverPeriod');
+
   const n = totalValues.length;
   const avgTotal = n > 0 ? Number((totalValues.reduce((a, b) => a + b, 0) / n).toFixed(1)) : 0;
 
@@ -154,8 +203,9 @@ const getTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
     }
   }
 
-  const recent7 = totalValues.slice(-7);
-  const prev7 = totalValues.slice(-14, -7);
+  const dailyTotalValues = dailyTrendData.value.map((d) => d.totalCount);
+  const recent7 = dailyTotalValues.slice(-7);
+  const prev7 = dailyTotalValues.slice(-14, -7);
   const recent7Avg = recent7.length > 0 ? recent7.reduce((a, b) => a + b, 0) / recent7.length : 0;
   const prev7Avg = prev7.length > 0 ? prev7.reduce((a, b) => a + b, 0) / prev7.length : 0;
   const changePercent = prev7Avg > 0 ? Number((((recent7Avg - prev7Avg) / prev7Avg) * 100).toFixed(1)) : 0;
@@ -196,7 +246,7 @@ const getTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
             const pct = (((curr - prev) / prev) * 100).toFixed(1);
             const arrow = Number(pct) >= 0 ? '↑' : '↓';
             const clr = Number(pct) >= 0 ? '#52c41a' : '#ff4d4f';
-            html += `<div style="font-size:11px;color:#8c8c8c;margin-top:4px;border-top:1px dashed #e8e8e8;padding-top:4px;">${$t('page.quartz.analyticsPage.dayOverDay')}: <span style="color:${clr};font-weight:500;">${arrow}${Math.abs(Number(pct))}%</span></div>`;
+            html += `<div style="font-size:11px;color:#8c8c8c;margin-top:4px;border-top:1px dashed #e8e8e8;padding-top:4px;">${periodLabel}: <span style="color:${clr};font-weight:500;">${arrow}${Math.abs(Number(pct))}%</span></div>`;
           }
         }
         return html;
@@ -367,6 +417,14 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
     Blocked: '#8c8c8c',
   };
 
+  const statusGradientMap: Record<string, { from: string; to: string }> = {
+    Normal: { from: '#69b1ff', to: '#1677ff' },
+    Paused: { from: '#ffd666', to: '#faad14' },
+    Completed: { from: '#5cdbd3', to: '#13c2c2' },
+    Error: { from: '#ff7875', to: '#ff4d4f' },
+    Blocked: { from: '#bfbfbf', to: '#8c8c8c' },
+  };
+
   const maxExecCount = Math.max(...data.map((d) => d.executionCount), 1);
 
   const sortedDurations = [...data.map((d) => d.avgDuration)].sort((a, b) => a - b);
@@ -376,6 +434,25 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
 
   const successThreshold = 80;
   const durationThreshold = medianDuration || 1;
+
+  const getQuadrant = (successRate: number, avgDuration: number) => {
+    if (successRate >= successThreshold && avgDuration <= durationThreshold)
+      return { key: 'healthy', color: '#52c41a', bg: 'rgba(82,196,26,0.08)' };
+    if (successRate >= successThreshold && avgDuration > durationThreshold)
+      return { key: 'slow', color: '#faad14', bg: 'rgba(250,173,20,0.08)' };
+    if (successRate < successThreshold && avgDuration <= durationThreshold)
+      return { key: 'unstable', color: '#fa8c16', bg: 'rgba(250,140,22,0.08)' };
+    return { key: 'critical', color: '#ff4d4f', bg: 'rgba(255,77,79,0.08)' };
+  };
+
+  const quadrantLabelMap: Record<string, string> = {
+    healthy: $t('page.quartz.analyticsPage.quadrantHealthy'),
+    slow: $t('page.quartz.analyticsPage.quadrantSlow'),
+    unstable: $t('page.quartz.analyticsPage.quadrantUnstable'),
+    critical: $t('page.quartz.analyticsPage.quadrantCritical'),
+  };
+
+  const sortedData = [...data].sort((a, b) => b.executionCount - a.executionCount);
 
   return {
     backgroundColor: 'transparent',
@@ -392,25 +469,11 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
         const enabledText = d.isEnabled
           ? $t('page.quartz.analyticsPage.enabled')
           : $t('page.quartz.analyticsPage.disabled');
-        const quadrant =
-          d.successRate >= successThreshold && d.avgDuration <= durationThreshold
-            ? $t('page.quartz.analyticsPage.quadrantHealthy')
-            : d.successRate >= successThreshold && d.avgDuration > durationThreshold
-              ? $t('page.quartz.analyticsPage.quadrantSlow')
-              : d.successRate < successThreshold && d.avgDuration <= durationThreshold
-                ? $t('page.quartz.analyticsPage.quadrantUnstable')
-                : $t('page.quartz.analyticsPage.quadrantCritical');
-        const quadrantColor =
-          d.successRate >= successThreshold && d.avgDuration <= durationThreshold
-            ? '#52c41a'
-            : d.successRate >= successThreshold && d.avgDuration > durationThreshold
-              ? '#faad14'
-              : d.successRate < successThreshold && d.avgDuration <= durationThreshold
-                ? '#fa8c16'
-                : '#ff4d4f';
+        const q = getQuadrant(d.successRate, d.avgDuration);
+        const quadrant = quadrantLabelMap[q.key];
         return `
           <div style="font-weight:600;color:#262626;font-size:13px;margin-bottom:6px;">${d.jobName}</div>
-          <div style="display:inline-block;padding:1px 8px;border-radius:3px;font-size:11px;font-weight:500;color:${quadrantColor};background:${quadrantColor}14;margin-bottom:4px;">${quadrant}</div>
+          <div style="display:inline-block;padding:1px 8px;border-radius:3px;font-size:11px;font-weight:500;color:${q.color};background:${q.color}14;margin-bottom:4px;">${quadrant}</div>
           <div style="color:#8c8c8c;font-size:12px;line-height:20px;">
             ${$t('page.quartz.analyticsPage.jobGroup')}: ${d.jobGroup}<br/>
             ${$t('page.quartz.analyticsPage.jobStatus')}: ${enabledText}<br/>
@@ -508,35 +571,61 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
     series: [
       {
         type: 'scatter',
-        symbolSize: (_val: number[], params: any) => {
+        symbolSize: (val: number[], params: any) => {
           const count = params.data.executionCount;
-          return Math.max(10, Math.min(44, (count / maxExecCount) * 44));
+          return Math.max(8, Math.min(40, (count / maxExecCount) * 40));
         },
-        data: data.map((d) => ({
-          value: [d.successRate, d.avgDuration],
-          jobName: d.jobName,
-          jobGroup: d.jobGroup,
-          status: d.status,
-          isEnabled: d.isEnabled,
-          successRate: d.successRate,
-          avgDuration: d.avgDuration,
-          executionCount: d.executionCount,
-          itemStyle: {
-            color: statusColorMap[d.status] || '#8c8c8c',
-            opacity: d.isEnabled ? 0.85 : 0.3,
-            shadowBlur: 6,
-            shadowColor: 'rgba(0,0,0,0.1)',
-            borderColor: 'rgba(255,255,255,0.75)',
-            borderWidth: 1.5,
-          },
-        })),
+        data: sortedData.map((d) => {
+          const gradient = statusGradientMap[d.status] || { from: '#bfbfbf', to: '#8c8c8c' };
+          const q = getQuadrant(d.successRate, d.avgDuration);
+          return {
+            value: [d.successRate, d.avgDuration],
+            jobName: d.jobName,
+            jobGroup: d.jobGroup,
+            status: d.status,
+            isEnabled: d.isEnabled,
+            successRate: d.successRate,
+            avgDuration: d.avgDuration,
+            executionCount: d.executionCount,
+            itemStyle: {
+              color: {
+                type: 'radial',
+                x: 0.3,
+                y: 0.3,
+                r: 1,
+                colorStops: [
+                  { offset: 0, color: gradient.from },
+                  { offset: 1, color: gradient.to },
+                ],
+              },
+              opacity: d.isEnabled ? 0.88 : 0.28,
+              shadowBlur: d.isEnabled ? 8 : 0,
+              shadowColor: 'rgba(0,0,0,0.12)',
+              shadowOffsetY: 2,
+              borderColor: d.isEnabled ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.3)',
+              borderWidth: 1.5,
+            },
+            label: { show: false },
+          };
+        }),
         emphasis: {
+          scale: 1.6,
           focus: 'self',
           itemStyle: {
-            shadowBlur: 14,
-            shadowColor: 'rgba(0,0,0,0.2)',
+            shadowBlur: 20,
+            shadowColor: 'rgba(0,0,0,0.25)',
+            shadowOffsetY: 4,
             borderColor: '#fff',
-            borderWidth: 2,
+            borderWidth: 2.5,
+          },
+        },
+        selectedMode: 'single',
+        select: {
+          itemStyle: {
+            borderColor: '#1890ff',
+            borderWidth: 2.5,
+            shadowBlur: 16,
+            shadowColor: 'rgba(24,144,255,0.35)',
           },
         },
         markArea: {
@@ -546,7 +635,7 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
               {
                 xAxis: successThreshold,
                 yAxis: 0,
-                itemStyle: { color: 'rgba(82,196,26,0.04)' },
+                itemStyle: { color: 'rgba(82,196,26,0.06)' },
                 label: { show: false },
               },
               { xAxis: 100, yAxis: durationThreshold },
@@ -555,7 +644,7 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
               {
                 xAxis: successThreshold,
                 yAxis: durationThreshold,
-                itemStyle: { color: 'rgba(250,173,20,0.04)' },
+                itemStyle: { color: 'rgba(250,173,20,0.06)' },
                 label: { show: false },
               },
               { xAxis: 100 },
@@ -564,7 +653,7 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
               {
                 xAxis: 0,
                 yAxis: 0,
-                itemStyle: { color: 'rgba(250,140,22,0.04)' },
+                itemStyle: { color: 'rgba(250,140,22,0.06)' },
                 label: { show: false },
               },
               { xAxis: successThreshold, yAxis: durationThreshold },
@@ -573,7 +662,7 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
               {
                 xAxis: 0,
                 yAxis: durationThreshold,
-                itemStyle: { color: 'rgba(255,77,79,0.04)' },
+                itemStyle: { color: 'rgba(255,77,79,0.06)' },
                 label: { show: false },
               },
               { xAxis: successThreshold },
@@ -583,7 +672,7 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
         markLine: {
           silent: true,
           symbol: 'none',
-          lineStyle: { color: '#e0e0e0', type: 'dashed', width: 1 },
+          lineStyle: { color: '#d9d9d9', type: 'dashed', width: 1 },
           label: { show: false },
           data: [
             { xAxis: successThreshold },
@@ -596,6 +685,10 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
 };
 
 const getHeatmapOption = (data: JobExecutionHeatmap[]): EChartsOption => {
+  const now = new Date();
+  const currentDayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
+  const currentHour = now.getHours();
+
   const days = [
     $t('page.quartz.analyticsPage.dayMon'),
     $t('page.quartz.analyticsPage.dayTue'),
@@ -609,7 +702,30 @@ const getHeatmapOption = (data: JobExecutionHeatmap[]): EChartsOption => {
 
   const maxCount = Math.max(...data.map((d) => d.count), 1);
 
-  const heatmapValues = data.map((d) => [d.hour, d.dayOfWeek - 1, d.count]);
+  const currentMomentBlueStops = ['#e6f7ff', '#bae7ff', '#91d5ff', '#69c0ff', '#40a9ff'];
+  const getCurrentMomentColor = (count: number): string => {
+    const ratio = Math.min(count / maxCount, 1);
+    const idx = Math.min(Math.floor(ratio * currentMomentBlueStops.length), currentMomentBlueStops.length - 1);
+    return currentMomentBlueStops[idx];
+  };
+
+  const heatmapValues = data.map((d) => {
+    const isCurrentMoment = d.dayOfWeek === currentDayOfWeek && d.hour === currentHour;
+    const base: any = { value: [d.hour, d.dayOfWeek - 1, d.count] };
+    if (isCurrentMoment) {
+      base.itemStyle = {
+        color: getCurrentMomentColor(d.count),
+        borderColor: '#ffffff',
+        borderWidth: 1.5,
+        borderType: 'dashed',
+      };
+    }
+    return base;
+  });
+
+  const yAxisData = days.map((name, i) =>
+    i === currentDayOfWeek - 1 ? `{today|●}${name}` : name,
+  );
 
   return {
     backgroundColor: 'transparent',
@@ -624,7 +740,11 @@ const getHeatmapOption = (data: JobExecutionHeatmap[]): EChartsOption => {
         );
         if (!d) return '';
         const dayName = days[params.value[1]];
-        return `<b style="color:#262626;">${dayName} ${params.value[0]}:00</b><br/>
+        const isCurrentMoment = params.value[1] + 1 === currentDayOfWeek && params.value[0] === currentHour;
+        const todayBadge = isCurrentMoment
+          ? ` <span style="display:inline-block;font-size:10px;color:#1890ff;background:#e6f7ff;padding:0 4px;border-radius:2px;margin-left:4px;">${$t('page.quartz.analyticsPage.todayTag')}</span>`
+          : '';
+        return `<b style="color:#262626;">${dayName} ${params.value[0]}:00${todayBadge}</b><br/>
           <span style="color:#8c8c8c;">${$t('page.quartz.analyticsPage.heatmapExec')}: <b style="color:#262626;">${d.count}</b> ${$t('page.quartz.analyticsPage.times')}</span><br/>
           <span style="color:#52c41a;">${$t('page.quartz.analyticsPage.success')}: <b>${d.successCount}</b></span> /
           <span style="color:#ff4d4f;">${$t('page.quartz.analyticsPage.failed')}: <b>${d.failedCount}</b></span>`;
@@ -641,9 +761,15 @@ const getHeatmapOption = (data: JobExecutionHeatmap[]): EChartsOption => {
     },
     yAxis: {
       type: 'category',
-      data: days,
+      data: yAxisData,
       splitArea: { show: true, areaStyle: { color: ['rgba(0,0,0,0.02)', 'transparent'] } },
-      axisLabel: { color: '#8c8c8c', fontSize: 11 },
+      axisLabel: {
+        color: '#8c8c8c',
+        fontSize: 11,
+        rich: {
+          today: { color: '#1890ff', fontSize: 10, padding: [0, 4, 0, 0] },
+        },
+      },
       axisTick: { show: false },
       axisLine: { show: false },
     },
@@ -915,6 +1041,33 @@ const topSlowColumns = computed(() => [
   },
 ]);
 
+/**
+ * 健康象限图：禁止气泡在 hover/选中状态下的 z2 层级提升。
+ *
+ * ECharts 进入 emphasis/select 状态时会临时将元素 z2 提升（+10/+9），
+ * 被 hover 的大气泡会跳到原本绘制在其上层的小气泡之上，再叠加 emphasis.scale
+ * 的放大效果，小气泡会被完全遮挡而无法命中选中。将提升量置 0 后，气泡层级
+ * 始终由数据顺序决定（小气泡在后、绘制在上层、优先命中）。
+ */
+const disableHealthBubbleZLift = (chart: any): number => {
+  const model = chart?.getModel?.();
+  if (!model) {
+    return 0;
+  }
+  let patched = 0;
+  model.getSeriesByType('scatter').forEach((seriesModel: any) => {
+    seriesModel.getData().eachItemGraphicEl((el: any) => {
+      const path = el?.getSymbolPath?.();
+      if (path) {
+        path.z2EmphasisLift = 0;
+        path.z2SelectLift = 0;
+        patched += 1;
+      }
+    });
+  });
+  return patched;
+};
+
 const fetchData = async () => {
   loading.value = true;
   const query: StatsQueryDto = {};
@@ -938,7 +1091,7 @@ const fetchData = async () => {
     }
 
     renderTrend(getTrendOption(trendData.value));
-    renderHealth(getHealthOption(jobHealthData.value));
+    renderHealth(getHealthOption(jobHealthData.value)).then(disableHealthBubbleZLift);
     renderHeatmap(getHeatmapOption(heatmapData.value));
     renderOverview(getOverviewOption());
     renderActivity(getActivityOption());
@@ -973,6 +1126,19 @@ onMounted(() => {
 
 watch(locale, () => {
   fetchData();
+});
+
+// 主题切换时 useEcharts 内部会重建图表实例并异步重渲染，需延时重新应用气泡层级补丁
+watch(isDark, () => {
+  let retries = 0;
+  const applyPatch = () => {
+    if (disableHealthBubbleZLift(getHealthInstance()) > 0 || retries >= 5) {
+      return;
+    }
+    retries += 1;
+    setTimeout(applyPatch, 120);
+  };
+  applyPatch();
 });
 </script>
 
@@ -1043,7 +1209,7 @@ watch(locale, () => {
               </div>
             </div>
             <div class="stat-mini-chart">
-              <EchartsUI ref="activityChartRef" style="height: 80px; width: 88px" />
+              <EchartsUI ref="activityChartRef" style="height: 85px; width: 85px" />
             </div>
           </div>
           <div class="stat-footer">
@@ -1089,7 +1255,7 @@ watch(locale, () => {
               </span>
             </div>
             <div class="stat-mini-chart">
-              <EchartsUI ref="durationChartRef" style="height: 80px; width: 88px" />
+              <EchartsUI ref="durationChartRef" style="height: 85px; width: 85px" />
             </div>
           </div>
           <div class="stat-footer">

@@ -519,8 +519,9 @@ onMounted(async () => {
       </Grid>
 
       <!-- 详情对话框 -->
-      <Modal v-model:open="detailModalVisible" :title="$t('page.quartz.logPage.logDetail')" width="800px" :footer="null"
-        :destroyOnClose="true" centered wrapClassName="quartz-log-detail-modal">
+      <Modal v-model:open="detailModalVisible" :title="$t('page.quartz.logPage.logDetail')" width="800px"
+        :body-style="{ padding: '24px' }" :footer="null" :destroyOnClose="true" centered
+        wrapClassName="quartz-log-detail-modal">
         <div v-if="logDetail" class="log-detail">
           <!-- 顶部：标题 + 状态标签 -->
           <div class="detail-header">
@@ -531,7 +532,7 @@ onMounted(async () => {
           </div>
 
           <!-- 元数据：Descriptions 组件统一展示 -->
-          <Descriptions :column="3" size="small" bordered class="detail-desc" :labelStyle="{ minWidth: '100px' }">
+          <Descriptions :column="3" size="small" bordered class="detail-desc">
             <DescriptionsItem :label="$t('page.quartz.logPage.executionDuration')" :span="1">
               {{ formatDuration(logDetail.duration) }}
             </DescriptionsItem>
@@ -612,12 +613,16 @@ onMounted(async () => {
   font-weight: 600;
   color: hsl(var(--foreground));
   line-height: 1.4;
-  word-break: break-all;
+  word-break: break-word;
 }
 
 /* Descriptions 元数据 */
 .detail-desc {
   margin-bottom: var(--space-lg);
+}
+
+.detail-desc :deep(.ant-descriptions-item-label) {
+  min-width: 100px;
 }
 
 /* 内容区 */
@@ -690,9 +695,5 @@ onMounted(async () => {
   margin-top: var(--space-lg);
   display: flex;
   justify-content: flex-end;
-}
-
-.mb-4 {
-  margin-bottom: 16px;
 }
 </style>

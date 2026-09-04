@@ -5,6 +5,7 @@ using Chet.QuartzNet.Core.Interfaces;
 using Chet.QuartzNet.Core.Services;
 using Chet.QuartzNet.Models.DTOs;
 using Chet.QuartzNet.Models.Entities;
+using Chet.QuartzNet.UI.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -59,6 +60,9 @@ public static class ServiceCollectionExtensions
 
         // 通用服务（作业服务、监听器、Quartz 调度器等）
         RegisterQuartzCore(services, options);
+
+        // 文件数据迁移服务（单例，支持按需触发和进度追踪）
+        services.AddSingleton<FileDataMigrationService>();
 
         // 认证
         AddQuartzUIAuthentication(services, options);
