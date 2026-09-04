@@ -576,16 +576,7 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
               borderColor: d.isEnabled ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.3)',
               borderWidth: 1.5,
             },
-            label: {
-              show: d.isEnabled && d.executionCount >= maxExecCount * 0.3,
-              formatter: () => d.jobName.length > 6 ? d.jobName.slice(0, 6) + '…' : d.jobName,
-              position: 'inside',
-              fontSize: 9,
-              fontWeight: 600,
-              color: '#fff',
-              textShadowBlur: 2,
-              textShadowColor: 'rgba(0,0,0,0.3)',
-            },
+            label: { show: false },
           };
         }),
         emphasis: {
@@ -597,11 +588,6 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
             shadowOffsetY: 4,
             borderColor: '#fff',
             borderWidth: 2.5,
-          },
-          label: {
-            show: true,
-            fontSize: 11,
-            fontWeight: 700,
           },
         },
         selectedMode: 'single',
