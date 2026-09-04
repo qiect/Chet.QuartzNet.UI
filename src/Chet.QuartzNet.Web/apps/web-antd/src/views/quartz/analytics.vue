@@ -1185,7 +1185,7 @@ watch(isDark, () => {
               </div>
             </div>
             <div class="stat-mini-chart">
-              <EchartsUI ref="activityChartRef" style="height: 80px; width: 88px" />
+              <EchartsUI ref="activityChartRef" style="height: 85px; width: 85px" />
             </div>
           </div>
           <div class="stat-footer">
@@ -1231,7 +1231,7 @@ watch(isDark, () => {
               </span>
             </div>
             <div class="stat-mini-chart">
-              <EchartsUI ref="durationChartRef" style="height: 80px; width: 88px" />
+              <EchartsUI ref="durationChartRef" style="height: 85px; width: 85px" />
             </div>
           </div>
           <div class="stat-footer">
