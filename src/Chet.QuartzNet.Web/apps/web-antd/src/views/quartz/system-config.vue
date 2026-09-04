@@ -110,6 +110,7 @@ loadConfig();
 const migrationStatus = ref<DataMigrationStatusDto | null>(null);
 const migrationLoading = ref(false);
 const showDetail = ref(false);
+const migrationCollapsed = ref(true);
 let migrationPollTimer: ReturnType<typeof setInterval> | null = null;
 
 const stepTagColorMap: Record<number, string> = {
@@ -245,59 +246,48 @@ loadMigrationStatus();
   <Page content-class="flex flex-col gap-4">
     <!-- 基础信息 -->
     <Card :title="$t('page.quartz.systemConfigPage.basicSection')">
-      <div class="text-muted-foreground text-sm mb-4">
+      <div class="text-muted-foreground text-sm mb-5">
         {{ $t('page.quartz.systemConfigPage.description') }}
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-        <!-- 服务名称 -->
-        <div class="rounded-lg border border-gray-150 bg-gray-50/60 p-3">
-          <div class="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-            {{ $t('page.quartz.systemConfigPage.serviceName') }}
-          </div>
-          <Input
-            v-model:value="serviceName"
-            :placeholder="$t('page.quartz.systemConfigPage.serviceNamePlaceholder')"
-            allow-clear
-            size="middle"
-          />
-        </div>
+      <Form layout="vertical" class="mb-2">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0">
+          <FormItem :label="$t('page.quartz.systemConfigPage.serviceName')">
+            <Input
+              v-model:value="serviceName"
+              :placeholder="$t('page.quartz.systemConfigPage.serviceNamePlaceholder')"
+              allow-clear
+              size="middle"
+            />
+          </FormItem>
 
-        <!-- 运行环境 -->
-        <div class="rounded-lg border border-gray-150 bg-gray-50/60 p-3">
-          <div class="flex items-center justify-between mb-2">
-            <div class="flex items-center gap-2 text-xs text-muted-foreground">
-              {{ $t('page.quartz.systemConfigPage.environment') }}
+          <FormItem :label="$t('page.quartz.systemConfigPage.environment')">
+            <div class="flex items-center gap-2">
+              <Select
+                v-model:value="environment"
+                :options="environmentOptions"
+                :placeholder="$t('page.quartz.systemConfigPage.environmentPlaceholder')"
+                size="middle"
+                class="flex-1"
+              />
+              <Tag :color="envTagColor" size="small" class="text-xs shrink-0">{{ environment }}</Tag>
             </div>
-            <Tag :color="envTagColor" size="small" class="text-xs">{{ environment }}</Tag>
-          </div>
-          <Select
-            v-model:value="environment"
-            :options="environmentOptions"
-            :placeholder="$t('page.quartz.systemConfigPage.environmentPlaceholder')"
+          </FormItem>
+        </div>
+
+        <FormItem :label="$t('page.quartz.systemConfigPage.serviceDescription')">
+          <Input.TextArea
+            v-model:value="serviceDescription"
+            :placeholder="$t('page.quartz.systemConfigPage.serviceDescriptionPlaceholder')"
+            :rows="3"
+            :maxlength="200"
+            show-count
             size="middle"
-            class="w-full"
           />
-        </div>
-      </div>
+        </FormItem>
+      </Form>
 
-      <!-- 服务描述 -->
-      <div class="rounded-lg border border-gray-150 bg-gray-50/60 p-3 mb-4">
-        <div class="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-          {{ $t('page.quartz.systemConfigPage.serviceDescription') }}
-        </div>
-        <Input.TextArea
-          v-model:value="serviceDescription"
-          :placeholder="$t('page.quartz.systemConfigPage.serviceDescriptionPlaceholder')"
-          :rows="3"
-          :maxlength="200"
-          show-count
-          size="middle"
-        />
-      </div>
-
-      <!-- 操作按钮 -->
-      <div class="flex gap-2">
+      <div class="flex gap-2 pt-2">
         <Button type="primary" :loading="saveLoading" @click="handleSave">
           {{ $t('page.quartz.systemConfigPage.save') }}
         </Button>
@@ -308,175 +298,193 @@ loadMigrationStatus();
     </Card>
 
     <!-- 数据迁移 -->
-    <Card :title="$t('page.quartz.systemConfigPage.migrationSection')">
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-        <div class="rounded-lg border border-gray-150 bg-gray-50/60 p-3">
-          <div class="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
-            {{ $t('page.quartz.systemConfigPage.migrationFileStoragePath') }}
-          </div>
-          <div class="flex items-center gap-2">
-            <code class="text-sm text-foreground break-all">{{ migrationStatus?.fileStoragePath || '-' }}</code>
-            <Tag
-              v-if="migrationStatus"
-              :color="migrationStatus.fileStoragePathExists ? 'success' : 'error'"
-              class="shrink-0"
-            >
-              {{
-                migrationStatus.fileStoragePathExists
-                  ? $t('page.quartz.systemConfigPage.migrationFileStorageExists')
-                  : $t('page.quartz.systemConfigPage.migrationFileStorageNotExists')
-              }}
-            </Tag>
-          </div>
-        </div>
-        <div class="rounded-lg border border-gray-150 bg-gray-50/60 p-3">
-          <div class="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
-            {{ $t('page.quartz.systemConfigPage.migrationStorageType') }}
-          </div>
-          <div class="flex items-center gap-2">
-            <Tag color="blue" class="text-sm">{{ migrationStatus?.storageType || '-' }}</Tag>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="migrationStatus && !migrationStatus.fileStoragePathExists" class="mb-4">
-        <Alert :message="$t('page.quartz.systemConfigPage.migrationPathNotExist')" type="warning" show-icon />
-      </div>
-      <div v-if="migrationStatus && migrationStatus.storageType !== 'Database'" class="mb-4">
-        <Alert :message="$t('page.quartz.systemConfigPage.migrationNotDatabase')" type="warning" show-icon />
-      </div>
-
-      <div class="mb-4">
-        <div class="flex items-center justify-between mb-2">
-          <Tag :color="overallStatusColor" class="text-sm">
-            {{ overallStatusText }}
-          </Tag>
-          <span
-            v-if="migrationStatus?.isCompleted && migrationStatus?.durationMs !== undefined && migrationStatus?.durationMs !== null"
-            class="text-xs text-muted-foreground"
-          >
-            {{ formatDuration(migrationStatus.durationMs) }}
-          </span>
-        </div>
-        <Progress
-          :percent="migrationStatus?.progressPercent ?? 0"
-          :status="progressStatus"
-          :stroke-width="10"
-          :format="(percent?: number) => `${percent ?? 0}%`"
-        />
-      </div>
-
-      <div v-if="migrationStatus?.currentStep && migrationStatus?.isRunning" class="mb-4">
-        <Alert
-          :message="`${$t('page.quartz.systemConfigPage.migrationCurrentStep')}: ${migrationStatus.currentStep}`"
-          type="info"
-          show-icon
-        />
-      </div>
-
-      <div v-if="migrationStatus?.isCompleted && !migrationStatus?.isSuccess && migrationStatus?.errorMessage" class="mb-4">
-        <Alert :message="migrationStatus.errorMessage" type="error" show-icon />
-      </div>
-
-      <div class="mb-4">
+    <Card>
+      <template #title>
         <div
-          class="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors"
-          @click="showDetail = !showDetail"
+          class="flex items-center gap-2 cursor-pointer select-none"
+          @click="migrationCollapsed = !migrationCollapsed"
         >
           <span
-            class="text-xs transition-transform duration-200"
-            :style="{ display: 'inline-block', transform: showDetail ? 'rotate(0deg)' : 'rotate(-90deg)' }"
+            class="text-xs transition-transform duration-200 inline-block"
+            :style="{ transform: migrationCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }"
           >▼</span>
-          {{ $t('page.quartz.systemConfigPage.migrationSummary') }}
+          <span>{{ $t('page.quartz.systemConfigPage.migrationSection') }}</span>
+          <Tag :color="overallStatusColor" size="small" class="ml-1">{{ overallStatusText }}</Tag>
         </div>
+      </template>
 
-        <Transition name="slide">
-          <div v-if="showDetail" class="mt-3 pl-1">
-            <div v-if="!migrationStatus?.steps?.length" class="text-muted-foreground text-sm py-2">
-              {{ $t('page.quartz.systemConfigPage.migrationNoSteps') }}
+      <Transition name="slide">
+        <div v-if="!migrationCollapsed">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <div class="rounded-lg border border-gray-150 bg-gray-50/60 p-3">
+              <div class="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
+                {{ $t('page.quartz.systemConfigPage.migrationFileStoragePath') }}
+              </div>
+              <div class="flex items-center gap-2">
+                <code class="text-sm text-foreground break-all">{{ migrationStatus?.fileStoragePath || '-' }}</code>
+                <Tag
+                  v-if="migrationStatus"
+                  :color="migrationStatus.fileStoragePathExists ? 'success' : 'error'"
+                  class="shrink-0"
+                >
+                  {{
+                    migrationStatus.fileStoragePathExists
+                      ? $t('page.quartz.systemConfigPage.migrationFileStorageExists')
+                      : $t('page.quartz.systemConfigPage.migrationFileStorageNotExists')
+                  }}
+                </Tag>
+              </div>
+            </div>
+            <div class="rounded-lg border border-gray-150 bg-gray-50/60 p-3">
+              <div class="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
+                {{ $t('page.quartz.systemConfigPage.migrationStorageType') }}
+              </div>
+              <div class="flex items-center gap-2">
+                <Tag color="blue" class="text-sm">{{ migrationStatus?.storageType || '-' }}</Tag>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="migrationStatus && !migrationStatus.fileStoragePathExists" class="mb-4">
+            <Alert :message="$t('page.quartz.systemConfigPage.migrationPathNotExist')" type="warning" show-icon />
+          </div>
+          <div v-if="migrationStatus && migrationStatus.storageType !== 'Database'" class="mb-4">
+            <Alert :message="$t('page.quartz.systemConfigPage.migrationNotDatabase')" type="warning" show-icon />
+          </div>
+
+          <div class="mb-4">
+            <div class="flex items-center justify-between mb-2">
+              <Tag :color="overallStatusColor" class="text-sm">
+                {{ overallStatusText }}
+              </Tag>
+              <span
+                v-if="migrationStatus?.isCompleted && migrationStatus?.durationMs !== undefined && migrationStatus?.durationMs !== null"
+                class="text-xs text-muted-foreground"
+              >
+                {{ formatDuration(migrationStatus.durationMs) }}
+              </span>
+            </div>
+            <Progress
+              :percent="migrationStatus?.progressPercent ?? 0"
+              :status="progressStatus"
+              :stroke-width="10"
+              :format="(percent?: number) => `${percent ?? 0}%`"
+            />
+          </div>
+
+          <div v-if="migrationStatus?.currentStep && migrationStatus?.isRunning" class="mb-4">
+            <Alert
+              :message="`${$t('page.quartz.systemConfigPage.migrationCurrentStep')}: ${migrationStatus.currentStep}`"
+              type="info"
+              show-icon
+            />
+          </div>
+
+          <div v-if="migrationStatus?.isCompleted && !migrationStatus?.isSuccess && migrationStatus?.errorMessage" class="mb-4">
+            <Alert :message="migrationStatus.errorMessage" type="error" show-icon />
+          </div>
+
+          <div class="mb-4">
+            <div
+              class="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors"
+              @click="showDetail = !showDetail"
+            >
+              <span
+                class="text-xs transition-transform duration-200"
+                :style="{ display: 'inline-block', transform: showDetail ? 'rotate(0deg)' : 'rotate(-90deg)' }"
+              >▼</span>
+              {{ $t('page.quartz.systemConfigPage.migrationSummary') }}
             </div>
 
-            <div class="relative">
-              <div
-                v-for="(step, idx) in migrationStatus?.steps"
-                :key="step.key"
-                class="relative pb-4 last:pb-0"
-              >
-                <div
-                  v-if="idx < (migrationStatus?.steps?.length ?? 0) - 1"
-                  class="absolute left-[7px] top-[22px] bottom-0 w-px border-l-2"
-                  :class="getStepLineColor(step.status)"
-                />
-                <div class="flex items-start gap-3">
+            <Transition name="slide">
+              <div v-if="showDetail" class="mt-3 pl-1">
+                <div v-if="!migrationStatus?.steps?.length" class="text-muted-foreground text-sm py-2">
+                  {{ $t('page.quartz.systemConfigPage.migrationNoSteps') }}
+                </div>
+
+                <div class="relative">
                   <div
-                    class="w-[15px] h-[15px] rounded-full mt-0.5 shrink-0"
-                    :class="getStepDotColor(step.status)"
-                  />
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 flex-wrap">
-                      <span class="font-medium text-sm">{{ step.name }}</span>
-                      <Tag :color="stepTagColorMap[step.status] || 'default'" size="small">
-                        {{ $t(`page.quartz.systemConfigPage.${stepStatusKeyMap[step.status]}`) }}
-                      </Tag>
-                    </div>
-                    <div v-if="step.status !== MigrationStepStatus.Pending" class="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                      <span>
-                        {{ $t('page.quartz.systemConfigPage.migrationMigrated') }}
-                        <span class="text-emerald-600 font-semibold">{{ step.migratedCount }}</span>
-                        / {{ step.totalCount }}
-                      </span>
-                      <span v-if="step.skippedCount > 0" class="text-amber-600">
-                        {{ $t('page.quartz.systemConfigPage.migrationSkipped') }} {{ step.skippedCount }}
-                      </span>
-                    </div>
-                    <div v-if="step.status === MigrationStepStatus.Failed && step.errorMessage" class="mt-1 text-xs text-red-500">
-                      {{ step.errorMessage }}
+                    v-for="(step, idx) in migrationStatus?.steps"
+                    :key="step.key"
+                    class="relative pb-4 last:pb-0"
+                  >
+                    <div
+                      v-if="idx < (migrationStatus?.steps?.length ?? 0) - 1"
+                      class="absolute left-[7px] top-[22px] bottom-0 w-px border-l-2"
+                      :class="getStepLineColor(step.status)"
+                    />
+                    <div class="flex items-start gap-3">
+                      <div
+                        class="w-[15px] h-[15px] rounded-full mt-0.5 shrink-0"
+                        :class="getStepDotColor(step.status)"
+                      />
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <span class="font-medium text-sm">{{ step.name }}</span>
+                          <Tag :color="stepTagColorMap[step.status] || 'default'" size="small">
+                            {{ $t(`page.quartz.systemConfigPage.${stepStatusKeyMap[step.status]}`) }}
+                          </Tag>
+                        </div>
+                        <div v-if="step.status !== MigrationStepStatus.Pending" class="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                          <span>
+                            {{ $t('page.quartz.systemConfigPage.migrationMigrated') }}
+                            <span class="text-emerald-600 font-semibold">{{ step.migratedCount }}</span>
+                            / {{ step.totalCount }}
+                          </span>
+                          <span v-if="step.skippedCount > 0" class="text-amber-600">
+                            {{ $t('page.quartz.systemConfigPage.migrationSkipped') }} {{ step.skippedCount }}
+                          </span>
+                        </div>
+                        <div v-if="step.status === MigrationStepStatus.Failed && step.errorMessage" class="mt-1 text-xs text-red-500">
+                          {{ step.errorMessage }}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
+
+                <div
+                  v-if="migrationStatus?.isCompleted"
+                  class="mt-3 pt-3 border-t border-dashed border-gray-200 flex items-center gap-4 text-xs text-muted-foreground flex-wrap"
+                >
+                  <span v-if="migrationStatus.startTime">
+                    {{ $t('page.quartz.systemConfigPage.migrationStartTime') }} {{ new Date(migrationStatus.startTime).toLocaleString() }}
+                  </span>
+                  <span v-if="migrationStatus.endTime">
+                    {{ $t('page.quartz.systemConfigPage.migrationEndTime') }} {{ new Date(migrationStatus.endTime).toLocaleString() }}
+                  </span>
+                  <span v-if="migrationStatus.durationMs !== undefined && migrationStatus.durationMs !== null">
+                    {{ $t('page.quartz.systemConfigPage.migrationDuration') }} {{ formatDuration(migrationStatus.durationMs) }}
+                  </span>
+                </div>
               </div>
-            </div>
-
-            <div
-              v-if="migrationStatus?.isCompleted"
-              class="mt-3 pt-3 border-t border-dashed border-gray-200 flex items-center gap-4 text-xs text-muted-foreground flex-wrap"
-            >
-              <span v-if="migrationStatus.startTime">
-                {{ $t('page.quartz.systemConfigPage.migrationStartTime') }} {{ new Date(migrationStatus.startTime).toLocaleString() }}
-              </span>
-              <span v-if="migrationStatus.endTime">
-                {{ $t('page.quartz.systemConfigPage.migrationEndTime') }} {{ new Date(migrationStatus.endTime).toLocaleString() }}
-              </span>
-              <span v-if="migrationStatus.durationMs !== undefined && migrationStatus.durationMs !== null">
-                {{ $t('page.quartz.systemConfigPage.migrationDuration') }} {{ formatDuration(migrationStatus.durationMs) }}
-              </span>
-            </div>
+            </Transition>
           </div>
-        </Transition>
-      </div>
 
-      <div class="flex gap-2">
-        <Button
-          type="primary"
-          :loading="migrationLoading || migrationStatus?.isRunning"
-          :disabled="!canTrigger || !migrationStatus?.fileStoragePathExists || migrationStatus?.storageType !== 'Database'"
-          @click="handleTriggerMigration(false)"
-        >
-          {{ migrationStatus?.isRunning ? $t('page.quartz.systemConfigPage.migrationTriggering') : $t('page.quartz.systemConfigPage.migrationTrigger') }}
-        </Button>
-        <Tooltip
-          v-if="migrationStatus?.isCompleted && migrationStatus?.isSuccess"
-          :title="$t('page.quartz.systemConfigPage.migrationTriggerForce')"
-        >
-          <Button
-            :loading="migrationLoading"
-            :disabled="migrationStatus?.isRunning"
-            @click="handleTriggerMigration(true)"
-          >
-            {{ $t('page.quartz.systemConfigPage.migrationTriggerForce') }}
-          </Button>
-        </Tooltip>
-      </div>
+          <div class="flex gap-2">
+            <Button
+              type="primary"
+              :loading="migrationLoading || migrationStatus?.isRunning"
+              :disabled="!canTrigger || !migrationStatus?.fileStoragePathExists || migrationStatus?.storageType !== 'Database'"
+              @click="handleTriggerMigration(false)"
+            >
+              {{ migrationStatus?.isRunning ? $t('page.quartz.systemConfigPage.migrationTriggering') : $t('page.quartz.systemConfigPage.migrationTrigger') }}
+            </Button>
+            <Tooltip
+              v-if="migrationStatus?.isCompleted && migrationStatus?.isSuccess"
+              :title="$t('page.quartz.systemConfigPage.migrationTriggerForce')"
+            >
+              <Button
+                :loading="migrationLoading"
+                :disabled="migrationStatus?.isRunning"
+                @click="handleTriggerMigration(true)"
+              >
+                {{ $t('page.quartz.systemConfigPage.migrationTriggerForce') }}
+              </Button>
+            </Tooltip>
+          </div>
+        </div>
+      </Transition>
     </Card>
   </Page>
 </template>
