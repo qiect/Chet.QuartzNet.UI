@@ -571,137 +571,126 @@ onMounted(async () => {
       </Grid>
 
       <!-- 配置对话框 -->
-      <Modal v-model:open="configModalVisible" :title="$t('page.quartz.notificationPage.notificationConfig')" width="720px" destroyOnClose
+      <Modal v-model:open="configModalVisible" :title="$t('page.quartz.notificationPage.notificationConfig')" width="800px"
+        :body-style="{ padding: '24px' }" destroyOnClose
         @cancel="configModalVisible = false" centered wrapClassName="quartz-notification-config-modal">
-        <div class="config-modal-content">
-          <Alert :message="$t('page.quartz.notificationPage.configPushPlusDesc')" type="info" show-icon class="config-tip-alert" />
+        <Alert :message="$t('page.quartz.notificationPage.configPushPlusDesc')" type="info" show-icon class="config-tip-alert" />
 
-          <Form ref="formRef" :model="configForm" layout="vertical" class="custom-form" size="small">
-            <!-- 基础配置 -->
-            <section class="form-section">
-              <div class="section-header">
-                <span class="title">{{ $t('page.quartz.notificationPage.basicConfig') }}</span>
-                <div class="header-action">
-                  <span class="label">{{ $t('page.quartz.notificationPage.serviceEnableStatus') }}</span>
-                  <Switch v-model:checked="configForm.enable" size="small" />
-                </div>
+        <Form ref="formRef" :model="configForm" layout="vertical" class="config-form">
+          <!-- 基础配置 -->
+          <div class="form-section-title">
+            <span>{{ $t('page.quartz.notificationPage.basicConfig') }}</span>
+            <span class="section-title-action">
+              <span class="enable-label">{{ $t('page.quartz.notificationPage.serviceEnableStatus') }}</span>
+              <Switch v-model:checked="configForm.enable" size="small" />
+            </span>
+          </div>
+          <Row :gutter="16">
+            <Col :xs="24" :md="16">
+              <Form.Item label="PushPlus Token" name="token"
+                :rules="[{ required: configForm.enable, message: $t('page.quartz.notificationPage.tokenRequired') }]">
+                <Input.Password v-model:value="configForm.token" :placeholder="$t('page.quartz.notificationPage.tokenPlaceholder')" autocomplete="off" />
+              </Form.Item>
+            </Col>
+            <Col :xs="24" :md="8">
+              <Form.Item :label="$t('page.quartz.notificationPage.topicLabel')" name="topic">
+                <Input v-model:value="configForm.topic" :placeholder="$t('page.quartz.notificationPage.topicPlaceholder')" />
+              </Form.Item>
+            </Col>
+            <Col :xs="24" :md="8">
+              <Form.Item :label="$t('page.quartz.notificationPage.pushChannel')" name="channel">
+                <Select v-model:value="configForm.channel">
+                  <Select.Option value="wechat">{{ $t('page.quartz.notificationPage.channelWechat') }}</Select.Option>
+                  <Select.Option value="cp">{{ $t('page.quartz.notificationPage.channelWechatWork') }}</Select.Option>
+                  <Select.Option value="webhook">{{ $t('page.quartz.notificationPage.channelWebhook') }}</Select.Option>
+                  <Select.Option value="mail">{{ $t('page.quartz.notificationPage.channelEmail') }}</Select.Option>
+                  <Select.Option value="sms">{{ $t('page.quartz.notificationPage.channelSms') }}</Select.Option>
+                  <Select.Option value="voice">{{ $t('page.quartz.notificationPage.channelVoice') }}</Select.Option>
+                  <Select.Option value="extension">{{ $t('page.quartz.notificationPage.channelExtension') }}</Select.Option>
+                  <Select.Option value="app">{{ $t('page.quartz.notificationPage.channelApp') }}</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col :xs="24" :md="8">
+              <Form.Item :label="$t('page.quartz.notificationPage.messageTemplate')" name="template">
+                <Select v-model:value="configForm.template">
+                  <Select.Option value="html">{{ $t('page.quartz.notificationPage.templateHtml') }}</Select.Option>
+                  <Select.Option value="txt">{{ $t('page.quartz.notificationPage.templateTxt') }}</Select.Option>
+                  <Select.Option value="json">{{ $t('page.quartz.notificationPage.templateJson') }}</Select.Option>
+                  <Select.Option value="markdown">{{ $t('page.quartz.notificationPage.templateMarkdown') }}</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col v-if="['webhook', 'cp', 'mail'].includes(configForm.channel)" :xs="24" :md="8">
+              <Form.Item :label="$t('page.quartz.notificationPage.optionLabel')" name="option"
+                :rules="[{ required: ['webhook', 'cp'].includes(configForm.channel), message: $t('page.quartz.notificationPage.optionRequired') }]">
+                <Input v-model:value="configForm.option" :placeholder="optionPlaceholder" />
+              </Form.Item>
+            </Col>
+            <Col v-if="['wechat', 'cp'].includes(configForm.channel)" :xs="24" :md="8">
+              <Form.Item :label="$t('page.quartz.notificationPage.toLabel')" name="to">
+                <Input v-model:value="configForm.to" :placeholder="$t('page.quartz.notificationPage.toPlaceholder')" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Alert v-if="showChannelParams" :message="channelTipMessage" type="warning" show-icon class="channel-tip" />
+
+          <!-- 通知策略 -->
+          <div class="form-section-title">{{ $t('page.quartz.notificationPage.notificationStrategy') }}</div>
+          <div class="strategy-grid">
+            <div class="strategy-item">
+              <div class="strategy-info">
+                <div class="name">{{ $t('page.quartz.notificationPage.jobSuccess') }}</div>
+                <div class="desc">{{ $t('page.quartz.notificationPage.jobSuccessDesc') }}</div>
               </div>
-
-              <Row :gutter="12" align="middle">
-                <Col :span="16">
-                  <Form.Item label="PushPlus Token" name="token"
-                    :rules="[{ required: configForm.enable, message: $t('page.quartz.notificationPage.tokenRequired') }]">
-                    <Input.Password v-model:value="configForm.token" :placeholder="$t('page.quartz.notificationPage.tokenPlaceholder')" autocomplete="off" />
-                  </Form.Item>
-                </Col>
-                <Col :span="8">
-                  <Form.Item :label="$t('page.quartz.notificationPage.topicLabel')" name="topic">
-                    <Input v-model:value="configForm.topic" :placeholder="$t('page.quartz.notificationPage.topicPlaceholder')" />
-                  </Form.Item>
-                </Col>
-                <Col :span="8">
-                  <Form.Item :label="$t('page.quartz.notificationPage.pushChannel')" name="channel">
-                    <Select v-model:value="configForm.channel">
-                      <Select.Option value="wechat">{{ $t('page.quartz.notificationPage.channelWechat') }}</Select.Option>
-                      <Select.Option value="cp">{{ $t('page.quartz.notificationPage.channelWechatWork') }}</Select.Option>
-                      <Select.Option value="webhook">{{ $t('page.quartz.notificationPage.channelWebhook') }}</Select.Option>
-                      <Select.Option value="mail">{{ $t('page.quartz.notificationPage.channelEmail') }}</Select.Option>
-                      <Select.Option value="sms">{{ $t('page.quartz.notificationPage.channelSms') }}</Select.Option>
-                      <Select.Option value="voice">{{ $t('page.quartz.notificationPage.channelVoice') }}</Select.Option>
-                      <Select.Option value="extension">{{ $t('page.quartz.notificationPage.channelExtension') }}</Select.Option>
-                      <Select.Option value="app">{{ $t('page.quartz.notificationPage.channelApp') }}</Select.Option>
-                    </Select>
-                  </Form.Item>
-                </Col>
-                <Col :span="8">
-                  <Form.Item :label="$t('page.quartz.notificationPage.messageTemplate')" name="template">
-                    <Select v-model:value="configForm.template">
-                      <Select.Option value="html">{{ $t('page.quartz.notificationPage.templateHtml') }}</Select.Option>
-                      <Select.Option value="txt">{{ $t('page.quartz.notificationPage.templateTxt') }}</Select.Option>
-                      <Select.Option value="json">{{ $t('page.quartz.notificationPage.templateJson') }}</Select.Option>
-                      <Select.Option value="markdown">{{ $t('page.quartz.notificationPage.templateMarkdown') }}</Select.Option>
-                    </Select>
-                  </Form.Item>
-                </Col>
-                <Col v-if="['webhook', 'cp', 'mail'].includes(configForm.channel)" :span="8">
-                  <Form.Item :label="$t('page.quartz.notificationPage.optionLabel')" name="option"
-                    :rules="[{ required: ['webhook', 'cp'].includes(configForm.channel), message: $t('page.quartz.notificationPage.optionRequired') }]">
-                    <Input v-model:value="configForm.option" :placeholder="optionPlaceholder" />
-                  </Form.Item>
-                </Col>
-                <Col v-if="['wechat', 'cp'].includes(configForm.channel)" :span="8">
-                  <Form.Item :label="$t('page.quartz.notificationPage.toLabel')" name="to">
-                    <Input v-model:value="configForm.to" :placeholder="$t('page.quartz.notificationPage.toPlaceholder')" />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Alert v-if="showChannelParams" :message="channelTipMessage" type="warning" show-icon class="channel-tip" />
-            </section>
-
-            <!-- 通知策略 -->
-            <section class="form-section last">
-              <div class="section-header">
-                <span class="title">{{ $t('page.quartz.notificationPage.notificationStrategy') }}</span>
-              </div>
-
-              <div class="strategy-grid">
-                <div class="strategy-item">
-                  <div class="strategy-info">
-                    <div class="name">{{ $t('page.quartz.notificationPage.jobSuccess') }}</div>
-                    <div class="desc">{{ $t('page.quartz.notificationPage.jobSuccessDesc') }}</div>
-                  </div>
-                  <Switch v-model:checked="configForm.strategy.notifyOnJobSuccess" />
-                </div>
-
-                <div class="strategy-item">
-                  <div class="strategy-info">
-                    <div class="name">{{ $t('page.quartz.notificationPage.jobFailure') }}</div>
-                    <div class="desc">{{ $t('page.quartz.notificationPage.jobFailureDesc') }}</div>
-                  </div>
-                  <Switch v-model:checked="configForm.strategy.notifyOnJobFailure" />
-                </div>
-
-                <div class="strategy-item">
-                  <div class="strategy-info">
-                    <div class="name">{{ $t('page.quartz.notificationPage.schedulerError') }}</div>
-                    <div class="desc">{{ $t('page.quartz.notificationPage.schedulerErrorDesc') }}</div>
-                  </div>
-                  <Switch v-model:checked="configForm.strategy.notifyOnSchedulerError" />
-                </div>
-              </div>
-            </section>
-
-            <!-- 高级配置 -->
-            <div class="advanced-section">
-              <div class="section-header" @click="advancedVisible = !advancedVisible">
-                <span class="title">{{ $t('page.quartz.notificationPage.advancedConfig') }}</span>
-                <span class="toggle-icon" :class="{ expanded: advancedVisible }">›</span>
-              </div>
-              <div v-show="advancedVisible" class="advanced-body">
-                <Row :gutter="12">
-                  <Col :span="16">
-                    <Form.Item :label="$t('page.quartz.notificationPage.callbackUrlLabel')" name="callbackUrl">
-                      <Input v-model:value="configForm.callbackUrl" :placeholder="$t('page.quartz.notificationPage.callbackUrlPlaceholder')" />
-                    </Form.Item>
-                  </Col>
-                  <Col :span="8">
-                    <Form.Item :label="$t('page.quartz.notificationPage.timestampLabel')" name="timestamp">
-                      <InputNumber v-model:value="configForm.timestamp" :placeholder="$t('page.quartz.notificationPage.timestampPlaceholder')"
-                        :precision="0" :min="0" style="width: 100%" />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </div>
+              <Switch v-model:checked="configForm.strategy.notifyOnJobSuccess" />
             </div>
-          </Form>
-        </div>
+
+            <div class="strategy-item">
+              <div class="strategy-info">
+                <div class="name">{{ $t('page.quartz.notificationPage.jobFailure') }}</div>
+                <div class="desc">{{ $t('page.quartz.notificationPage.jobFailureDesc') }}</div>
+              </div>
+              <Switch v-model:checked="configForm.strategy.notifyOnJobFailure" />
+            </div>
+
+            <div class="strategy-item">
+              <div class="strategy-info">
+                <div class="name">{{ $t('page.quartz.notificationPage.schedulerError') }}</div>
+                <div class="desc">{{ $t('page.quartz.notificationPage.schedulerErrorDesc') }}</div>
+              </div>
+              <Switch v-model:checked="configForm.strategy.notifyOnSchedulerError" />
+            </div>
+          </div>
+
+          <!-- 高级配置 -->
+          <div class="form-section-title advanced-toggle" @click="advancedVisible = !advancedVisible">
+            {{ $t('page.quartz.notificationPage.advancedConfig') }}
+            <span class="toggle-icon" :class="{ expanded: advancedVisible }">›</span>
+          </div>
+          <div v-show="advancedVisible" class="advanced-body">
+            <Row :gutter="16">
+              <Col :xs="24" :md="16">
+                <Form.Item :label="$t('page.quartz.notificationPage.callbackUrlLabel')" name="callbackUrl">
+                  <Input v-model:value="configForm.callbackUrl" :placeholder="$t('page.quartz.notificationPage.callbackUrlPlaceholder')" />
+                </Form.Item>
+              </Col>
+              <Col :xs="24" :md="8">
+                <Form.Item :label="$t('page.quartz.notificationPage.timestampLabel')" name="timestamp">
+                  <InputNumber v-model:value="configForm.timestamp" :placeholder="$t('page.quartz.notificationPage.timestampPlaceholder')"
+                    :precision="0" :min="0" style="width: 100%" />
+                </Form.Item>
+              </Col>
+            </Row>
+          </div>
+        </Form>
 
         <template #footer>
-          <div class="modal-footer">
+          <Space>
             <Button @click="configModalVisible = false">{{ $t('page.quartz.notificationPage.cancel') }}</Button>
             <Button type="primary" :loading="saveLoading" @click="handleSaveConfig">{{ $t('page.quartz.notificationPage.saveConfig') }}</Button>
-          </div>
+          </Space>
         </template>
       </Modal>
 
@@ -888,135 +877,108 @@ onMounted(async () => {
 </style>
 
 <style scoped lang="less">
-.config-modal-content {
-  margin-top: -8px;
-
+.config-form {
   :deep(.ant-form-item) {
-    margin-bottom: 12px;
+    margin-bottom: 16px;
   }
 
   :deep(.ant-form-item-label) {
-    padding-bottom: 2px;
+    padding-bottom: 4px;
   }
 
   :deep(.ant-form-item-label > label) {
     font-size: 13px;
   }
+}
 
-  .form-section {
-    margin-bottom: 20px;
+.form-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  margin: 4px 0 14px;
+  padding-left: 8px;
+  border-left: 3px solid hsl(var(--primary));
+  line-height: 1;
+}
 
-    .section-header {
-      display: flex;
-      align-items: center;
-      margin-bottom: 12px;
+.form-section-title:not(:first-child) {
+  margin-top: 8px;
+}
 
-      .title {
+.section-title-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+
+  .enable-label {
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+  }
+}
+
+.config-tip-alert {
+  margin-bottom: 16px;
+}
+
+.channel-tip {
+  border-radius: 6px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.advanced-toggle {
+  cursor: pointer;
+  user-select: none;
+  color: hsl(var(--muted-foreground));
+
+  .toggle-icon {
+    margin-left: 6px;
+    font-size: 14px;
+    color: hsl(var(--muted-foreground));
+    transition: transform 0.2s ease;
+    display: inline-block;
+    line-height: 1;
+
+    &.expanded {
+      transform: rotate(90deg);
+    }
+  }
+}
+
+.advanced-body {
+  padding-top: 4px;
+}
+
+.strategy-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+
+  .strategy-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: hsl(var(--accent) / 0.5);
+    border-radius: 6px;
+
+    .strategy-info {
+      .name {
         font-size: 13px;
-        font-weight: 600;
-        flex: 1;
+        font-weight: 500;
         color: hsl(var(--foreground));
       }
 
-      .header-action {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-
-        .label {
-          font-size: 12px;
-          color: hsl(var(--muted-foreground));
-        }
-      }
-    }
-
-    &.last {
-      margin-bottom: 0;
-    }
-  }
-
-  .channel-tip {
-    border-radius: 6px;
-    margin-top: 4px;
-  }
-
-  .config-tip-alert {
-    margin-bottom: 16px;
-  }
-
-  .advanced-section {
-    margin-top: 4px;
-
-    .section-header {
-      display: flex;
-      align-items: center;
-      padding: 6px 0;
-      cursor: pointer;
-      user-select: none;
-
-      .title {
-        font-size: 13px;
-        font-weight: 600;
+      .desc {
+        font-size: 12px;
         color: hsl(var(--muted-foreground));
-      }
-
-      .toggle-icon {
-        margin-left: 6px;
-        font-size: 14px;
-        color: hsl(var(--muted-foreground));
-        transition: transform 0.2s ease;
-        display: inline-block;
-        line-height: 1;
-
-        &.expanded {
-          transform: rotate(90deg);
-        }
-      }
-    }
-
-    .advanced-body {
-      padding-top: 4px;
-    }
-  }
-
-  .strategy-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-
-    .strategy-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 12px;
-      background: hsl(var(--accent) / 0.5);
-      border-radius: 6px;
-
-      .strategy-info {
-        .name {
-          font-size: 13px;
-          font-weight: 500;
-          color: hsl(var(--foreground));
-        }
-
-        .desc {
-          font-size: 11px;
-          color: hsl(var(--muted-foreground));
-          margin-top: 2px;
-        }
+        margin-top: 3px;
       }
     }
   }
-}
-
-.modal-footer {
-  padding: 10px 0;
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.mb-3 {
-  margin-bottom: 12px;
 }
 </style>

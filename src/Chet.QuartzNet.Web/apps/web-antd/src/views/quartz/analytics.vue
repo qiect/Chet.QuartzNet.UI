@@ -16,6 +16,7 @@ import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
 import { $t } from '#/locales';
 import { useI18n } from '@vben/locales';
+import { usePreferences } from '@vben/preferences';
 
 import {
   getAnalyticsOverview,
@@ -34,12 +35,16 @@ import { useSystemConfig } from '../../composables/use-system-config';
 
 const loading = ref(false);
 const { locale } = useI18n();
+const { isDark } = usePreferences();
 const trendChartRef = ref<EchartsUIType | null>(null);
 const healthChartRef = ref<EchartsUIType | null>(null);
 const heatmapChartRef = ref<EchartsUIType | null>(null);
 
 const { renderEcharts: renderTrend } = useEcharts(trendChartRef);
-const { renderEcharts: renderHealth } = useEcharts(healthChartRef);
+const {
+  renderEcharts: renderHealth,
+  getChartInstance: getHealthInstance,
+} = useEcharts(healthChartRef);
 const { renderEcharts: renderHeatmap } = useEcharts(heatmapChartRef);
 
 const overviewChartRef = ref<EchartsUIType | null>(null);
@@ -1012,6 +1017,33 @@ const topSlowColumns = computed(() => [
   },
 ]);
 
+/**
+ * 健康象限图：禁止气泡在 hover/选中状态下的 z2 层级提升。
+ *
+ * ECharts 进入 emphasis/select 状态时会临时将元素 z2 提升（+10/+9），
+ * 被 hover 的大气泡会跳到原本绘制在其上层的小气泡之上，再叠加 emphasis.scale
+ * 的放大效果，小气泡会被完全遮挡而无法命中选中。将提升量置 0 后，气泡层级
+ * 始终由数据顺序决定（小气泡在后、绘制在上层、优先命中）。
+ */
+const disableHealthBubbleZLift = (chart: any): number => {
+  const model = chart?.getModel?.();
+  if (!model) {
+    return 0;
+  }
+  let patched = 0;
+  model.getSeriesByType('scatter').forEach((seriesModel: any) => {
+    seriesModel.getData().eachItemGraphicEl((el: any) => {
+      const path = el?.getSymbolPath?.();
+      if (path) {
+        path.z2EmphasisLift = 0;
+        path.z2SelectLift = 0;
+        patched += 1;
+      }
+    });
+  });
+  return patched;
+};
+
 const fetchData = async () => {
   loading.value = true;
   const query: StatsQueryDto = {};
@@ -1035,7 +1067,7 @@ const fetchData = async () => {
     }
 
     renderTrend(getTrendOption(trendData.value));
-    renderHealth(getHealthOption(jobHealthData.value));
+    renderHealth(getHealthOption(jobHealthData.value)).then(disableHealthBubbleZLift);
     renderHeatmap(getHeatmapOption(heatmapData.value));
     renderOverview(getOverviewOption());
     renderActivity(getActivityOption());
@@ -1070,6 +1102,19 @@ onMounted(() => {
 
 watch(locale, () => {
   fetchData();
+});
+
+// 主题切换时 useEcharts 内部会重建图表实例并异步重渲染，需延时重新应用气泡层级补丁
+watch(isDark, () => {
+  let retries = 0;
+  const applyPatch = () => {
+    if (disableHealthBubbleZLift(getHealthInstance()) > 0 || retries >= 5) {
+      return;
+    }
+    retries += 1;
+    setTimeout(applyPatch, 120);
+  };
+  applyPatch();
 });
 </script>
 
