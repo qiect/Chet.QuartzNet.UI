@@ -154,6 +154,30 @@ const getTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
     d.totalCount > 0 ? Number(((d.successCount / d.totalCount) * 100).toFixed(1)) : 0,
   );
 
+  const detectTimeGranularity = (times: string[]): 'day' | 'hour' | 'minute' | 'unknown' => {
+    if (times.length === 0) return 'unknown';
+    const sample = times[0]!;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(sample)) return 'day';
+    if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/.test(sample) || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(sample)) {
+      if (times.length >= 2) {
+        const t1 = new Date(times[0]!).getTime();
+        const t2 = new Date(times[1]!).getTime();
+        const diffMs = Math.abs(t2 - t1);
+        if (diffMs <= 60 * 60 * 1000) return 'hour';
+        if (diffMs <= 24 * 60 * 60 * 1000) return 'day';
+      }
+      return 'hour';
+    }
+    return 'unknown';
+  };
+
+  const granularity = detectTimeGranularity(dates);
+  const periodLabel = granularity === 'day'
+    ? $t('page.quartz.analyticsPage.dayOverDay')
+    : granularity === 'hour'
+      ? $t('page.quartz.analyticsPage.hourOverHour')
+      : $t('page.quartz.analyticsPage.periodOverPeriod');
+
   const n = totalValues.length;
   const avgTotal = n > 0 ? Number((totalValues.reduce((a, b) => a + b, 0) / n).toFixed(1)) : 0;
 
@@ -222,7 +246,7 @@ const getTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
             const pct = (((curr - prev) / prev) * 100).toFixed(1);
             const arrow = Number(pct) >= 0 ? '↑' : '↓';
             const clr = Number(pct) >= 0 ? '#52c41a' : '#ff4d4f';
-            html += `<div style="font-size:11px;color:#8c8c8c;margin-top:4px;border-top:1px dashed #e8e8e8;padding-top:4px;">${$t('page.quartz.analyticsPage.dayOverDay')}: <span style="color:${clr};font-weight:500;">${arrow}${Math.abs(Number(pct))}%</span></div>`;
+            html += `<div style="font-size:11px;color:#8c8c8c;margin-top:4px;border-top:1px dashed #e8e8e8;padding-top:4px;">${periodLabel}: <span style="color:${clr};font-weight:500;">${arrow}${Math.abs(Number(pct))}%</span></div>`;
           }
         }
         return html;

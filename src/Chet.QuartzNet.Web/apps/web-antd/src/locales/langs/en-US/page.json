@@ -138,6 +138,8 @@
       "todayTag": "Now",
       "ma7": "7-Day MA",
       "dayOverDay": "Day-over-Day",
+      "hourOverHour": "Hour-over-Hour",
+      "periodOverPeriod": "Period-over-Period",
       "recent7Avg": "7-Day Avg",
       "weekOverWeek": "WoW",
       "anomalyCount": "Anomalies",

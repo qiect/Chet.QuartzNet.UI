@@ -138,6 +138,8 @@
       "todayTag": "此刻",
       "ma7": "7日均线",
       "dayOverDay": "日环比",
+      "hourOverHour": "小时环比",
+      "periodOverPeriod": "环比",
       "recent7Avg": "近7日日均",
       "weekOverWeek": "周环比",
       "anomalyCount": "异常日",
