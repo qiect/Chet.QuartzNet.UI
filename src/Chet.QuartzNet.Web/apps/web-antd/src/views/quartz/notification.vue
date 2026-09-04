@@ -696,7 +696,8 @@ onMounted(async () => {
 
       <!-- 详情对话框 -->
       <Modal v-model:open="detailModalVisible" :title="$t('page.quartz.notificationPage.notificationDetail')" width="800px"
-        :footer="null" :destroyOnClose="true" centered wrapClassName="quartz-notification-detail-modal">
+        :body-style="{ padding: '24px' }" :footer="null" :destroyOnClose="true" centered
+        wrapClassName="quartz-notification-detail-modal">
         <div v-if="currentNotification" class="notification-detail">
           <!-- 顶部：标题 + 状态标签 -->
           <div class="detail-header">
