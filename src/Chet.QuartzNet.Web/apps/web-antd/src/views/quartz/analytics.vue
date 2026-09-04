@@ -670,6 +670,10 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
 };
 
 const getHeatmapOption = (data: JobExecutionHeatmap[]): EChartsOption => {
+  const now = new Date();
+  const currentDayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
+  const currentHour = now.getHours();
+
   const days = [
     $t('page.quartz.analyticsPage.dayMon'),
     $t('page.quartz.analyticsPage.dayTue'),
@@ -683,7 +687,30 @@ const getHeatmapOption = (data: JobExecutionHeatmap[]): EChartsOption => {
 
   const maxCount = Math.max(...data.map((d) => d.count), 1);
 
-  const heatmapValues = data.map((d) => [d.hour, d.dayOfWeek - 1, d.count]);
+  const currentMomentBlueStops = ['#e6f7ff', '#bae7ff', '#91d5ff', '#69c0ff', '#40a9ff'];
+  const getCurrentMomentColor = (count: number): string => {
+    const ratio = Math.min(count / maxCount, 1);
+    const idx = Math.min(Math.floor(ratio * currentMomentBlueStops.length), currentMomentBlueStops.length - 1);
+    return currentMomentBlueStops[idx];
+  };
+
+  const heatmapValues = data.map((d) => {
+    const isCurrentMoment = d.dayOfWeek === currentDayOfWeek && d.hour === currentHour;
+    const base: any = { value: [d.hour, d.dayOfWeek - 1, d.count] };
+    if (isCurrentMoment) {
+      base.itemStyle = {
+        color: getCurrentMomentColor(d.count),
+        borderColor: '#ffffff',
+        borderWidth: 1.5,
+        borderType: 'dashed',
+      };
+    }
+    return base;
+  });
+
+  const yAxisData = days.map((name, i) =>
+    i === currentDayOfWeek - 1 ? `{today|●}${name}` : name,
+  );
 
   return {
     backgroundColor: 'transparent',
@@ -698,7 +725,11 @@ const getHeatmapOption = (data: JobExecutionHeatmap[]): EChartsOption => {
         );
         if (!d) return '';
         const dayName = days[params.value[1]];
-        return `<b style="color:#262626;">${dayName} ${params.value[0]}:00</b><br/>
+        const isCurrentMoment = params.value[1] + 1 === currentDayOfWeek && params.value[0] === currentHour;
+        const todayBadge = isCurrentMoment
+          ? ` <span style="display:inline-block;font-size:10px;color:#1890ff;background:#e6f7ff;padding:0 4px;border-radius:2px;margin-left:4px;">${$t('page.quartz.analyticsPage.todayTag')}</span>`
+          : '';
+        return `<b style="color:#262626;">${dayName} ${params.value[0]}:00${todayBadge}</b><br/>
           <span style="color:#8c8c8c;">${$t('page.quartz.analyticsPage.heatmapExec')}: <b style="color:#262626;">${d.count}</b> ${$t('page.quartz.analyticsPage.times')}</span><br/>
           <span style="color:#52c41a;">${$t('page.quartz.analyticsPage.success')}: <b>${d.successCount}</b></span> /
           <span style="color:#ff4d4f;">${$t('page.quartz.analyticsPage.failed')}: <b>${d.failedCount}</b></span>`;
@@ -715,9 +746,15 @@ const getHeatmapOption = (data: JobExecutionHeatmap[]): EChartsOption => {
     },
     yAxis: {
       type: 'category',
-      data: days,
+      data: yAxisData,
       splitArea: { show: true, areaStyle: { color: ['rgba(0,0,0,0.02)', 'transparent'] } },
-      axisLabel: { color: '#8c8c8c', fontSize: 11 },
+      axisLabel: {
+        color: '#8c8c8c',
+        fontSize: 11,
+        rich: {
+          today: { color: '#1890ff', fontSize: 10, padding: [0, 4, 0, 0] },
+        },
+      },
       axisTick: { show: false },
       axisLine: { show: false },
     },

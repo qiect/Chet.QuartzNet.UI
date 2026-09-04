@@ -135,6 +135,7 @@
       "daySat": "Sat",
       "daySun": "Sun",
       "heatmapExec": "Exec",
+      "todayTag": "Today",
       "ma7": "7-Day MA",
       "dayOverDay": "Day-over-Day",
       "recent7Avg": "7-Day Avg",
