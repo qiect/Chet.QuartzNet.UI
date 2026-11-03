@@ -38,6 +38,7 @@ const logStatusMap = {
   [LogStatusEnum.SUCCESS]: { text: () => $t('page.quartz.logPage.statusSuccess'), status: 'success' },
   [LogStatusEnum.ERROR]: { text: () => $t('page.quartz.logPage.statusError'), status: 'error' },
   [LogStatusEnum.RUNNING]: { text: () => $t('page.quartz.logPage.statusRunning'), status: 'processing' },
+  [LogStatusEnum.SKIPPED]: { text: () => $t('page.quartz.logPage.statusSkipped'), status: 'warning' },
 };
 
 // 响应式数据
@@ -93,6 +94,7 @@ const logStatusColor = computed(() => {
   const status = logDetail.value?.status;
   if (status === LogStatusEnum.SUCCESS) return '#52c41a';
   if (status === LogStatusEnum.ERROR) return '#ff4d4f';
+  if (status === LogStatusEnum.SKIPPED) return '#faad14';
   return '#1890ff';
 });
 
@@ -325,6 +327,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
             { label: $t('page.quartz.logPage.statusSuccess'), value: LogStatusEnum.SUCCESS },
             { label: $t('page.quartz.logPage.statusError'), value: LogStatusEnum.ERROR },
             { label: $t('page.quartz.logPage.statusRunning'), value: LogStatusEnum.RUNNING },
+            { label: $t('page.quartz.logPage.statusSkipped'), value: LogStatusEnum.SKIPPED },
           ],
         },
         fieldName: 'status',
@@ -390,6 +393,7 @@ watch(locale, () => {
           { label: $t('page.quartz.logPage.statusSuccess'), value: LogStatusEnum.SUCCESS },
           { label: $t('page.quartz.logPage.statusError'), value: LogStatusEnum.ERROR },
           { label: $t('page.quartz.logPage.statusRunning'), value: LogStatusEnum.RUNNING },
+          { label: $t('page.quartz.logPage.statusSkipped'), value: LogStatusEnum.SKIPPED },
         ],
       },
     },

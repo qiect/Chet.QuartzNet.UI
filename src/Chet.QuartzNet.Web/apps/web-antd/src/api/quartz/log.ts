@@ -21,6 +21,7 @@ export enum LogStatusEnum {
   RUNNING = 0,
   SUCCESS = 1,
   ERROR = 2,
+  SKIPPED = 3,
 }
 
 // 日志查询参数

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, computed, onUnmounted } from 'vue';
+import { ref, computed, onUnmounted, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { formatDateTime } from '@vben/utils';
@@ -7,10 +7,13 @@ import { formatDateTime } from '@vben/utils';
 import {
   Button,
   Card,
+  Checkbox,
   Form,
   FormItem,
   Input,
+  InputNumber,
   message,
+  Modal,
   Select,
   Tag,
   Tooltip,
@@ -22,12 +25,21 @@ import {
   getSystemConfig,
   saveSystemConfig,
   getMigrationStatus,
+  getMigrationOptions,
+  previewMigration,
   triggerMigration,
+  cancelMigration,
   MigrationStepStatus,
 } from '../../api/quartz/system-config';
 import type {
   DataMigrationStatusDto,
+  MigrationEntity,
+  MigrationOptionsDto,
+  MigrationPreviewDto,
   MigrationStepInfo,
+  MigrationStoreDescriptor,
+  MigrationStoreType,
+  MigrationWriteMode,
 } from '../../api/quartz/system-config';
 import { useSystemConfig } from '../../composables/use-system-config';
 
@@ -37,6 +49,11 @@ const saveLoading = ref(false);
 const serviceName = ref('');
 const environment = ref('DEV');
 const serviceDescription = ref('');
+
+// 日志自动清理配置
+const logRetentionDays = ref(30);
+const logMaxCount = ref(0);
+const logCleanupIntervalHours = ref(6);
 
 const environmentOptions = computed(() => [
   { label: $t('page.quartz.systemConfigPage.envDEV'), value: 'DEV' },
@@ -58,6 +75,9 @@ async function loadConfig() {
     serviceName.value = data?.serviceName || '';
     environment.value = data?.environment || 'DEV';
     serviceDescription.value = data?.serviceDescription || '';
+    logRetentionDays.value = data?.logRetentionDays ?? 30;
+    logMaxCount.value = data?.logMaxCount ?? 0;
+    logCleanupIntervalHours.value = data?.logCleanupIntervalHours ?? 6;
   } catch (error) {
     message.error($t('page.quartz.systemConfigPage.getConfigFailed'));
     console.error($t('page.quartz.systemConfigPage.getConfigFailed'), error);
@@ -77,6 +97,9 @@ async function handleSave() {
       serviceName: serviceName.value,
       environment: environment.value,
       serviceDescription: serviceDescription.value,
+      logRetentionDays: logRetentionDays.value ?? 30,
+      logMaxCount: logMaxCount.value ?? 0,
+      logCleanupIntervalHours: logCleanupIntervalHours.value ?? 6,
     });
     if (response.success) {
       message.success($t('page.quartz.systemConfigPage.saveSuccess'));
@@ -106,12 +129,28 @@ loadConfig();
 
 // ============ 数据迁移 ============
 
-type MigrationState = 'idle' | 'running' | 'success' | 'failed';
+type MigrationState = 'idle' | 'running' | 'success' | 'failed' | 'cancelled';
 
 const migrationStatus = ref<DataMigrationStatusDto | null>(null);
+const migrationOptions = ref<MigrationOptionsDto | null>(null);
+const migrationPreview = ref<MigrationPreviewDto | null>(null);
 const migrationLoading = ref(false);
+const previewLoading = ref(false);
 const migrationCollapsed = ref(true);
 let migrationPollTimer: ReturnType<typeof setInterval> | null = null;
+
+const migrationSource = ref('');
+const migrationTarget = ref('');
+const migrationMode = ref<MigrationWriteMode>('Merge');
+const migrationEntities = ref<MigrationEntity[]>([
+  'Jobs',
+  'Logs',
+  'Settings',
+  'Notifications',
+]);
+const migrationContinueOnError = ref(false);
+const migrationPauseScheduler = ref(false);
+const migrationAllowUpgradeSource = ref(false);
 
 // 整体状态 → 样式与文案映射
 const stateConfig: Record<
@@ -137,6 +176,11 @@ const stateConfig: Record<
     textKey: 'migrationFailed',
     dot: 'bg-red-500',
     pill: 'bg-red-500/10 text-red-600 dark:text-red-400',
+  },
+  cancelled: {
+    textKey: 'migrationCancelled',
+    dot: 'bg-amber-500',
+    pill: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
   },
 };
 
@@ -168,6 +212,7 @@ const overallState = computed<MigrationState>(() => {
   const s = migrationStatus.value;
   if (!s) return 'idle';
   if (s.isRunning) return 'running';
+  if (s.isCancelled) return 'cancelled';
   if (s.isCompleted && s.isSuccess) return 'success';
   if (s.isCompleted) return 'failed';
   return 'idle';
@@ -194,24 +239,200 @@ function stepName(step: MigrationStepInfo): string {
     : step.name;
 }
 
+interface StorageOption {
+  label: string;
+  value: string;
+  disabled?: boolean;
+}
+
+const storageOptions = computed<StorageOption[]>(() => {
+  const options = migrationOptions.value;
+  const result: StorageOption[] = [];
+
+  options?.fileSources.forEach((source) => {
+    result.push({
+      label: `${$t('page.quartz.systemConfigPage.migrationFileSourceLabel')} · ${source.name}`,
+      value: `file:${source.path}`,
+    });
+  });
+
+  if (
+    options?.currentStorageType === 'Database' &&
+    options.currentDatabaseProvider
+  ) {
+    result.push({
+      label: `${$t('page.quartz.systemConfigPage.migrationCurrentDatabase')} · ${options.currentDatabaseProvider}`,
+      value: 'current',
+    });
+  }
+
+  options?.profiles.forEach((profile) => {
+    result.push({
+      label: `${profile.name} · ${profile.provider}${profile.hasConnectionString ? '' : ` (${$t('page.quartz.systemConfigPage.migrationProfileNoConnection')})`}`,
+      value: `profile:${profile.name}`,
+      disabled: !profile.hasConnectionString,
+    });
+  });
+
+  return result;
+});
+
+const sourceStorageOptions = computed(() =>
+  storageOptions.value.filter((item) => item.value !== migrationTarget.value),
+);
+
+const targetStorageOptions = computed(() =>
+  storageOptions.value.filter((item) => item.value !== migrationSource.value),
+);
+
+const entityOptions = computed(() => [
+  { label: $t('page.quartz.systemConfigPage.migrationStepJobs'), value: 'Jobs' },
+  { label: $t('page.quartz.systemConfigPage.migrationStepLogs'), value: 'Logs' },
+  {
+    label: $t('page.quartz.systemConfigPage.migrationStepSettings'),
+    value: 'Settings',
+  },
+  {
+    label: $t('page.quartz.systemConfigPage.migrationStepNotifications'),
+    value: 'Notifications',
+  },
+]);
+
+const modeOptions = computed(() => [
+  {
+    label: $t('page.quartz.systemConfigPage.migrationModeMerge'),
+    value: 'Merge',
+  },
+  {
+    label: $t('page.quartz.systemConfigPage.migrationModeOverwrite'),
+    value: 'Overwrite',
+  },
+  {
+    label: $t('page.quartz.systemConfigPage.migrationModeReplace'),
+    value: 'Replace',
+    disabled: !migrationOptions.value?.allowReplace,
+  },
+]);
+
+const unavailableProviders = computed(() =>
+  (migrationOptions.value?.providers ?? [])
+    .filter((provider) => !provider.installed)
+    .map((provider) => provider.packageName),
+);
+
 const canTrigger = computed(() => {
-  const s = migrationStatus.value;
   return (
-    !!s && !s.isRunning && s.fileStoragePathExists && s.storageType === 'Database'
+    !!migrationSource.value &&
+    !!migrationTarget.value &&
+    migrationSource.value !== migrationTarget.value &&
+    migrationEntities.value.length > 0 &&
+    !migrationStatus.value?.isRunning
   );
 });
 
-const triggerDisabledReason = computed(() => {
-  const s = migrationStatus.value;
-  if (!s) return '';
-  if (!s.fileStoragePathExists) {
-    return $t('page.quartz.systemConfigPage.migrationPathNotExist');
+const isMigrationRunning = computed(() => !!migrationStatus.value?.isRunning);
+
+const migrationWarnings = computed(() => migrationStatus.value?.warnings ?? []);
+
+const migrationErrorSamples = computed(
+  () => migrationStatus.value?.errorSamples ?? [],
+);
+
+function normalizeProvider(provider: string): MigrationStoreType {
+  switch (provider.toLowerCase()) {
+    case 'mysql': {
+      return 'MySql';
+    }
+    case 'npgsql':
+    case 'postgres':
+    case 'postgresql': {
+      return 'PostgreSql';
+    }
+    case 'sqlite': {
+      return 'SQLite';
+    }
+    case 'mssql':
+    case 'sqlserver': {
+      return 'SqlServer';
+    }
+    default: {
+      return provider as MigrationStoreType;
+    }
   }
-  if (s.storageType !== 'Database') {
-    return $t('page.quartz.systemConfigPage.migrationNotDatabase');
+}
+
+function buildStore(value: string): MigrationStoreDescriptor | undefined {
+  if (!value) {
+    return undefined;
   }
-  return '';
-});
+
+  if (value.startsWith('file:')) {
+    return { type: 'File', filePath: value.slice(5) };
+  }
+
+  if (value === 'current') {
+    const provider = migrationOptions.value?.currentDatabaseProvider;
+    return provider
+      ? { type: normalizeProvider(provider), profileName: 'current' }
+      : undefined;
+  }
+
+  if (value.startsWith('profile:')) {
+    const name = value.slice(8);
+    const profile = migrationOptions.value?.profiles.find(
+      (item) => item.name === name,
+    );
+    return profile
+      ? { type: normalizeProvider(profile.provider), profileName: name }
+      : undefined;
+  }
+
+  return undefined;
+}
+
+function buildRequest(force = false) {
+  const source = buildStore(migrationSource.value);
+  const target = buildStore(migrationTarget.value);
+
+  return {
+    force,
+    mode: migrationMode.value,
+    entities: [...migrationEntities.value],
+    continueOnError: migrationContinueOnError.value,
+    pauseScheduler: migrationPauseScheduler.value,
+    allowUpgradeSourceSchema: migrationAllowUpgradeSource.value,
+    confirmReplace: migrationMode.value === 'Replace',
+    ...(source ? { source } : {}),
+    ...(target ? { target } : {}),
+  };
+}
+
+function handleEntitiesChange(values: unknown): void {
+  migrationEntities.value = (values as MigrationEntity[]) ?? [];
+}
+
+function validateSelection(): boolean {
+  if (!migrationSource.value || !migrationTarget.value) {
+    message.warning(
+      $t('page.quartz.systemConfigPage.migrationSelectRequired'),
+    );
+    return false;
+  }
+
+  if (migrationSource.value === migrationTarget.value) {
+    message.warning(
+      $t('page.quartz.systemConfigPage.migrationSourceTargetSame'),
+    );
+    return false;
+  }
+
+  if (!migrationEntities.value.length) {
+    message.warning($t('page.quartz.systemConfigPage.migrationNoEntities'));
+    return false;
+  }
+
+  return true;
+}
 
 function formatDuration(ms?: null | number): string {
   if (ms === undefined || ms === null) return '-';
@@ -249,19 +470,159 @@ async function loadMigrationStatus(initial = false) {
   }
 }
 
-async function handleTriggerMigration(force: boolean = false) {
+async function loadMigrationOptions() {
+  try {
+    const response = await getMigrationOptions();
+    if (!response.success || !response.data) {
+      return;
+    }
+
+    const options = response.data;
+    migrationOptions.value = options;
+
+    const defaultFileSource =
+      options.fileSources.find(
+        (source) =>
+          source.path === options.fileStoragePath &&
+          options.fileStoragePathExists,
+      ) ??
+      options.fileSources.find(
+        (source) => source.path !== options.fileStoragePath,
+      ) ??
+      options.fileSources[0];
+    const fileDefault = defaultFileSource?.path
+      ? `file:${defaultFileSource.path}`
+      : '';
+    const profileDefault = options.profiles.find(
+      (profile) => profile.hasConnectionString,
+    )
+      ? `profile:${
+          options.profiles.find((profile) => profile.hasConnectionString)!.name
+        }`
+      : '';
+    const currentDefault =
+      options.currentStorageType === 'Database' &&
+      options.currentDatabaseProvider
+        ? 'current'
+        : '';
+
+    if (!migrationSource.value) {
+      migrationSource.value = fileDefault || profileDefault || currentDefault;
+    }
+
+    if (!migrationTarget.value) {
+      migrationTarget.value = currentDefault || profileDefault || fileDefault;
+    }
+
+    if (migrationSource.value === migrationTarget.value) {
+      if (profileDefault && migrationSource.value !== profileDefault) {
+        migrationSource.value = profileDefault;
+      } else if (fileDefault && migrationSource.value !== fileDefault) {
+        migrationSource.value = fileDefault;
+      }
+    }
+  } catch {
+    message.error($t('page.quartz.systemConfigPage.migrationOptionsFailed'));
+  }
+}
+
+async function handlePreviewMigration() {
+  if (!validateSelection()) {
+    return;
+  }
+
+  previewLoading.value = true;
+  try {
+    const response = await previewMigration(buildRequest(false));
+    if (response.success && response.data) {
+      migrationPreview.value = response.data;
+      if (!response.data.canRun) {
+        message.error(
+          response.data.message ||
+            $t('page.quartz.systemConfigPage.migrationPreviewCannotRun'),
+        );
+      }
+    } else {
+      message.error(
+        response.message ||
+          $t('page.quartz.systemConfigPage.migrationPreviewFailed'),
+      );
+    }
+  } catch (error: any) {
+    message.error(
+      error.message ||
+        $t('page.quartz.systemConfigPage.migrationPreviewFailed'),
+    );
+  } finally {
+    previewLoading.value = false;
+  }
+}
+
+async function doTriggerMigration(force: boolean) {
   migrationLoading.value = true;
   try {
-    const response = await triggerMigration({ force });
+    const response = await triggerMigration(buildRequest(force));
     if (response.success) {
-      message.success($t('page.quartz.systemConfigPage.migrationTriggerSuccess'));
+      message.success(
+        $t('page.quartz.systemConfigPage.migrationTriggerSuccess'),
+      );
       migrationCollapsed.value = false;
       startPolling();
     } else {
-      message.error(response.message || $t('page.quartz.systemConfigPage.migrationTriggerFailed'));
+      message.error(
+        response.message ||
+          $t('page.quartz.systemConfigPage.migrationTriggerFailed'),
+      );
     }
   } catch (error: any) {
-    message.error(error.message || $t('page.quartz.systemConfigPage.migrationTriggerFailed'));
+    message.error(
+      error.message ||
+        $t('page.quartz.systemConfigPage.migrationTriggerFailed'),
+    );
+  } finally {
+    migrationLoading.value = false;
+  }
+}
+
+async function handleTriggerMigration(force: boolean = false) {
+  if (!validateSelection()) {
+    return;
+  }
+
+  if (migrationMode.value === 'Replace') {
+    Modal.confirm({
+      title: $t('page.quartz.systemConfigPage.migrationConfirmReplaceTitle'),
+      content: $t('page.quartz.systemConfigPage.migrationConfirmReplace'),
+      okText: $t('page.quartz.systemConfigPage.migrationConfirmOk'),
+      cancelText: $t('page.quartz.systemConfigPage.migrationConfirmCancel'),
+      onOk: () => doTriggerMigration(force),
+    });
+    return;
+  }
+
+  await doTriggerMigration(force);
+}
+
+async function handleCancelMigration() {
+  migrationLoading.value = true;
+  try {
+    const response = await cancelMigration();
+    if (response.success) {
+      message.success(
+        $t('page.quartz.systemConfigPage.migrationCancelSuccess'),
+      );
+      startPolling();
+    } else {
+      message.error(
+        response.message ||
+          $t('page.quartz.systemConfigPage.migrationCancelFailed'),
+      );
+    }
+  } catch (error: any) {
+    message.error(
+      error.message ||
+        $t('page.quartz.systemConfigPage.migrationCancelFailed'),
+    );
   } finally {
     migrationLoading.value = false;
   }
@@ -289,6 +650,15 @@ onUnmounted(() => {
   stopPolling();
 });
 
+watch(
+  [migrationSource, migrationTarget, migrationMode, migrationEntities],
+  () => {
+    migrationPreview.value = null;
+  },
+  { deep: true },
+);
+
+loadMigrationOptions();
 loadMigrationStatus(true);
 </script>
 
@@ -340,6 +710,50 @@ loadMigrationStatus(true);
             size="middle"
           />
         </FormItem>
+
+        <!-- 日志自动清理 -->
+        <div class="mt-2 border-t border-dashed border-border pt-4">
+          <div class="mb-3 flex flex-col">
+            <span class="text-sm font-medium">
+              {{ $t('page.quartz.systemConfigPage.logCleanupSection') }}
+            </span>
+            <span class="text-xs leading-4 text-muted-foreground">
+              {{ $t('page.quartz.systemConfigPage.logCleanupDescription') }}
+            </span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-6">
+            <FormItem :label="$t('page.quartz.systemConfigPage.logRetentionDays')">
+              <InputNumber
+                v-model:value="logRetentionDays"
+                :min="0"
+                :max="3650"
+                class="w-full"
+                size="middle"
+              />
+            </FormItem>
+            <FormItem :label="$t('page.quartz.systemConfigPage.logMaxCount')">
+              <InputNumber
+                v-model:value="logMaxCount"
+                :min="0"
+                :max="10000000"
+                class="w-full"
+                size="middle"
+              />
+            </FormItem>
+            <FormItem :label="$t('page.quartz.systemConfigPage.logCleanupInterval')">
+              <InputNumber
+                v-model:value="logCleanupIntervalHours"
+                :min="1"
+                :max="168"
+                class="w-full"
+                size="middle"
+              />
+            </FormItem>
+          </div>
+          <div class="text-xs leading-5 text-muted-foreground">
+            {{ $t('page.quartz.systemConfigPage.logCleanupHint') }}
+          </div>
+        </div>
       </Form>
 
       <div class="flex gap-2 pt-2">
@@ -397,72 +811,259 @@ loadMigrationStatus(true);
       <Transition name="expand">
         <div v-if="!migrationCollapsed" class="collapse-grid">
           <div class="collapse-inner">
-            <!-- 迁移前提 -->
-            <div class="space-y-2">
-              <div class="flex items-center gap-2 text-sm">
-                <svg
-                  class="h-4 w-4 shrink-0"
-                  :class="migrationStatus?.fileStoragePathExists ? 'text-emerald-500' : 'text-red-500'"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  viewBox="0 0 16 16"
-                >
-                  <circle cx="8" cy="8" r="6.2" />
-                  <path v-if="migrationStatus?.fileStoragePathExists" d="M5.4 8.3l1.8 1.8 3.4-3.6" />
-                  <path v-else d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4" />
-                </svg>
-                <span class="shrink-0 text-muted-foreground">
-                  {{ $t('page.quartz.systemConfigPage.migrationFileStoragePath') }}
-                </span>
-                <code class="min-w-0 flex-1 truncate font-mono text-[13px] text-foreground" :title="migrationStatus?.fileStoragePath">
-                  {{ migrationStatus?.fileStoragePath || '-' }}
-                </code>
+            <!-- 迁移配置 -->
+            <div class="space-y-3">
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <div class="mb-1 text-xs font-medium text-muted-foreground">
+                    {{ $t('page.quartz.systemConfigPage.migrationSource') }}
+                  </div>
+                  <Select
+                    v-model:value="migrationSource"
+                    :options="sourceStorageOptions"
+                    :disabled="isMigrationRunning"
+                    class="w-full"
+                    size="middle"
+                  />
+                </div>
+                <div>
+                  <div class="mb-1 text-xs font-medium text-muted-foreground">
+                    {{ $t('page.quartz.systemConfigPage.migrationTarget') }}
+                  </div>
+                  <Select
+                    v-model:value="migrationTarget"
+                    :options="targetStorageOptions"
+                    :disabled="isMigrationRunning"
+                    class="w-full"
+                    size="middle"
+                  />
+                </div>
               </div>
-              <div class="flex items-center gap-2 text-sm">
-                <svg
-                  class="h-4 w-4 shrink-0"
-                  :class="migrationStatus?.storageType === 'Database' ? 'text-emerald-500' : 'text-red-500'"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  viewBox="0 0 16 16"
+
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <div class="mb-1 text-xs font-medium text-muted-foreground">
+                    {{ $t('page.quartz.systemConfigPage.migrationMode') }}
+                  </div>
+                  <Select
+                    v-model:value="migrationMode"
+                    :options="modeOptions"
+                    :disabled="isMigrationRunning"
+                    class="w-full"
+                    size="middle"
+                  />
+                </div>
+                <div>
+                  <div class="mb-1 text-xs font-medium text-muted-foreground">
+                    {{ $t('page.quartz.systemConfigPage.migrationEntities') }}
+                  </div>
+                  <Checkbox.Group
+                    :value="migrationEntities"
+                    :options="entityOptions"
+                    :disabled="isMigrationRunning"
+                    @change="handleEntitiesChange"
+                  />
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]">
+                <Checkbox
+                  v-model:checked="migrationContinueOnError"
+                  :disabled="isMigrationRunning"
                 >
-                  <circle cx="8" cy="8" r="6.2" />
-                  <path v-if="migrationStatus?.storageType === 'Database'" d="M5.4 8.3l1.8 1.8 3.4-3.6" />
-                  <path v-else d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4" />
-                </svg>
-                <span class="shrink-0 text-muted-foreground">
-                  {{ $t('page.quartz.systemConfigPage.migrationStorageType') }}
-                </span>
-                <span class="font-mono text-[13px] text-foreground">
-                  {{ migrationStatus?.storageType || '-' }}
-                </span>
+                  {{ $t('page.quartz.systemConfigPage.migrationContinueOnError') }}
+                </Checkbox>
+                <Checkbox
+                  v-model:checked="migrationPauseScheduler"
+                  :disabled="isMigrationRunning"
+                >
+                  {{ $t('page.quartz.systemConfigPage.migrationPauseScheduler') }}
+                </Checkbox>
+                <Checkbox
+                  v-model:checked="migrationAllowUpgradeSource"
+                  :disabled="isMigrationRunning"
+                >
+                  {{ $t('page.quartz.systemConfigPage.migrationAllowUpgradeSource') }}
+                </Checkbox>
+              </div>
+
+              <div
+                v-if="unavailableProviders.length"
+                class="rounded-md bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-600 dark:text-amber-400"
+              >
+                {{ $t('page.quartz.systemConfigPage.migrationMissingProvider') }}:
+                {{ unavailableProviders.join('、') }}
+              </div>
+
+              <!-- 操作 -->
+              <div class="flex flex-wrap items-center gap-2">
+                <Button
+                  :loading="previewLoading"
+                  :disabled="!canTrigger || isMigrationRunning"
+                  @click="handlePreviewMigration"
+                >
+                  {{
+                    previewLoading
+                      ? $t('page.quartz.systemConfigPage.migrationPreviewing')
+                      : $t('page.quartz.systemConfigPage.migrationPreview')
+                  }}
+                </Button>
+                <Button
+                  type="primary"
+                  :loading="migrationLoading || isMigrationRunning"
+                  :disabled="!canTrigger"
+                  @click="handleTriggerMigration(false)"
+                >
+                  {{
+                    isMigrationRunning
+                      ? $t('page.quartz.systemConfigPage.migrationTriggering')
+                      : $t('page.quartz.systemConfigPage.migrationTrigger')
+                  }}
+                </Button>
+                <Button
+                  v-if="isMigrationRunning"
+                  danger
+                  :loading="migrationLoading"
+                  @click="handleCancelMigration"
+                >
+                  {{ $t('page.quartz.systemConfigPage.migrationCancel') }}
+                </Button>
+                <Tooltip
+                  v-if="migrationStatus?.isCompleted && migrationStatus?.isSuccess"
+                  :title="$t('page.quartz.systemConfigPage.migrationAlreadyCompleted')"
+                >
+                  <span>
+                    <Button
+                      :loading="migrationLoading"
+                      :disabled="isMigrationRunning"
+                      @click="handleTriggerMigration(true)"
+                    >
+                      {{ $t('page.quartz.systemConfigPage.migrationTriggerForce') }}
+                    </Button>
+                  </span>
+                </Tooltip>
               </div>
             </div>
 
-            <!-- 前提不满足时的提示 -->
+            <!-- 当前存储与本次迁移信息 -->
             <div
-              v-if="migrationStatus && !migrationStatus.fileStoragePathExists"
-              class="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-600 dark:text-amber-400"
+              v-if="migrationStatus"
+              class="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground"
             >
-              {{ $t('page.quartz.systemConfigPage.migrationPathNotExist') }}
+              <span>
+                {{ $t('page.quartz.systemConfigPage.migrationStorageType') }}:
+                <span class="font-mono text-foreground">{{ migrationStatus.storageType || '-' }}</span>
+              </span>
+              <span v-if="migrationStatus.sourceDisplay">
+                {{ $t('page.quartz.systemConfigPage.migrationSource') }}:
+                <span class="font-mono text-foreground">{{ migrationStatus.sourceDisplay }}</span>
+              </span>
+              <span v-if="migrationStatus.targetDisplay">
+                {{ $t('page.quartz.systemConfigPage.migrationTarget') }}:
+                <span class="font-mono text-foreground">{{ migrationStatus.targetDisplay }}</span>
+              </span>
+              <span v-if="migrationStatus.mode">
+                {{ $t('page.quartz.systemConfigPage.migrationMode') }}:
+                <span class="font-mono text-foreground">{{ migrationStatus.mode }}</span>
+              </span>
             </div>
+
+            <!-- 预检结果 -->
             <div
-              v-if="migrationStatus && migrationStatus.storageType !== 'Database'"
-              class="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-600 dark:text-amber-400"
+              v-if="migrationPreview"
+              class="mt-4 rounded-lg border border-border/60 p-3"
             >
-              {{ $t('page.quartz.systemConfigPage.migrationNotDatabase') }}
+              <div class="text-xs font-medium text-muted-foreground">
+                {{ $t('page.quartz.systemConfigPage.migrationPreviewSummary') }}
+              </div>
+              <div class="mt-2 space-y-1.5">
+                <div
+                  v-for="item in migrationPreview.entities"
+                  :key="item.entity"
+                  class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[13px]"
+                >
+                  <span class="font-medium">{{ item.name }}</span>
+                  <span class="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+                    <span>
+                      {{ $t('page.quartz.systemConfigPage.migrationPreviewSource') }}:
+                      <b class="text-foreground">{{ item.sourceCount }}</b>
+                    </span>
+                    <span>
+                      {{ $t('page.quartz.systemConfigPage.migrationPreviewTarget') }}:
+                      <b class="text-foreground">{{ item.targetCount }}</b>
+                    </span>
+                    <span class="text-emerald-600 dark:text-emerald-400">
+                      {{ $t('page.quartz.systemConfigPage.migrationPreviewInsert') }}: {{ item.willInsert }}
+                    </span>
+                    <span
+                      v-if="item.willUpdate > 0"
+                      class="text-blue-600 dark:text-blue-400"
+                    >
+                      {{ $t('page.quartz.systemConfigPage.migrationPreviewUpdate') }}: {{ item.willUpdate }}
+                    </span>
+                    <span
+                      v-if="item.willSkip > 0"
+                      class="text-amber-600 dark:text-amber-400"
+                    >
+                      {{ $t('page.quartz.systemConfigPage.migrationPreviewSkip') }}: {{ item.willSkip }}
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <div
+                v-if="migrationPreview.warnings.length"
+                class="mt-2 space-y-1"
+              >
+                <div
+                  v-for="(warning, index) in migrationPreview.warnings"
+                  :key="index"
+                  class="text-xs leading-5 text-amber-600 dark:text-amber-400"
+                >
+                  • {{ warning }}
+                </div>
+              </div>
+              <div
+                v-if="!migrationPreview.canRun && migrationPreview.message"
+                class="mt-2 break-all text-xs leading-5 text-red-600 dark:text-red-400"
+              >
+                {{ migrationPreview.message }}
+              </div>
             </div>
 
             <!-- 迁移步骤 -->
             <div class="mt-5">
-              <div class="text-xs font-medium text-muted-foreground">
-                {{ $t('page.quartz.systemConfigPage.migrationSummary') }}
+              <div class="flex items-center justify-between">
+                <div class="text-xs font-medium text-muted-foreground">
+                  {{ $t('page.quartz.systemConfigPage.migrationSummary') }}
+                </div>
+                <span
+                  v-if="migrationStatus && migrationStatus.total"
+                  class="text-xs tabular-nums text-muted-foreground"
+                >
+                  {{ migrationStatus.progressPercent }}% ·
+                  {{ migrationStatus.processed }}/{{ migrationStatus.total }}
+                </span>
+              </div>
+
+              <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  class="h-full rounded-full bg-blue-500 transition-all duration-300"
+                  :style="{ width: `${migrationStatus?.progressPercent ?? 0}%` }"
+                />
+              </div>
+
+              <div
+                v-if="migrationStatus?.isRunning && (migrationStatus.stage || migrationStatus.currentEntity)"
+                class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"
+              >
+                <span v-if="migrationStatus.stage">
+                  {{ $t('page.quartz.systemConfigPage.migrationStage') }}:
+                  <span class="font-mono text-foreground">{{ migrationStatus.stage }}</span>
+                </span>
+                <span v-if="migrationStatus.currentEntity">
+                  {{ $t('page.quartz.systemConfigPage.migrationCurrentEntity') }}:
+                  <span class="font-mono text-foreground">{{ migrationStatus.currentEntity }}</span>
+                </span>
               </div>
 
               <div v-if="!migrationSteps.length" class="mt-3 text-[13px] text-muted-foreground">
@@ -532,6 +1133,20 @@ loadMigrationStatus(true);
                           >
                             +{{ step.skippedCount }}
                           </span>
+                          <span
+                            v-if="step.updatedCount"
+                            class="text-blue-600 dark:text-blue-400"
+                          >
+                            {{ $t('page.quartz.systemConfigPage.migrationUpdatedCount') }}
+                            {{ step.updatedCount }}
+                          </span>
+                          <span
+                            v-if="step.failedCount"
+                            class="text-red-600 dark:text-red-400"
+                          >
+                            {{ $t('page.quartz.systemConfigPage.migrationFailedCount') }}
+                            {{ step.failedCount }}
+                          </span>
                         </span>
                       </span>
                     </div>
@@ -548,10 +1163,56 @@ loadMigrationStatus(true);
 
             <!-- 失败原因 -->
             <div
-              v-if="overallState === 'failed' && migrationStatus?.errorMessage"
+              v-if="(overallState === 'failed' || overallState === 'cancelled') && migrationStatus?.errorMessage"
               class="mt-3 break-all rounded-md bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-600 dark:text-red-400"
             >
               {{ migrationStatus.errorMessage }}
+            </div>
+
+            <!-- 告警 -->
+            <div v-if="migrationWarnings.length" class="mt-3 rounded-md bg-amber-500/10 px-3 py-2">
+              <div class="text-xs font-medium text-amber-600 dark:text-amber-400">
+                {{ $t('page.quartz.systemConfigPage.migrationWarnings') }}
+              </div>
+              <div
+                v-for="(warning, index) in migrationWarnings"
+                :key="index"
+                class="mt-1 break-all text-xs leading-5 text-amber-600 dark:text-amber-400"
+              >
+                • {{ warning }}
+              </div>
+            </div>
+
+            <!-- 错误样本 -->
+            <div
+              v-if="migrationErrorSamples.length"
+              class="mt-3 rounded-md bg-red-500/5 px-3 py-2"
+            >
+              <div class="text-xs font-medium text-red-600 dark:text-red-400">
+                {{ $t('page.quartz.systemConfigPage.migrationErrorSamples') }}
+              </div>
+              <div
+                v-for="(sample, index) in migrationErrorSamples"
+                :key="index"
+                class="mt-1 flex flex-wrap gap-x-2 text-xs leading-5 text-red-600 dark:text-red-400"
+              >
+                <span class="font-mono">
+                  {{ sample.entity }}<template v-if="sample.field">.{{ sample.field }}</template>
+                  · {{ sample.key }}
+                </span>
+                <span class="break-all">{{ sample.message }}</span>
+              </div>
+            </div>
+
+            <!-- 迁移后配置建议 -->
+            <div
+              v-if="overallState === 'success' && migrationStatus?.suggestedConfig"
+              class="mt-3 rounded-md border border-border/60 px-3 py-2"
+            >
+              <div class="text-xs font-medium text-muted-foreground">
+                {{ $t('page.quartz.systemConfigPage.migrationSuggestedConfig') }}
+              </div>
+              <pre class="mt-1 overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs leading-5 text-foreground">{{ migrationStatus.suggestedConfig }}</pre>
             </div>
 
             <!-- 完成信息 -->
@@ -571,43 +1232,6 @@ loadMigrationStatus(true);
                 {{ $t('page.quartz.systemConfigPage.migrationDuration') }}
                 {{ formatDuration(migrationStatus.durationMs) }}
               </span>
-            </div>
-
-            <!-- 操作 -->
-            <div class="mt-4 flex items-center gap-2">
-              <Tooltip v-if="!canTrigger && triggerDisabledReason" :title="triggerDisabledReason">
-                <span>
-                  <Button type="primary" disabled>
-                    {{ $t('page.quartz.systemConfigPage.migrationTrigger') }}
-                  </Button>
-                </span>
-              </Tooltip>
-              <Button
-                v-else
-                type="primary"
-                :loading="migrationLoading || migrationStatus?.isRunning"
-                :disabled="!canTrigger"
-                @click="handleTriggerMigration(false)"
-              >
-                {{
-                  migrationStatus?.isRunning
-                    ? $t('page.quartz.systemConfigPage.migrationTriggering')
-                    : $t('page.quartz.systemConfigPage.migrationTrigger')
-                }}
-              </Button>
-
-              <Tooltip
-                v-if="migrationStatus?.isCompleted && migrationStatus?.isSuccess"
-                :title="$t('page.quartz.systemConfigPage.migrationAlreadyCompleted')"
-              >
-                <Button
-                  :loading="migrationLoading"
-                  :disabled="migrationStatus?.isRunning"
-                  @click="handleTriggerMigration(true)"
-                >
-                  {{ $t('page.quartz.systemConfigPage.migrationTriggerForce') }}
-                </Button>
-              </Tooltip>
             </div>
           </div>
         </div>
