@@ -1,6 +1,12 @@
-name: Build and Publish NuGet Packages
+name: Build, Publish NuGet Packages and Deploy Website
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'website/**'
+      - '.github/workflows/build.yml'
   release:
     types:
       - created
@@ -11,8 +17,18 @@ on:
         required: true
         default: '1.0.0'
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
   build-and-publish:
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -137,3 +153,49 @@ jobs:
       # 6. NuGet 包发布
       - name: Publish NuGet packages (API Key)
         run: dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
+
+  # 7. 构建 VitePress 门户网站
+  build-website:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Install website dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Build website
+        working-directory: website
+        run: npm run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/.vitepress/dist
+
+  # 8. 发布到 GitHub Pages
+  deploy-website:
+    needs: build-website
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
