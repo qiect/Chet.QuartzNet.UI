@@ -17,6 +17,26 @@ namespace Chet.QuartzNet.Core.Services;
 public class FileJobStorage : IJobStorage
 {
     /// <summary>
+    /// 作业数据文件名
+    /// </summary>
+    public const string JobsFileName = "jobs.json";
+
+    /// <summary>
+    /// 日志数据文件名
+    /// </summary>
+    public const string LogsFileName = "logs.json";
+
+    /// <summary>
+    /// 设置数据文件名
+    /// </summary>
+    public const string SettingsFileName = "setting.json";
+
+    /// <summary>
+    /// 通知数据文件名
+    /// </summary>
+    public const string NotificationsFileName = "notification.json";
+
+    /// <summary>
     /// 配置选项
     /// </summary>
     private readonly QuartzUIOptions _options;
@@ -67,10 +87,10 @@ public class FileJobStorage : IJobStorage
         _logger = logger;
 
         // 构建文件路径
-        _jobsFilePath = Path.Combine(_options.FileStoragePath, "jobs.json");
-        _logsFilePath = Path.Combine(_options.FileStoragePath, "logs.json");
-        _settingsFilePath = Path.Combine(_options.FileStoragePath, "setting.json");
-        _notificationsFilePath = Path.Combine(_options.FileStoragePath, "notification.json");
+        _jobsFilePath = Path.Combine(_options.FileStoragePath, JobsFileName);
+        _logsFilePath = Path.Combine(_options.FileStoragePath, LogsFileName);
+        _settingsFilePath = Path.Combine(_options.FileStoragePath, SettingsFileName);
+        _notificationsFilePath = Path.Combine(_options.FileStoragePath, NotificationsFileName);
 
         // 确保存储目录存在
         Directory.CreateDirectory(_options.FileStoragePath);
@@ -585,6 +605,37 @@ public class FileJobStorage : IJobStorage
     }
 
     /// <summary>
+    /// 获取指定作业最近一次执行日志
+    /// </summary>
+    /// <param name="jobName">作业名称</param>
+    /// <param name="jobGroup">作业分组</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>最近一次日志，不存在返回null</returns>
+    public async Task<QuartzJobLog?> GetLatestJobLogAsync(
+        string jobName,
+        string jobGroup,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var logs = await LoadLogsAsync();
+            return logs
+                .Where(l =>
+                    l.JobName.Equals(jobName, StringComparison.OrdinalIgnoreCase)
+                    && l.JobGroup.Equals(jobGroup, StringComparison.OrdinalIgnoreCase)
+                )
+                .OrderByDescending(l => l.CreateTime)
+                .FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("获取作业最近一次日志", ex);
+            return null;
+        }
+    }
+
+    /// <summary>
     /// 清除指定天数之前的过期日志
     /// </summary>
     /// <param name="daysToKeep">保留天数</param>
@@ -622,6 +673,44 @@ public class FileJobStorage : IJobStorage
         catch (Exception ex)
         {
             _logger.LogFailure("清理过期作业日志", ex);
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 清除超出最大保留条数的日志（仅保留最新的 maxCount 条）
+    /// </summary>
+    /// <param name="maxCount">最大保留条数</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>清除的日志数量</returns>
+    public async Task<int> ClearOverflowLogsAsync(
+        int maxCount,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            if (maxCount <= 0)
+            {
+                return 0;
+            }
+
+            var logs = await LoadLogsAsync();
+            if (logs.Count <= maxCount)
+            {
+                return 0;
+            }
+
+            var overflowCount = logs.Count - maxCount;
+            var keptLogs = logs.OrderByDescending(l => l.CreateTime).Take(maxCount).ToList();
+            await SaveLogsAsync(keptLogs);
+
+            _logger.LogSuccess("清理超出保留条数的作业日志", $"共计: {overflowCount} 条");
+            return overflowCount;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("清理超出保留条数的作业日志", ex);
             return 0;
         }
     }

@@ -103,12 +103,33 @@ public interface IJobStorage
     );
 
     /// <summary>
+    /// 获取指定作业最近一次执行日志
+    /// </summary>
+    /// <param name="jobName">作业名称</param>
+    /// <param name="jobGroup">作业分组</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>最近一次日志，不存在返回null</returns>
+    Task<QuartzJobLog?> GetLatestJobLogAsync(
+        string jobName,
+        string jobGroup,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
     /// 清除过期日志
     /// </summary>
     /// <param name="daysToKeep">保留天数</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>清除的日志数量</returns>
     Task<int> ClearExpiredLogsAsync(int daysToKeep, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 清除超出最大保留条数的日志（仅保留最新的 maxCount 条）
+    /// </summary>
+    /// <param name="maxCount">最大保留条数，&lt;=0 时不处理</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>清除的日志数量</returns>
+    Task<int> ClearOverflowLogsAsync(int maxCount, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 清空作业日志

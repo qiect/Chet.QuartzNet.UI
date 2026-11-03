@@ -13,6 +13,11 @@ namespace Chet.QuartzNet.Core.Services
     /// </summary>
     public class QuartzJobListener : IJobListener
     {
+        /// <summary>
+        /// 跳过执行原因在作业数据中的键（用于避免重复记录日志）
+        /// </summary>
+        private const string SkipLogKey = "__DependencySkipReason";
+
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<QuartzJobListener> _logger;
 
@@ -49,6 +54,16 @@ namespace Chet.QuartzNet.Core.Services
         {
             try
             {
+                // 前置依赖未满足时已在 JobToBeExecuted 中记录跳过日志，此处不再重复记录
+                if (
+                    executionException != null
+                    && context.MergedJobDataMap != null
+                    && context.MergedJobDataMap.ContainsKey(SkipLogKey)
+                )
+                {
+                    return;
+                }
+
                 var jobLog = new QuartzJobLog
                 {
                     JobName = context.JobDetail.Key.Name,
@@ -235,6 +250,17 @@ namespace Chet.QuartzNet.Core.Services
                             $"作业 {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name} 已被暂停，执行被阻止"
                         );
                     }
+
+                    // 检查前置依赖：依赖作业最近一次执行成功才允许执行
+                    if (jobInfo != null)
+                    {
+                        await CheckDependenciesAsync(
+                            jobInfo,
+                            jobStorage,
+                            context,
+                            cancellationToken
+                        );
+                    }
                 }
                 else
                 {
@@ -260,6 +286,83 @@ namespace Chet.QuartzNet.Core.Services
                     $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}"
                 );
             }
+        }
+
+        /// <summary>
+        /// 检查前置依赖是否满足，未满足时记录跳过日志并阻止本次执行
+        /// </summary>
+        /// <param name="jobInfo">当前作业信息</param>
+        /// <param name="jobStorage">作业存储</param>
+        /// <param name="context">作业执行上下文</param>
+        /// <param name="cancellationToken">取消令牌</param>
+        private async Task CheckDependenciesAsync(
+            QuartzJobInfo jobInfo,
+            IJobStorage jobStorage,
+            IJobExecutionContext context,
+            CancellationToken cancellationToken
+        )
+        {
+            var dependencies = JobDependencyHelper.Deserialize(jobInfo.Dependencies);
+            if (dependencies.Count == 0)
+            {
+                return;
+            }
+
+            var unmetReasons = new List<string>();
+            foreach (var dependency in dependencies)
+            {
+                var latestLog = await jobStorage.GetLatestJobLogAsync(
+                    dependency.JobName,
+                    dependency.JobGroup,
+                    cancellationToken
+                );
+
+                if (latestLog == null)
+                {
+                    unmetReasons.Add($"{dependency.JobGroup}.{dependency.JobName} 尚未执行");
+                    continue;
+                }
+
+                if (latestLog.Status != LogStatus.Success)
+                {
+                    unmetReasons.Add(
+                        $"{dependency.JobGroup}.{dependency.JobName} 最近一次执行状态为 {latestLog.Status}"
+                    );
+                }
+            }
+
+            if (unmetReasons.Count == 0)
+            {
+                return;
+            }
+
+            var reason = $"前置依赖未满足，本次执行已跳过：{string.Join("；", unmetReasons)}";
+
+            // 标记跳过原因，JobWasExecuted 中据此避免重复记录失败日志
+            context.MergedJobDataMap[SkipLogKey] = reason;
+
+            await jobStorage.AddJobLogAsync(
+                new QuartzJobLog
+                {
+                    JobName = context.JobDetail.Key.Name,
+                    JobGroup = context.JobDetail.Key.Group,
+                    TriggerName = context.Trigger.Key.Name,
+                    TriggerGroup = context.Trigger.Key.Group,
+                    StartTime = context.FireTimeUtc.LocalDateTime,
+                    EndTime = DateTime.Now,
+                    Duration = 0,
+                    Status = LogStatus.Skipped,
+                    Message = reason,
+                },
+                cancellationToken
+            );
+
+            _logger.LogWarn(
+                "作业即将执行",
+                $"前置依赖未满足，跳过执行: {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}"
+            );
+
+            throw new JobExecutionException(reason);
         }
     }
 }

@@ -115,6 +115,94 @@ public class QuartzUIOptions
     /// 邮件通知配置
     /// </summary>
     public EmailOptions EmailOptions { get; set; } = new EmailOptions();
+
+    /// <summary>
+    /// 数据迁移配置
+    /// </summary>
+    public MigrationOptions Migration { get; set; } = new MigrationOptions();
+}
+
+/// <summary>
+/// 数据迁移配置
+/// </summary>
+public class MigrationOptions
+{
+    /// <summary>
+    /// 数据库迁移配置档（键为配置档名称）
+    /// </summary>
+    public Dictionary<string, MigrationProfile> Profiles { get; set; } = new();
+
+    /// <summary>
+    /// 可选的文件源
+    /// </summary>
+    public List<MigrationFileSource> FileSources { get; set; } = new();
+
+    /// <summary>
+    /// 批次大小，默认 500
+    /// </summary>
+    public int BatchSize { get; set; } = 500;
+
+    /// <summary>
+    /// 出错时是否继续后续批次，默认 false
+    /// </summary>
+    public bool ContinueOnError { get; set; } = false;
+
+    /// <summary>
+    /// 是否允许 Replace 模式，默认 false
+    /// </summary>
+    public bool AllowReplace { get; set; } = false;
+
+    /// <summary>
+    /// 是否允许前端直接提交连接字符串，默认 false
+    /// </summary>
+    public bool AllowAdHocConnectionString { get; set; } = false;
+
+    /// <summary>
+    /// 错误样本保留上限，默认 20
+    /// </summary>
+    public int MaxErrorSamples { get; set; } = 20;
+
+    /// <summary>
+    /// 迁移期间是否默认暂停调度器，默认 false
+    /// </summary>
+    public bool PauseSchedulerDuringMigration { get; set; } = false;
+}
+
+/// <summary>
+/// 数据库迁移配置档
+/// </summary>
+public class MigrationProfile
+{
+    /// <summary>
+    /// 数据库类型（MySql/PostgreSql/SQLite/SqlServer）
+    /// </summary>
+    public string Provider { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 连接字符串（仅服务端使用）
+    /// </summary>
+    public string ConnectionString { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 数据库服务器版本（MySQL 可选）
+    /// </summary>
+    public string? ServerVersion { get; set; }
+}
+
+/// <summary>
+/// 可选的文件源
+/// </summary>
+public class MigrationFileSource
+{
+    /// <summary>
+    /// 显示名称
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 文件存储路径
+    /// </summary>
+    public string Path { get; set; } = string.Empty;
 }
 
 /// <summary>
