@@ -1221,26 +1221,33 @@ onMounted(async () => {
                 </Button>
                 <template #overlay>
                   <Menu>
-                    <Menu.Item key="batchPause" @click="handleBatchOperation('pause')">
+                    <Menu.Item key="batchPause" @click="handleBatchOperation('pause')"
+                      :style="{ color: '#faad14' }">
                       <i class="vxe-icon-error-circle mr-1"></i>
                       {{ $t('page.quartz.jobPage.batchPause') }}
                     </Menu.Item>
-                    <Menu.Item key="batchResume" @click="handleBatchOperation('resume')">
+                    <Menu.Item key="batchResume" @click="handleBatchOperation('resume')"
+                      :style="{ color: '#52c41a' }">
                       <i class="vxe-icon-success-circle mr-1"></i>
                       {{ $t('page.quartz.jobPage.batchResume') }}
                     </Menu.Item>
-                    <Menu.Item key="batchEnable" @click="handleBatchOperation('enable')">
+                    <Menu.Item key="batchEnable" @click="handleBatchOperation('enable')"
+                      :style="{ color: '#52c41a' }">
+                      <i class="vxe-icon-check mr-1"></i>
                       {{ $t('page.quartz.jobPage.batchEnable') }}
                     </Menu.Item>
-                    <Menu.Item key="batchDisable" @click="handleBatchOperation('disable')">
+                    <Menu.Item key="batchDisable" @click="handleBatchOperation('disable')"
+                      :style="{ color: '#faad14' }">
+                      <i class="vxe-icon-close mr-1"></i>
                       {{ $t('page.quartz.jobPage.batchDisable') }}
+                    </Menu.Item>
+                    <Menu.Item key="batchDelete" danger @click="handleBatchDelete">
+                      <i class="vxe-icon-delete mr-1"></i>
+                      {{ $t('page.quartz.jobPage.batchDelete') }}
                     </Menu.Item>
                   </Menu>
                 </template>
               </Dropdown>
-              <Button danger :disabled="selectedRows.length === 0" @click="handleBatchDelete">
-                {{ $t('page.quartz.jobPage.batchDelete') }}
-              </Button>
             </Space>
           </div>
         </template>
