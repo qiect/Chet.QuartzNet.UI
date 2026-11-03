@@ -192,6 +192,11 @@ public class QuartzJobDto
     public bool DisallowConcurrentExecution { get; set; } = false;
 
     /// <summary>
+    /// 前置依赖作业列表，依赖作业最近一次执行成功后才执行本作业
+    /// </summary>
+    public List<JobDependencyDto> Dependencies { get; set; } = new();
+
+    /// <summary>
     /// 开始时间
     /// </summary>
     public DateTime? StartTime { get; set; }
@@ -205,6 +210,26 @@ public class QuartzJobDto
     /// 是否启用
     /// </summary>
     public bool IsEnabled { get; set; } = true;
+}
+
+/// <summary>
+/// 作业依赖项
+/// </summary>
+public class JobDependencyDto
+{
+    /// <summary>
+    /// 依赖作业名称
+    /// </summary>
+    [Required(ErrorMessage = "依赖作业名称不能为空")]
+    [StringLength(100, ErrorMessage = "依赖作业名称长度不能超过100个字符")]
+    public string JobName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 依赖作业分组
+    /// </summary>
+    [Required(ErrorMessage = "依赖作业分组不能为空")]
+    [StringLength(100, ErrorMessage = "依赖作业分组长度不能超过100个字符")]
+    public string JobGroup { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -349,6 +374,11 @@ public class QuartzJobResponseDto
     public bool DisallowConcurrentExecution { get; set; }
 
     /// <summary>
+    /// 前置依赖作业列表
+    /// </summary>
+    public List<JobDependencyDto> Dependencies { get; set; } = new();
+
+    /// <summary>
     /// 开始时间
     /// </summary>
     public DateTime? StartTime { get; set; }
@@ -413,4 +443,20 @@ public class BatchDeleteRequest
     /// 作业分组
     /// </summary>
     public string JobGroup { get; set; }
+}
+
+/// <summary>
+/// 批量启用/禁用请求DTO
+/// </summary>
+public class BatchEnableRequest
+{
+    /// <summary>
+    /// 目标作业列表
+    /// </summary>
+    public List<BatchDeleteRequest> Jobs { get; set; } = new();
+
+    /// <summary>
+    /// 是否启用
+    /// </summary>
+    public bool Enabled { get; set; }
 }

@@ -167,6 +167,8 @@ public class QuartzJobInfoConfiguration : IEntityTypeConfiguration<QuartzJobInfo
             .HasDefaultValue(false)
             .HasComment("禁止并发执行");
 
+        builder.Property(j => j.Dependencies).HasColumnType("text").HasComment("前置依赖作业(JSON格式)");
+
         builder.Property(j => j.StartTime).HasComment("开始时间");
 
         builder.Property(j => j.EndTime).HasComment("结束时间");

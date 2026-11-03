@@ -72,10 +72,20 @@ namespace Chet.QuartzNet.EFCore.SqlServer.Migrations
                         .HasColumnType("nvarchar(200)")
                         .HasComment("Cron表达式");
 
+                    b.Property<string>("Dependencies")
+                        .HasColumnType("text")
+                        .HasComment("前置依赖作业(JSON格式)");
+
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)")
                         .HasComment("作业描述");
+
+                    b.Property<bool>("DisallowConcurrentExecution")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasComment("禁止并发执行");
 
                     b.Property<DateTime?>("EndTime")
                         .HasColumnType("datetime2")
@@ -131,12 +141,6 @@ namespace Chet.QuartzNet.EFCore.SqlServer.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false)
                         .HasComment("是否跳过SSL验证");
-
-                    b.Property<bool>("DisallowConcurrentExecution")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false)
-                        .HasComment("禁止并发执行");
 
                     b.Property<DateTime?>("StartTime")
                         .HasColumnType("datetime2")

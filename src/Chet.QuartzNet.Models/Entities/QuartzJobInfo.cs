@@ -108,6 +108,12 @@ public class QuartzJobInfo
     public bool DisallowConcurrentExecution { get; set; } = false;
 
     /// <summary>
+    /// 前置依赖作业（JSON数组，元素为 {"jobGroup":"...","jobName":"..."}）
+    /// 依赖作业最近一次执行成功后才执行本作业，否则本次跳过
+    /// </summary>
+    public string? Dependencies { get; set; }
+
+    /// <summary>
     /// 开始时间
     /// </summary>
     public DateTime? StartTime { get; set; }
@@ -335,4 +341,9 @@ public enum LogStatus
     /// 失败
     /// </summary>
     Failed = 2,
+
+    /// <summary>
+    /// 跳过（前置依赖未满足等场景，本次未执行）
+    /// </summary>
+    Skipped = 3,
 }
