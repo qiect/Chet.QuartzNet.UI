@@ -69,10 +69,20 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasColumnType("varchar(200)")
                         .HasComment("Cron表达式");
 
+                    b.Property<string>("Dependencies")
+                        .HasColumnType("text")
+                        .HasComment("前置依赖作业(JSON格式)");
+
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)")
                         .HasComment("作业描述");
+
+                    b.Property<bool>("DisallowConcurrentExecution")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasComment("禁止并发执行");
 
                     b.Property<DateTime?>("EndTime")
                         .HasColumnType("datetime(6)")
@@ -128,12 +138,6 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasColumnType("tinyint(1)")
                         .HasDefaultValue(false)
                         .HasComment("是否跳过SSL验证");
-
-                    b.Property<bool>("DisallowConcurrentExecution")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("tinyint(1)")
-                        .HasDefaultValue(false)
-                        .HasComment("禁止并发执行");
 
                     b.Property<DateTime?>("StartTime")
                         .HasColumnType("datetime(6)")
