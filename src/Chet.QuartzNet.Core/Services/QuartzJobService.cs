@@ -102,14 +102,15 @@ public class QuartzJobService : IQuartzJobService
                 Status = GetSchedulerStatus(),
                 ThreadPoolSize = _options.ThreadPoolSize,
                 Version = typeof(IScheduler).Assembly.GetName().Version?.ToString() ?? "Unknown",
-                StartTime =
-                    _scheduler.GetType().GetProperty("StartTime")?.GetValue(_scheduler)
-                    as DateTime?,
             };
 
             // 如果调度器已停止，避免调用会抛出异常的方法
             if (!_scheduler.IsShutdown)
             {
+                // 从调度器元数据获取真实启动时间，IScheduler 上没有 StartTime 属性
+                var metadata = await _scheduler.GetMetaData(cancellationToken);
+                status.StartTime = metadata.RunningSince?.LocalDateTime;
+
                 var jobKeys = await _scheduler.GetJobKeys(
                     GroupMatcher<JobKey>.AnyGroup(),
                     cancellationToken
@@ -2173,6 +2174,8 @@ public class QuartzJobService : IQuartzJobService
     private static readonly JsonSerializerOptions SystemConfigJsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
+        // 中文等非 ASCII 字符按原文输出，避免保存成 \uXXXX 转义
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
     /// <summary>

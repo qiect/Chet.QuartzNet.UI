@@ -148,6 +148,9 @@ internal sealed class FileMigrationWriter
         var outcome = new WriteOutcome();
         foreach (var item in items)
         {
+            // 数据库中的配置值可能已按 \uXXXX 转义，写入文件前还原为可读的中文
+            item.Value = NormalizeJsonValue(item.Value);
+
             var key = MigrationKeys.Setting(item);
             var existing = _settingsByKey.GetValueOrDefault(key);
             if (existing == null)
@@ -171,6 +174,35 @@ internal sealed class FileMigrationWriter
         }
 
         return Task.FromResult(outcome);
+    }
+
+    /// <summary>
+    /// 将配置值中的 Unicode 转义（\uXXXX）还原为原文，保证写入 setting.json 的中文可读
+    /// 仅处理 JSON 对象/数组格式的值，非 JSON 值原样返回
+    /// </summary>
+    private string NormalizeJsonValue(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        var firstChar = value.TrimStart()[0];
+        if (firstChar != '{' && firstChar != '[')
+        {
+            return value;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            return JsonSerializer.Serialize(document.RootElement, _jsonOptions);
+        }
+        catch (JsonException)
+        {
+            // 非法 JSON 时保留原值，避免迁移中断
+            return value;
+        }
     }
 
     /// <summary>

@@ -2,6 +2,7 @@ using Chet.QuartzNet.Core.Configuration;
 using Chet.QuartzNet.Core.Interfaces;
 using Chet.QuartzNet.EFCore.Data;
 using Chet.QuartzNet.EFCore.Services;
+using Chet.QuartzNet.EFCore.SQLite.Interceptors;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,6 +28,8 @@ public static class ServiceCollectionExtensions
     {
         services.AddDbContext<QuartzDbContext>(options =>
         {
+            // WAL 模式让页面查询与作业写入互不阻塞，busy_timeout 避免瞬时写冲突直接报错
+            options.AddInterceptors(new SqlitePragmaInterceptor());
             options.UseSqlite(
                 connectionString,
                 sqliteOptions =>

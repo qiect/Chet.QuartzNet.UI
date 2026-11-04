@@ -174,7 +174,7 @@ public class ApiJob : IJob
             );
 
             // 发送请求
-            var response = await httpClient.SendAsync(request, linkedCts.Token);
+            using var response = await httpClient.SendAsync(request, linkedCts.Token);
 
             // 读取响应内容
             var responseContent = await response.Content.ReadAsStringAsync();

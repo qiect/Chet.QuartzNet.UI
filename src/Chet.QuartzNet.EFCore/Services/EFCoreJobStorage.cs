@@ -142,8 +142,19 @@ public class EFCoreJobStorage : IJobStorage
             existingJob.JobType = jobInfo.JobType;
             existingJob.JobClassOrApi = jobInfo.JobClassOrApi;
             existingJob.JobData = jobInfo.JobData;
+            existingJob.ApiMethod = jobInfo.ApiMethod;
+            existingJob.ApiHeaders = jobInfo.ApiHeaders;
+            existingJob.ApiBody = jobInfo.ApiBody;
+            existingJob.ApiTimeout = jobInfo.ApiTimeout;
+            existingJob.RetryCount = jobInfo.RetryCount;
+            existingJob.RetryIntervalSeconds = jobInfo.RetryIntervalSeconds;
+            existingJob.SkipSslValidation = jobInfo.SkipSslValidation;
+            existingJob.DisallowConcurrentExecution = jobInfo.DisallowConcurrentExecution;
+            existingJob.Dependencies = jobInfo.Dependencies;
             existingJob.StartTime = jobInfo.StartTime;
             existingJob.EndTime = jobInfo.EndTime;
+            existingJob.NextRunTime = jobInfo.NextRunTime;
+            existingJob.PreviousRunTime = jobInfo.PreviousRunTime;
             existingJob.IsEnabled = jobInfo.IsEnabled;
             existingJob.Status = jobInfo.Status;
             existingJob.UpdateTime = jobInfo.UpdateTime;
@@ -241,7 +252,8 @@ public class EFCoreJobStorage : IJobStorage
     {
         try
         {
-            var query = _dbContext.QuartzJobs.AsQueryable();
+            // 只读查询使用 AsNoTracking，避免请求作用域内跟踪大量实体
+            var query = _dbContext.QuartzJobs.AsNoTracking().AsQueryable();
 
             // 应用过滤条件
             if (!string.IsNullOrEmpty(queryDto.JobName))
@@ -461,7 +473,8 @@ public class EFCoreJobStorage : IJobStorage
     {
         try
         {
-            var query = _dbContext.QuartzJobLogs.AsQueryable();
+            // 只读查询使用 AsNoTracking，避免请求作用域内跟踪大量日志实体
+            var query = _dbContext.QuartzJobLogs.AsNoTracking().AsQueryable();
 
             // 应用过滤条件
             if (!string.IsNullOrEmpty(queryDto.JobName))
@@ -758,15 +771,11 @@ public class EFCoreJobStorage : IJobStorage
                 query = query.Where(l => l.EndTime.HasValue && l.EndTime.Value <= queryDto.EndEndTime.Value);
             }
 
-            // 执行删除操作
-            var logsToDelete = await query.ToListAsync(cancellationToken);
-            var deletedCount = logsToDelete.Count;
+            // 直接执行批量删除，避免把符合条件的全部日志加载到内存
+            var deletedCount = await query.ExecuteDeleteAsync(cancellationToken);
 
             if (deletedCount > 0)
             {
-                _dbContext.QuartzJobLogs.RemoveRange(logsToDelete);
-                await _dbContext.SaveChangesAsync(cancellationToken);
-
                 _logger.LogSuccess("清理作业日志", "共计: {Count} 条", deletedCount);
             }
 
@@ -1255,7 +1264,8 @@ public class EFCoreJobStorage : IJobStorage
     {
         try
         {
-            var query = _dbContext.QuartzNotifications.AsQueryable();
+            // 只读查询使用 AsNoTracking，避免请求作用域内跟踪大量通知实体
+            var query = _dbContext.QuartzNotifications.AsNoTracking().AsQueryable();
 
             // 应用过滤条件
             if (queryDto.Status.HasValue)
@@ -1414,13 +1424,11 @@ public class EFCoreJobStorage : IJobStorage
                 query = query.Where(n => n.CreateTime <= queryDto.EndTime.Value);
             }
 
-            // 执行删除操作
-            var notificationsToDelete = await query.ToListAsync(cancellationToken);
-            if (notificationsToDelete.Count > 0)
+            // 直接执行批量删除，避免把符合条件的全部通知加载到内存
+            var deletedCount = await query.ExecuteDeleteAsync(cancellationToken);
+            if (deletedCount > 0)
             {
-                _dbContext.QuartzNotifications.RemoveRange(notificationsToDelete);
-                await _dbContext.SaveChangesAsync(cancellationToken);
-                _logger.LogSuccess("清空通知消息", "共计: {Count} 条", notificationsToDelete.Count);
+                _logger.LogSuccess("清空通知消息", "共计: {Count} 条", deletedCount);
             }
 
             return true;
