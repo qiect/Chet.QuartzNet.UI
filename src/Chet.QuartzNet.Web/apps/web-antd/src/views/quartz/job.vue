@@ -111,11 +111,14 @@ const schedulerStatus = ref({
 // 编辑对话框
 const editModalVisible = ref(false);
 const editModalTitle = ref('add');
-const editForm = reactive<QuartzJobDto>({
+const editForm = reactive<QuartzJobDto & { apiUrl: string; jobClassName: string }>({
   jobName: '',
   jobGroup: '',
   jobType: JobTypeEnum.DLL,
   jobClassOrApi: '',
+  // 作业类名与 API 地址在表单中各自独立，切换作业类型时不会互相带值
+  jobClassName: '',
+  apiUrl: '',
   cronExpression: '',
   description: '',
   jobData: '',
@@ -570,6 +573,8 @@ const handleAdd = async () => {
     jobGroup: '',
     jobType: JobTypeEnum.DLL,
     jobClassOrApi: '',
+    jobClassName: '',
+    apiUrl: '',
     cronExpression: '0 0/1 * * * ?',
     description: '',
     jobData: '',
@@ -614,6 +619,8 @@ const handleCopyJob = async (job: QuartzJobResponseDto) => {
       jobGroup: `${response.data?.jobGroup || ''}_Copy`,
       jobType: jobTypeValue,
       jobClassOrApi: response.data?.jobClassOrApi || '',
+      jobClassName: jobTypeValue === JobTypeEnum.DLL ? (response.data?.jobClassOrApi || '') : '',
+      apiUrl: jobTypeValue === JobTypeEnum.API ? (response.data?.jobClassOrApi || '') : '',
       cronExpression: response.data?.cronExpression || '',
       description: response.data?.description || '',
       jobData: response.data?.jobData || '',
@@ -669,6 +676,8 @@ const handleEdit = async (job: QuartzJobResponseDto) => {
       jobGroup: response.data?.jobGroup || '',
       jobType: jobTypeValue,
       jobClassOrApi: response.data?.jobClassOrApi || '',
+      jobClassName: jobTypeValue === JobTypeEnum.DLL ? (response.data?.jobClassOrApi || '') : '',
+      apiUrl: jobTypeValue === JobTypeEnum.API ? (response.data?.jobClassOrApi || '') : '',
       cronExpression: response.data?.cronExpression || '',
       description: response.data?.description || '',
       jobData: response.data?.jobData || '',
@@ -719,7 +728,7 @@ const handleSave = async () => {
       jobName: editForm.jobName,
       jobGroup: editForm.jobGroup,
       jobType: editForm.jobType,
-      jobClassOrApi: editForm.jobClassOrApi,
+      jobClassOrApi: editForm.jobType === JobTypeEnum.API ? editForm.apiUrl : editForm.jobClassName,
       cronExpression: editForm.cronExpression,
       description: editForm.description,
       jobData: editForm.jobData,
@@ -1422,9 +1431,9 @@ onMounted(async () => {
           <div class="form-section-title">{{ $t('page.quartz.jobPage.sectionConfig') }}</div>
           <Row :gutter="16">
             <Col :xs="24" v-if="editForm.jobType === JobTypeEnum.DLL">
-              <Form.Item :label="$t('page.quartz.jobPage.jobClassName')" name="jobClassOrApi"
+              <Form.Item :label="$t('page.quartz.jobPage.jobClassName')" name="jobClassName"
                 :rules="[{ required: true, message: $t('page.quartz.jobPage.jobClassNameRequired') }, { max: 500, message: $t('page.quartz.jobPage.jobClassNameMaxLen') }]">
-                <Select v-model:value="editForm.jobClassOrApi"
+                <Select v-model:value="editForm.jobClassName"
                   :placeholder="$t('page.quartz.jobPage.placeholderJobClassName')" showSearch allowClear
                   mode="SECRET_COMBOBOX_MODE_DO_NOT_USE" :filter-option="(input, option) => {
                     return (option?.label || '')
@@ -1439,9 +1448,9 @@ onMounted(async () => {
               </Form.Item>
             </Col>
             <Col :xs="24" v-if="editForm.jobType === JobTypeEnum.API">
-              <Form.Item :label="$t('page.quartz.jobPage.apiUrl')" name="jobClassOrApi"
+              <Form.Item :label="$t('page.quartz.jobPage.apiUrl')" name="apiUrl"
                 :rules="[{ required: true, message: $t('page.quartz.jobPage.apiUrlRequired') }, { max: 500, message: $t('page.quartz.jobPage.apiUrlMaxLen') }]">
-                <Input v-model:value="editForm.jobClassOrApi"
+                <Input v-model:value="editForm.apiUrl"
                   :placeholder="$t('page.quartz.jobPage.placeholderApiUrl')" />
               </Form.Item>
             </Col>
