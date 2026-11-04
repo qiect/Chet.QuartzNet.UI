@@ -926,7 +926,7 @@ const handleBatchDelete = () => {
   });
 };
 
-// 批量暂停/恢复/启用/禁用
+// 批量停止/恢复/启用/禁用
 const handleBatchOperation = (
   action: 'disable' | 'enable' | 'pause' | 'resume',
 ) => {
@@ -1232,12 +1232,12 @@ onMounted(async () => {
                       {{ $t('page.quartz.jobPage.batchResume') }}
                     </Menu.Item>
                     <Menu.Item key="batchEnable" @click="handleBatchOperation('enable')"
-                      :style="{ color: '#52c41a' }">
+                      :style="{ color: '#1890ff' }">
                       <i class="vxe-icon-check mr-1"></i>
                       {{ $t('page.quartz.jobPage.batchEnable') }}
                     </Menu.Item>
                     <Menu.Item key="batchDisable" @click="handleBatchOperation('disable')"
-                      :style="{ color: '#faad14' }">
+                      :style="{ color: '#8c8c8c' }">
                       <i class="vxe-icon-close mr-1"></i>
                       {{ $t('page.quartz.jobPage.batchDisable') }}
                     </Menu.Item>
