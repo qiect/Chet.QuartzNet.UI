@@ -142,8 +142,19 @@ public class EFCoreJobStorage : IJobStorage
             existingJob.JobType = jobInfo.JobType;
             existingJob.JobClassOrApi = jobInfo.JobClassOrApi;
             existingJob.JobData = jobInfo.JobData;
+            existingJob.ApiMethod = jobInfo.ApiMethod;
+            existingJob.ApiHeaders = jobInfo.ApiHeaders;
+            existingJob.ApiBody = jobInfo.ApiBody;
+            existingJob.ApiTimeout = jobInfo.ApiTimeout;
+            existingJob.RetryCount = jobInfo.RetryCount;
+            existingJob.RetryIntervalSeconds = jobInfo.RetryIntervalSeconds;
+            existingJob.SkipSslValidation = jobInfo.SkipSslValidation;
+            existingJob.DisallowConcurrentExecution = jobInfo.DisallowConcurrentExecution;
+            existingJob.Dependencies = jobInfo.Dependencies;
             existingJob.StartTime = jobInfo.StartTime;
             existingJob.EndTime = jobInfo.EndTime;
+            existingJob.NextRunTime = jobInfo.NextRunTime;
+            existingJob.PreviousRunTime = jobInfo.PreviousRunTime;
             existingJob.IsEnabled = jobInfo.IsEnabled;
             existingJob.Status = jobInfo.Status;
             existingJob.UpdateTime = jobInfo.UpdateTime;
@@ -241,7 +252,8 @@ public class EFCoreJobStorage : IJobStorage
     {
         try
         {
-            var query = _dbContext.QuartzJobs.AsQueryable();
+            // 只读查询使用 AsNoTracking，避免请求作用域内跟踪大量实体
+            var query = _dbContext.QuartzJobs.AsNoTracking().AsQueryable();
 
             // 应用过滤条件
             if (!string.IsNullOrEmpty(queryDto.JobName))
@@ -461,7 +473,8 @@ public class EFCoreJobStorage : IJobStorage
     {
         try
         {
-            var query = _dbContext.QuartzJobLogs.AsQueryable();
+            // 只读查询使用 AsNoTracking，避免请求作用域内跟踪大量日志实体
+            var query = _dbContext.QuartzJobLogs.AsNoTracking().AsQueryable();
 
             // 应用过滤条件
             if (!string.IsNullOrEmpty(queryDto.JobName))
@@ -588,6 +601,33 @@ public class EFCoreJobStorage : IJobStorage
     }
 
     /// <summary>
+    /// 获取指定作业最近一次执行日志
+    /// </summary>
+    /// <param name="jobName">作业名称</param>
+    /// <param name="jobGroup">作业分组</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>最近一次日志，不存在返回null</returns>
+    public async Task<QuartzJobLog?> GetLatestJobLogAsync(
+        string jobName,
+        string jobGroup,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            return await _dbContext
+                .QuartzJobLogs.Where(l => l.JobName == jobName && l.JobGroup == jobGroup)
+                .OrderByDescending(l => l.CreateTime)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("获取作业最近一次日志", ex);
+            return null;
+        }
+    }
+
+    /// <summary>
     /// 清除指定天数之前的过期作业日志
     /// </summary>
     /// <param name="daysToKeep">保留天数</param>
@@ -621,6 +661,49 @@ public class EFCoreJobStorage : IJobStorage
         catch (Exception ex)
         {
             _logger.LogFailure("清理过期日志", ex);
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 清除超出最大保留条数的日志（仅保留最新的 maxCount 条）
+    /// </summary>
+    /// <param name="maxCount">最大保留条数</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>清除的日志数量</returns>
+    public async Task<int> ClearOverflowLogsAsync(
+        int maxCount,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            if (maxCount <= 0)
+            {
+                return 0;
+            }
+
+            var totalCount = await _dbContext.QuartzJobLogs.CountAsync(cancellationToken);
+            if (totalCount <= maxCount)
+            {
+                return 0;
+            }
+
+            var overflowCount = totalCount - maxCount;
+            var expiredLogs = await _dbContext
+                .QuartzJobLogs.OrderBy(l => l.CreateTime)
+                .Take(overflowCount)
+                .ToListAsync(cancellationToken);
+
+            _dbContext.QuartzJobLogs.RemoveRange(expiredLogs);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInfo("清理超出保留条数的日志", "共计: {Count} 条", expiredLogs.Count);
+            return expiredLogs.Count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("清理超出保留条数的日志", ex);
             return 0;
         }
     }
@@ -688,15 +771,11 @@ public class EFCoreJobStorage : IJobStorage
                 query = query.Where(l => l.EndTime.HasValue && l.EndTime.Value <= queryDto.EndEndTime.Value);
             }
 
-            // 执行删除操作
-            var logsToDelete = await query.ToListAsync(cancellationToken);
-            var deletedCount = logsToDelete.Count;
+            // 直接执行批量删除，避免把符合条件的全部日志加载到内存
+            var deletedCount = await query.ExecuteDeleteAsync(cancellationToken);
 
             if (deletedCount > 0)
             {
-                _dbContext.QuartzJobLogs.RemoveRange(logsToDelete);
-                await _dbContext.SaveChangesAsync(cancellationToken);
-
                 _logger.LogSuccess("清理作业日志", "共计: {Count} 条", deletedCount);
             }
 
@@ -1185,7 +1264,8 @@ public class EFCoreJobStorage : IJobStorage
     {
         try
         {
-            var query = _dbContext.QuartzNotifications.AsQueryable();
+            // 只读查询使用 AsNoTracking，避免请求作用域内跟踪大量通知实体
+            var query = _dbContext.QuartzNotifications.AsNoTracking().AsQueryable();
 
             // 应用过滤条件
             if (queryDto.Status.HasValue)
@@ -1344,13 +1424,11 @@ public class EFCoreJobStorage : IJobStorage
                 query = query.Where(n => n.CreateTime <= queryDto.EndTime.Value);
             }
 
-            // 执行删除操作
-            var notificationsToDelete = await query.ToListAsync(cancellationToken);
-            if (notificationsToDelete.Count > 0)
+            // 直接执行批量删除，避免把符合条件的全部通知加载到内存
+            var deletedCount = await query.ExecuteDeleteAsync(cancellationToken);
+            if (deletedCount > 0)
             {
-                _dbContext.QuartzNotifications.RemoveRange(notificationsToDelete);
-                await _dbContext.SaveChangesAsync(cancellationToken);
-                _logger.LogSuccess("清空通知消息", "共计: {Count} 条", notificationsToDelete.Count);
+                _logger.LogSuccess("清空通知消息", "共计: {Count} 条", deletedCount);
             }
 
             return true;
@@ -1382,13 +1460,10 @@ public class EFCoreJobStorage : IJobStorage
 
         try
         {
-            // 查询数据库中已存在的作业键
-            var jobKeys = jobs.Select(j => new { j.JobName, j.JobGroup }).ToList();
+            // 查询数据库中已存在的作业键（按分组过滤后在内存中精确匹配名称，避免跨名称误判）
+            var groups = jobs.Select(j => j.JobGroup).Distinct().ToList();
             var existingKeys = await _dbContext
-                .QuartzJobs.Where(j =>
-                    jobKeys.Select(k => k.JobName).Contains(j.JobName)
-                    && jobKeys.Select(k => k.JobGroup).Contains(j.JobGroup)
-                )
+                .QuartzJobs.Where(j => groups.Contains(j.JobGroup))
                 .Select(j => new { j.JobName, j.JobGroup })
                 .ToListAsync(cancellationToken);
 
@@ -1469,7 +1544,7 @@ public class EFCoreJobStorage : IJobStorage
             for (int i = 0; i < newLogs.Count; i += batchSize)
             {
                 var batch = newLogs.Skip(i).Take(batchSize).ToList();
-                batch.ForEach(p => p.LogId = Guid.NewGuid());
+                // 保留源端日志 ID，保证重复迁移幂等
                 await _dbContext.QuartzJobLogs.AddRangeAsync(batch, cancellationToken);
                 totalInserted += await _dbContext.SaveChangesAsync(cancellationToken);
             }
@@ -1527,9 +1602,7 @@ public class EFCoreJobStorage : IJobStorage
                 }
                 else
                 {
-                    setting.SettingId = Guid.NewGuid();
-                    // 添加新设置
-                    setting.CreateTime = DateTime.Now;
+                    // 保留源端设置 ID 与创建时间，保证重复迁移幂等
                     await _dbContext.QuartzSettings.AddAsync(setting, cancellationToken);
                 }
                 savedCount++;
@@ -1589,7 +1662,7 @@ public class EFCoreJobStorage : IJobStorage
             for (int i = 0; i < newNotifications.Count; i += batchSize)
             {
                 var batch = newNotifications.Skip(i).Take(batchSize).ToList();
-                batch.ForEach(p => p.NotificationId = Guid.NewGuid());
+                // 保留源端通知 ID，保证重复迁移幂等
                 await _dbContext.QuartzNotifications.AddRangeAsync(batch, cancellationToken);
                 totalInserted += await _dbContext.SaveChangesAsync(cancellationToken);
             }

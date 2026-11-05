@@ -274,7 +274,12 @@ public class PushPlusNotificationService : INotificationService
             // 序列化配置
             var configJson = JsonSerializer.Serialize(
                 config,
-                new JsonSerializerOptions { WriteIndented = true }
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    // 中文等非 ASCII 字符按原文输出，避免保存成 \uXXXX 转义
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                }
             );
 
             // 保存配置

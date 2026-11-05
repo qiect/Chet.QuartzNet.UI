@@ -46,6 +46,14 @@ export enum JobStatusEnum {
   Blocked = 4
 }
 
+// 作业前置依赖
+export interface JobDependency {
+  /** 依赖作业名称 */
+  jobName: string;
+  /** 依赖作业分组 */
+  jobGroup: string;
+}
+
 // Quartz作业DTO
 export interface QuartzJobDto {
   /** 作业名称 */
@@ -82,6 +90,8 @@ export interface QuartzJobDto {
   skipSslValidation?: boolean;
   /** 禁止并发执行（同一作业上一次执行未完成时，新的触发会等待） */
   disallowConcurrentExecution?: boolean;
+  /** 前置依赖作业，依赖作业最近一次执行成功后才执行本作业 */
+  dependencies?: JobDependency[];
   /** 开始时间 */
   startTime?: string;
   /** 结束时间 */
@@ -126,6 +136,8 @@ export interface QuartzJobResponseDto {
   skipSslValidation: boolean;
   /** 禁止并发执行 */
   disallowConcurrentExecution: boolean;
+  /** 前置依赖作业 */
+  dependencies?: JobDependency[];
   /** 开始时间 */
   startTime?: string;
   /** 结束时间 */
@@ -233,6 +245,43 @@ export async function deleteJob(jobName: string, jobGroup: string): Promise<ApiR
  */
 export async function batchDeleteJob(jobs: Array<{JobName: string; JobGroup: string}>): Promise<ApiResponse<boolean>> {
   const response = await requestClient.post('/api/quartz/BatchDeleteJobs', jobs);
+  return response;
+}
+
+/**
+ * 批量暂停作业
+ * @param jobs 作业列表，包含JobName和JobGroup字段
+ * @returns 暂停结果
+ */
+export async function batchPauseJobs(jobs: Array<{JobName: string; JobGroup: string}>): Promise<ApiResponse<boolean>> {
+  const response = await requestClient.post('/api/quartz/BatchPauseJobs', jobs);
+  return response;
+}
+
+/**
+ * 批量恢复作业
+ * @param jobs 作业列表，包含JobName和JobGroup字段
+ * @returns 恢复结果
+ */
+export async function batchResumeJobs(jobs: Array<{JobName: string; JobGroup: string}>): Promise<ApiResponse<boolean>> {
+  const response = await requestClient.post('/api/quartz/BatchResumeJobs', jobs);
+  return response;
+}
+
+/**
+ * 批量启用/禁用作业
+ * @param jobs 作业列表，包含JobName和JobGroup字段
+ * @param enabled true=启用，false=禁用
+ * @returns 操作结果
+ */
+export async function batchSetEnabled(
+  jobs: Array<{JobName: string; JobGroup: string}>,
+  enabled: boolean,
+): Promise<ApiResponse<boolean>> {
+  const response = await requestClient.post('/api/quartz/BatchSetEnabled', {
+    jobs,
+    enabled,
+  });
   return response;
 }
 

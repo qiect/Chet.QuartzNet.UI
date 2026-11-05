@@ -67,10 +67,20 @@ namespace Chet.QuartzNet.EFCore.SQLite.Migrations
                         .HasColumnType("TEXT")
                         .HasComment("Cron表达式");
 
+                    b.Property<string>("Dependencies")
+                        .HasColumnType("text")
+                        .HasComment("前置依赖作业(JSON格式)");
+
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("TEXT")
                         .HasComment("作业描述");
+
+                    b.Property<bool>("DisallowConcurrentExecution")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false)
+                        .HasComment("禁止并发执行");
 
                     b.Property<DateTime?>("EndTime")
                         .HasColumnType("TEXT")
@@ -126,12 +136,6 @@ namespace Chet.QuartzNet.EFCore.SQLite.Migrations
                         .HasColumnType("INTEGER")
                         .HasDefaultValue(false)
                         .HasComment("是否跳过SSL验证");
-
-                    b.Property<bool>("DisallowConcurrentExecution")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(false)
-                        .HasComment("禁止并发执行");
 
                     b.Property<DateTime?>("StartTime")
                         .HasColumnType("TEXT")

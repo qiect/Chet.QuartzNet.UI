@@ -102,14 +102,15 @@ public class QuartzJobService : IQuartzJobService
                 Status = GetSchedulerStatus(),
                 ThreadPoolSize = _options.ThreadPoolSize,
                 Version = typeof(IScheduler).Assembly.GetName().Version?.ToString() ?? "Unknown",
-                StartTime =
-                    _scheduler.GetType().GetProperty("StartTime")?.GetValue(_scheduler)
-                    as DateTime?,
             };
 
             // 如果调度器已停止，避免调用会抛出异常的方法
             if (!_scheduler.IsShutdown)
             {
+                // 从调度器元数据获取真实启动时间，IScheduler 上没有 StartTime 属性
+                var metadata = await _scheduler.GetMetaData(cancellationToken);
+                status.StartTime = metadata.RunningSince?.LocalDateTime;
+
                 var jobKeys = await _scheduler.GetJobKeys(
                     GroupMatcher<JobKey>.AnyGroup(),
                     cancellationToken
@@ -339,6 +340,18 @@ public class QuartzJobService : IQuartzJobService
                 return ApiResponseDto<bool>.ErrorResponse("无效的作业类型");
             }
 
+            // 验证前置依赖（存在性、自依赖、循环依赖）
+            var dependencyValidation = await ValidateDependenciesAsync(
+                jobDto.JobName,
+                jobDto.JobGroup,
+                jobDto.Dependencies,
+                cancellationToken
+            );
+            if (!dependencyValidation.Success)
+            {
+                return ApiResponseDto<bool>.ErrorResponse(dependencyValidation.Message);
+            }
+
             // 自动生成触发器信息
             var triggerName = string.IsNullOrWhiteSpace(jobDto.TriggerName)
                 ? $"{jobDto.JobName}_Trigger"
@@ -367,6 +380,7 @@ public class QuartzJobService : IQuartzJobService
                 RetryIntervalSeconds = jobDto.RetryIntervalSeconds,
                 SkipSslValidation = jobDto.SkipSslValidation,
                 DisallowConcurrentExecution = jobDto.DisallowConcurrentExecution,
+                Dependencies = JobDependencyHelper.Serialize(jobDto.Dependencies),
                 StartTime = jobDto.StartTime,
                 EndTime = jobDto.EndTime,
                 IsEnabled = jobDto.IsEnabled,
@@ -434,6 +448,18 @@ public class QuartzJobService : IQuartzJobService
                 return ApiResponseDto<bool>.ErrorResponse("无效的作业类型");
             }
 
+            // 验证前置依赖（存在性、自依赖、循环依赖）
+            var dependencyValidation = await ValidateDependenciesAsync(
+                jobDto.JobName,
+                jobDto.JobGroup,
+                jobDto.Dependencies,
+                cancellationToken
+            );
+            if (!dependencyValidation.Success)
+            {
+                return ApiResponseDto<bool>.ErrorResponse(dependencyValidation.Message);
+            }
+
             // 保存原作业状态
             var originalStatus = existingJob.Status;
 
@@ -465,6 +491,7 @@ public class QuartzJobService : IQuartzJobService
             existingJob.RetryIntervalSeconds = jobDto.RetryIntervalSeconds;
             existingJob.SkipSslValidation = jobDto.SkipSslValidation;
             existingJob.DisallowConcurrentExecution = jobDto.DisallowConcurrentExecution;
+            existingJob.Dependencies = JobDependencyHelper.Serialize(jobDto.Dependencies);
             existingJob.StartTime = jobDto.StartTime;
             existingJob.EndTime = jobDto.EndTime;
             existingJob.IsEnabled = jobDto.IsEnabled;
@@ -803,6 +830,165 @@ public class QuartzJobService : IQuartzJobService
             _logger.LogFailure("ResumeJob", ex);
             return ApiResponseDto<bool>.ErrorResponse($"恢复作业失败: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// 批量暂停作业
+    /// </summary>
+    /// <param name="jobs">作业列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>操作结果</returns>
+    public async Task<ApiResponseDto<bool>> BatchPauseJobsAsync(
+        List<(string JobName, string JobGroup)> jobs,
+        CancellationToken cancellationToken = default
+    )
+    {
+        int successCount = 0;
+        int failureCount = 0;
+
+        foreach (var (jobName, jobGroup) in jobs)
+        {
+            try
+            {
+                var result = await PauseJobAsync(jobName, jobGroup, cancellationToken);
+                if (result.Success)
+                {
+                    successCount++;
+                }
+                else
+                {
+                    failureCount++;
+                }
+            }
+            catch (Exception ex)
+            {
+                failureCount++;
+                _logger.LogFailure("BatchPauseJobs", ex);
+            }
+        }
+
+        return ApiResponseDto<bool>.SuccessResponse(
+            true,
+            $"批量暂停完成，成功 {successCount} 个，失败 {failureCount} 个"
+        );
+    }
+
+    /// <summary>
+    /// 批量恢复作业
+    /// </summary>
+    /// <param name="jobs">作业列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>操作结果</returns>
+    public async Task<ApiResponseDto<bool>> BatchResumeJobsAsync(
+        List<(string JobName, string JobGroup)> jobs,
+        CancellationToken cancellationToken = default
+    )
+    {
+        int successCount = 0;
+        int failureCount = 0;
+
+        foreach (var (jobName, jobGroup) in jobs)
+        {
+            try
+            {
+                var result = await ResumeJobAsync(jobName, jobGroup, cancellationToken);
+                if (result.Success)
+                {
+                    successCount++;
+                }
+                else
+                {
+                    failureCount++;
+                }
+            }
+            catch (Exception ex)
+            {
+                failureCount++;
+                _logger.LogFailure("BatchResumeJobs", ex);
+            }
+        }
+
+        return ApiResponseDto<bool>.SuccessResponse(
+            true,
+            $"批量恢复完成，成功 {successCount} 个，失败 {failureCount} 个"
+        );
+    }
+
+    /// <summary>
+    /// 批量启用/禁用作业
+    /// </summary>
+    /// <param name="jobs">作业列表</param>
+    /// <param name="enable">true=启用，false=禁用</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>操作结果</returns>
+    public async Task<ApiResponseDto<bool>> BatchSetEnabledAsync(
+        List<(string JobName, string JobGroup)> jobs,
+        bool enable,
+        CancellationToken cancellationToken = default
+    )
+    {
+        int successCount = 0;
+        int failureCount = 0;
+
+        foreach (var (jobName, jobGroup) in jobs)
+        {
+            try
+            {
+                var jobInfo = await _jobStorage.GetJobAsync(
+                    jobName,
+                    jobGroup,
+                    cancellationToken
+                );
+                if (jobInfo == null)
+                {
+                    failureCount++;
+                    continue;
+                }
+
+                var jobKey = new JobKey(jobName, jobGroup);
+
+                if (enable)
+                {
+                    jobInfo.IsEnabled = true;
+                    if (jobInfo.Status == JobStatus.Paused)
+                    {
+                        // 启用时保持原有的暂停状态：先调度再暂停
+                        await ScheduleJobAsync(jobInfo, cancellationToken);
+                        await _scheduler.PauseJob(jobKey, cancellationToken);
+                        jobInfo.Status = JobStatus.Paused;
+                        jobInfo.NextRunTime = null;
+                    }
+                    else
+                    {
+                        await ScheduleJobAsync(jobInfo, cancellationToken);
+                    }
+                }
+                else
+                {
+                    jobInfo.IsEnabled = false;
+                    jobInfo.NextRunTime = null;
+                    if (await _scheduler.CheckExists(jobKey, cancellationToken))
+                    {
+                        await _scheduler.DeleteJob(jobKey, cancellationToken);
+                    }
+                }
+
+                jobInfo.UpdateTime = DateTime.Now;
+                await _jobStorage.UpdateJobAsync(jobInfo, cancellationToken);
+                successCount++;
+            }
+            catch (Exception ex)
+            {
+                failureCount++;
+                _logger.LogFailure("BatchSetEnabled", ex);
+            }
+        }
+
+        var action = enable ? "启用" : "禁用";
+        return ApiResponseDto<bool>.SuccessResponse(
+            true,
+            $"批量{action}完成，成功 {successCount} 个，失败 {failureCount} 个"
+        );
     }
 
     /// <summary>
@@ -1401,6 +1587,106 @@ public class QuartzJobService : IQuartzJobService
     }
 
     /// <summary>
+    /// 验证作业前置依赖：依赖作业必须存在，不能依赖自身，不能形成循环依赖
+    /// </summary>
+    /// <param name="jobName">当前作业名称</param>
+    /// <param name="jobGroup">当前作业分组</param>
+    /// <param name="dependencies">依赖作业列表</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>验证结果</returns>
+    private async Task<ApiResponseDto<bool>> ValidateDependenciesAsync(
+        string jobName,
+        string jobGroup,
+        List<JobDependencyDto>? dependencies,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (dependencies == null || dependencies.Count == 0)
+        {
+            return ApiResponseDto<bool>.SuccessResponse(true);
+        }
+
+        var selfKey = $"{jobGroup}.{jobName}";
+        var allJobs = await _jobStorage.GetAllJobsAsync(cancellationToken);
+        var jobKeys = allJobs.Select(j => j.GetJobKey()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // 构建依赖图（已有作业 + 本次提交的依赖），用于循环依赖检测
+        var graph = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var job in allJobs)
+        {
+            graph[job.GetJobKey()] = JobDependencyHelper
+                .Deserialize(job.Dependencies)
+                .Select(JobDependencyHelper.GetJobKey)
+                .ToList();
+        }
+
+        var newDependencies = dependencies.Select(JobDependencyHelper.GetJobKey).ToList();
+        foreach (var dependencyKey in newDependencies)
+        {
+            if (string.Equals(dependencyKey, selfKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return ApiResponseDto<bool>.ErrorResponse("作业不能依赖自身");
+            }
+
+            if (!jobKeys.Contains(dependencyKey))
+            {
+                return ApiResponseDto<bool>.ErrorResponse($"依赖作业不存在: {dependencyKey}");
+            }
+        }
+
+        graph[selfKey] = newDependencies;
+
+        if (HasDependencyCycle(selfKey, graph))
+        {
+            return ApiResponseDto<bool>.ErrorResponse("存在循环依赖，请检查前置依赖配置");
+        }
+
+        return ApiResponseDto<bool>.SuccessResponse(true);
+    }
+
+    /// <summary>
+    /// 从起始作业出发检查依赖链是否回到自身（循环依赖）
+    /// </summary>
+    /// <param name="startKey">起始作业键</param>
+    /// <param name="graph">依赖图</param>
+    /// <returns>是否存在循环依赖</returns>
+    private static bool HasDependencyCycle(
+        string startKey,
+        Dictionary<string, List<string>> graph
+    )
+    {
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var stack = new Stack<string>();
+        stack.Push(startKey);
+
+        while (stack.Count > 0)
+        {
+            var currentKey = stack.Pop();
+            if (!visited.Add(currentKey))
+            {
+                continue;
+            }
+
+            if (!graph.TryGetValue(currentKey, out var dependencies))
+            {
+                continue;
+            }
+
+            foreach (var dependencyKey in dependencies)
+            {
+                if (string.Equals(dependencyKey, startKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                stack.Push(dependencyKey);
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// 将作业信息实体映射为响应DTO
     /// </summary>
     /// <param name="jobInfo">作业信息实体</param>
@@ -1426,6 +1712,7 @@ public class QuartzJobService : IQuartzJobService
             RetryIntervalSeconds = jobInfo.RetryIntervalSeconds,
             SkipSslValidation = jobInfo.SkipSslValidation,
             DisallowConcurrentExecution = jobInfo.DisallowConcurrentExecution,
+            Dependencies = JobDependencyHelper.Deserialize(jobInfo.Dependencies),
             StartTime = jobInfo.StartTime,
             EndTime = jobInfo.EndTime,
             Status = jobInfo.Status,
@@ -1887,6 +2174,8 @@ public class QuartzJobService : IQuartzJobService
     private static readonly JsonSerializerOptions SystemConfigJsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
+        // 中文等非 ASCII 字符按原文输出，避免保存成 \uXXXX 转义
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
     /// <summary>

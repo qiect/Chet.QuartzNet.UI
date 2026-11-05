@@ -197,6 +197,74 @@ public class JobController : ControllerBase
     }
 
     /// <summary>
+    /// 批量暂停作业
+    /// </summary>
+    [HttpPost("BatchPauseJobs")]
+    public async Task<ActionResult<ApiResponseDto<bool>>> BatchPauseJobs(
+        [FromBody] List<BatchDeleteRequest> jobs
+    )
+    {
+        try
+        {
+            var jobTuples = jobs.Select(j => (j.JobName, j.JobGroup)).ToList();
+            var result = await _jobService.BatchPauseJobsAsync(jobTuples);
+            _logger.LogSuccess("批量暂停作业", result.Message ?? string.Empty);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("批量暂停作业", ex);
+            return Ok(ApiResponseDto<bool>.ErrorResponse("批量暂停作业失败: " + ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// 批量恢复作业
+    /// </summary>
+    [HttpPost("BatchResumeJobs")]
+    public async Task<ActionResult<ApiResponseDto<bool>>> BatchResumeJobs(
+        [FromBody] List<BatchDeleteRequest> jobs
+    )
+    {
+        try
+        {
+            var jobTuples = jobs.Select(j => (j.JobName, j.JobGroup)).ToList();
+            var result = await _jobService.BatchResumeJobsAsync(jobTuples);
+            _logger.LogSuccess("批量恢复作业", result.Message ?? string.Empty);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("批量恢复作业", ex);
+            return Ok(ApiResponseDto<bool>.ErrorResponse("批量恢复作业失败: " + ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// 批量启用/禁用作业
+    /// </summary>
+    [HttpPost("BatchSetEnabled")]
+    public async Task<ActionResult<ApiResponseDto<bool>>> BatchSetEnabled(
+        [FromBody] BatchEnableRequest request
+    )
+    {
+        try
+        {
+            var jobTuples = request.Jobs.Select(j => (j.JobName, j.JobGroup)).ToList();
+            var result = await _jobService.BatchSetEnabledAsync(jobTuples, request.Enabled);
+            _logger.LogSuccess("批量启用/禁用作业", result.Message ?? string.Empty);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("批量启用/禁用作业", ex);
+            return Ok(
+                ApiResponseDto<bool>.ErrorResponse("批量启用/禁用作业失败: " + ex.Message)
+            );
+        }
+    }
+
+    /// <summary>
     /// 暂停作业
     /// </summary>
     [HttpPost("PauseJob")]

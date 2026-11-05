@@ -46,11 +46,15 @@ import {
   updateJob,
   deleteJob,
   batchDeleteJob,
+  batchPauseJobs,
+  batchResumeJobs,
+  batchSetEnabled,
   triggerJob,
   pauseJob,
   resumeJob,
 } from '../../api/quartz/job';
 import type {
+  JobDependency,
   QuartzJobDto,
   QuartzJobResponseDto,
   QuartzJobQueryDto,
@@ -85,7 +89,7 @@ const jobStatusMap = {
 // 响应式数据
 const loading = ref(false);
 const toggleLoadingKeys = ref<Set<string>>(new Set());
-// 批量删除相关
+// 批量操作相关
 const selectedRows = ref<QuartzJobResponseDto[]>([]);
 
 // 调度器状态
@@ -107,11 +111,14 @@ const schedulerStatus = ref({
 // 编辑对话框
 const editModalVisible = ref(false);
 const editModalTitle = ref('add');
-const editForm = reactive<QuartzJobDto>({
+const editForm = reactive<QuartzJobDto & { apiUrl: string; jobClassName: string }>({
   jobName: '',
   jobGroup: '',
   jobType: JobTypeEnum.DLL,
   jobClassOrApi: '',
+  // 作业类名与 API 地址在表单中各自独立，切换作业类型时不会互相带值
+  jobClassName: '',
+  apiUrl: '',
   cronExpression: '',
   description: '',
   jobData: '',
@@ -123,12 +130,55 @@ const editForm = reactive<QuartzJobDto>({
   retryIntervalSeconds: 30,
   skipSslValidation: false,
   disallowConcurrentExecution: false,
+  dependencies: [],
   startTime: undefined,
   endTime: undefined,
   isEnabled: true,
 });
 
 const formRef = ref<FormInstance>();
+
+// 前置依赖可选项
+const DEPENDENCY_SEPARATOR = '::';
+const dependencyOptions = ref<Array<{ label: string; value: string }>>([]);
+
+// 加载前置依赖可选项（当前作业不能依赖自身）
+const loadDependencyOptions = async () => {
+  try {
+    const response = await getJobs({ pageIndex: 1, pageSize: 1000 });
+    dependencyOptions.value = (response.data?.items || []).map((job) => ({
+      label: `${job.jobGroup} / ${job.jobName}`,
+      value: `${job.jobGroup}${DEPENDENCY_SEPARATOR}${job.jobName}`,
+    }));
+  } catch {
+    dependencyOptions.value = [];
+  }
+};
+
+const dependencySelectOptions = computed(() =>
+  dependencyOptions.value.filter(
+    (option) =>
+      option.value !==
+      `${editForm.jobGroup}${DEPENDENCY_SEPARATOR}${editForm.jobName}`,
+  ),
+);
+
+// 表单依赖（对象列表）与下拉选择（字符串键）之间的双向映射
+const dependencyKeys = computed<string[]>({
+  get: () =>
+    (editForm.dependencies || []).map(
+      (item) => `${item.jobGroup}${DEPENDENCY_SEPARATOR}${item.jobName}`,
+    ),
+  set: (keys) => {
+    editForm.dependencies = (keys || []).map((key): JobDependency => {
+      const index = key.indexOf(DEPENDENCY_SEPARATOR);
+      return {
+        jobGroup: key.slice(0, index),
+        jobName: key.slice(index + DEPENDENCY_SEPARATOR.length),
+      };
+    });
+  },
+});
 
 // 作业类列表
 const jobClasses = ref<string[]>([]);
@@ -243,6 +293,13 @@ const columns = computed(() => [
     width: 90,
     align: 'center' as const,
     slots: { default: 'status' },
+  },
+  {
+    field: 'dependencies',
+    title: $t('page.quartz.jobPage.dependencies'),
+    minWidth: 160,
+    showOverflow: true,
+    slots: { default: 'dependencies' },
   },
   {
     field: 'isEnabled',
@@ -516,6 +573,8 @@ const handleAdd = async () => {
     jobGroup: '',
     jobType: JobTypeEnum.DLL,
     jobClassOrApi: '',
+    jobClassName: '',
+    apiUrl: '',
     cronExpression: '0 0/1 * * * ?',
     description: '',
     jobData: '',
@@ -527,12 +586,14 @@ const handleAdd = async () => {
     retryIntervalSeconds: 30,
     skipSslValidation: false,
     disallowConcurrentExecution: false,
+    dependencies: [],
     startTime: undefined,
     endTime: undefined,
     isEnabled: true,
   });
   // 默认作业类型是DLL，加载作业类列表
   await loadJobClasses();
+  await loadDependencyOptions();
   initHeaderEditor();
   editModalVisible.value = true;
 };
@@ -558,6 +619,8 @@ const handleCopyJob = async (job: QuartzJobResponseDto) => {
       jobGroup: `${response.data?.jobGroup || ''}_Copy`,
       jobType: jobTypeValue,
       jobClassOrApi: response.data?.jobClassOrApi || '',
+      jobClassName: jobTypeValue === JobTypeEnum.DLL ? (response.data?.jobClassOrApi || '') : '',
+      apiUrl: jobTypeValue === JobTypeEnum.API ? (response.data?.jobClassOrApi || '') : '',
       cronExpression: response.data?.cronExpression || '',
       description: response.data?.description || '',
       jobData: response.data?.jobData || '',
@@ -569,6 +632,7 @@ const handleCopyJob = async (job: QuartzJobResponseDto) => {
       retryIntervalSeconds: response.data?.retryIntervalSeconds ?? 30,
       skipSslValidation: response.data?.skipSslValidation || false,
       disallowConcurrentExecution: response.data?.disallowConcurrentExecution || false,
+      dependencies: response.data?.dependencies || [],
       startTime: response.data?.startTime || undefined,
       endTime: response.data?.endTime || undefined,
       isEnabled: response.data?.isEnabled !== false,
@@ -580,6 +644,7 @@ const handleCopyJob = async (job: QuartzJobResponseDto) => {
       await loadJobClasses();
     }
 
+    await loadDependencyOptions();
     initHeaderEditor();
     editModalVisible.value = true;
   } catch (error) {
@@ -611,6 +676,8 @@ const handleEdit = async (job: QuartzJobResponseDto) => {
       jobGroup: response.data?.jobGroup || '',
       jobType: jobTypeValue,
       jobClassOrApi: response.data?.jobClassOrApi || '',
+      jobClassName: jobTypeValue === JobTypeEnum.DLL ? (response.data?.jobClassOrApi || '') : '',
+      apiUrl: jobTypeValue === JobTypeEnum.API ? (response.data?.jobClassOrApi || '') : '',
       cronExpression: response.data?.cronExpression || '',
       description: response.data?.description || '',
       jobData: response.data?.jobData || '',
@@ -622,6 +689,7 @@ const handleEdit = async (job: QuartzJobResponseDto) => {
       retryIntervalSeconds: response.data?.retryIntervalSeconds ?? 30,
       skipSslValidation: response.data?.skipSslValidation || false,
       disallowConcurrentExecution: response.data?.disallowConcurrentExecution || false,
+      dependencies: response.data?.dependencies || [],
       startTime: response.data?.startTime || undefined,
       endTime: response.data?.endTime || undefined,
       isEnabled: response.data?.isEnabled !== false,
@@ -633,6 +701,7 @@ const handleEdit = async (job: QuartzJobResponseDto) => {
       await loadJobClasses();
     }
 
+    await loadDependencyOptions();
     initHeaderEditor();
     editModalVisible.value = true;
   } catch (error) {
@@ -659,7 +728,7 @@ const handleSave = async () => {
       jobName: editForm.jobName,
       jobGroup: editForm.jobGroup,
       jobType: editForm.jobType,
-      jobClassOrApi: editForm.jobClassOrApi,
+      jobClassOrApi: editForm.jobType === JobTypeEnum.API ? editForm.apiUrl : editForm.jobClassName,
       cronExpression: editForm.cronExpression,
       description: editForm.description,
       jobData: editForm.jobData,
@@ -671,6 +740,7 @@ const handleSave = async () => {
       retryIntervalSeconds: editForm.retryIntervalSeconds ?? 30,
       skipSslValidation: editForm.skipSslValidation,
       disallowConcurrentExecution: editForm.disallowConcurrentExecution,
+      dependencies: editForm.dependencies,
       startTime: editForm.startTime,
       endTime: editForm.endTime,
       isEnabled: editForm.isEnabled,
@@ -805,6 +875,7 @@ const handleToggleEnabled = (job: QuartzJobResponseDto, checked: boolean) => {
           retryIntervalSeconds: job.retryIntervalSeconds,
           skipSslValidation: job.skipSslValidation,
           disallowConcurrentExecution: job.disallowConcurrentExecution,
+          dependencies: job.dependencies,
           startTime: job.startTime,
           endTime: job.endTime,
           isEnabled: checked,
@@ -859,6 +930,71 @@ const handleBatchDelete = () => {
         }
       } catch (error: any) {
         message.error(error.message || $t('page.quartz.jobPage.batchDeleteFailed'));
+      }
+    },
+  });
+};
+
+// 批量停止/恢复/启用/禁用
+const handleBatchOperation = (
+  action: 'disable' | 'enable' | 'pause' | 'resume',
+) => {
+  if (selectedRows.value.length === 0) {
+    message.warning($t('page.quartz.jobPage.selectOperationFirst'));
+    return;
+  }
+
+  const actionLabels: Record<string, string> = {
+    pause: $t('page.quartz.jobPage.batchPause'),
+    resume: $t('page.quartz.jobPage.batchResume'),
+    enable: $t('page.quartz.jobPage.batchEnable'),
+    disable: $t('page.quartz.jobPage.batchDisable'),
+  };
+  const actionText = actionLabels[action];
+
+  Modal.confirm({
+    title: $t('page.quartz.jobPage.confirmBatchAction', { action: actionText }),
+    content: $t('page.quartz.jobPage.confirmBatchActionContent', {
+      action: actionText,
+      count: selectedRows.value.length,
+    }),
+    okText: $t('page.quartz.jobPage.ok'),
+    cancelText: $t('page.quartz.jobPage.cancel'),
+    async onOk() {
+      try {
+        const jobList = selectedRows.value.map((job) => ({
+          JobName: job.jobName,
+          JobGroup: job.jobGroup,
+        }));
+
+        let result;
+        if (action === 'pause') {
+          result = await batchPauseJobs(jobList);
+        } else if (action === 'resume') {
+          result = await batchResumeJobs(jobList);
+        } else {
+          result = await batchSetEnabled(jobList, action === 'enable');
+        }
+
+        if (result.success) {
+          message.success(
+            result.message ||
+              $t('page.quartz.jobPage.batchActionSuccess', { action: actionText }),
+          );
+          selectedRows.value = [];
+          gridApi.grid?.clearCheckboxRow?.();
+          gridApi.query();
+        } else {
+          message.error(
+            result.message ||
+              $t('page.quartz.jobPage.batchActionFailed', { action: actionText }),
+          );
+        }
+      } catch (error: any) {
+        message.error(
+          error.message ||
+            $t('page.quartz.jobPage.batchActionFailed', { action: actionText }),
+        );
       }
     },
   });
@@ -1019,8 +1155,8 @@ const initHeaderEditor = () => {
 const formatJson = (property: keyof QuartzJobDto) => {
   try {
     const value = editForm[property];
-    if (value) {
-      const parsed = JSON.parse(value as string);
+    if (typeof value === 'string' && value) {
+      const parsed = JSON.parse(value);
       (editForm as any)[property] = JSON.stringify(parsed, null, 2);
       message.success($t('page.quartz.jobPage.jsonFormatSuccess'));
     }
@@ -1032,7 +1168,7 @@ const formatJson = (property: keyof QuartzJobDto) => {
 const formatJsonOnBlur = (property: keyof QuartzJobDto) => {
   try {
     const value = editForm[property];
-    if (value && value.trim()) {
+    if (typeof value === 'string' && value.trim()) {
       const parsed = JSON.parse(value as string);
       (editForm as any)[property] = JSON.stringify(parsed, null, 2);
     }
@@ -1087,9 +1223,40 @@ onMounted(async () => {
             </div>
             <Space>
               <Button type="primary" @click="handleAdd"> {{ $t('page.quartz.jobPage.addJob') }} </Button>
-              <Button danger :disabled="selectedRows.length === 0" @click="handleBatchDelete">
-                {{ $t('page.quartz.jobPage.batchDelete') }}
-              </Button>
+              <Dropdown :trigger="['click']">
+                <Button :disabled="selectedRows.length === 0">
+                  {{ $t('page.quartz.jobPage.batchActions') }}
+                  <i class="vxe-icon-arrow-down ml-1"></i>
+                </Button>
+                <template #overlay>
+                  <Menu>
+                    <Menu.Item key="batchPause" @click="handleBatchOperation('pause')"
+                      :style="{ color: '#faad14' }">
+                      <i class="vxe-icon-error-circle mr-1"></i>
+                      {{ $t('page.quartz.jobPage.batchPause') }}
+                    </Menu.Item>
+                    <Menu.Item key="batchResume" @click="handleBatchOperation('resume')"
+                      :style="{ color: '#52c41a' }">
+                      <i class="vxe-icon-success-circle mr-1"></i>
+                      {{ $t('page.quartz.jobPage.batchResume') }}
+                    </Menu.Item>
+                    <Menu.Item key="batchEnable" @click="handleBatchOperation('enable')"
+                      :style="{ color: '#1890ff' }">
+                      <i class="vxe-icon-check mr-1"></i>
+                      {{ $t('page.quartz.jobPage.batchEnable') }}
+                    </Menu.Item>
+                    <Menu.Item key="batchDisable" @click="handleBatchOperation('disable')"
+                      :style="{ color: '#8c8c8c' }">
+                      <i class="vxe-icon-close mr-1"></i>
+                      {{ $t('page.quartz.jobPage.batchDisable') }}
+                    </Menu.Item>
+                    <Menu.Item key="batchDelete" danger @click="handleBatchDelete">
+                      <i class="vxe-icon-delete mr-1"></i>
+                      {{ $t('page.quartz.jobPage.batchDelete') }}
+                    </Menu.Item>
+                  </Menu>
+                </template>
+              </Dropdown>
             </Space>
           </div>
         </template>
@@ -1106,6 +1273,14 @@ onMounted(async () => {
           <Tag :color="jobStatusMap[row.status as JobStatusEnum]?.status || 'default'">
             {{ jobStatusMap[row.status as JobStatusEnum]?.text?.() || row.status || $t('page.quartz.jobPage.unknown') }}
           </Tag>
+        </template>
+
+        <!-- 前置依赖 -->
+        <template #dependencies="{ row }">
+          <span v-if="row.dependencies?.length">
+            {{ row.dependencies.map((item: JobDependency) => `${item.jobGroup}/${item.jobName}`).join('、') }}
+          </span>
+          <span v-else>-</span>
         </template>
 
         <!-- 是否启用 -->
@@ -1237,15 +1412,28 @@ onMounted(async () => {
                 </div>
               </Form.Item>
             </Col>
+            <Col :xs="24">
+              <Form.Item name="dependencies">
+                <template #label>
+                  <Tooltip :title="$t('page.quartz.jobPage.dependenciesHint')">
+                    <i class="vxe-icon-warning-circle retry-hint-icon" style="color: hsl(var(--warning)); cursor: help;"></i>
+                    {{ $t('page.quartz.jobPage.dependencies') }}
+                  </Tooltip>
+                </template>
+                <Select v-model:value="dependencyKeys" mode="multiple" :options="dependencySelectOptions"
+                  :placeholder="$t('page.quartz.jobPage.dependenciesPlaceholder')" allowClear
+                  optionFilterProp="label" :maxTagCount="'responsive'" />
+              </Form.Item>
+            </Col>
           </Row>
 
           <!-- 作业配置 -->
           <div class="form-section-title">{{ $t('page.quartz.jobPage.sectionConfig') }}</div>
           <Row :gutter="16">
             <Col :xs="24" v-if="editForm.jobType === JobTypeEnum.DLL">
-              <Form.Item :label="$t('page.quartz.jobPage.jobClassName')" name="jobClassOrApi"
+              <Form.Item :label="$t('page.quartz.jobPage.jobClassName')" name="jobClassName"
                 :rules="[{ required: true, message: $t('page.quartz.jobPage.jobClassNameRequired') }, { max: 500, message: $t('page.quartz.jobPage.jobClassNameMaxLen') }]">
-                <Select v-model:value="editForm.jobClassOrApi"
+                <Select v-model:value="editForm.jobClassName"
                   :placeholder="$t('page.quartz.jobPage.placeholderJobClassName')" showSearch allowClear
                   mode="SECRET_COMBOBOX_MODE_DO_NOT_USE" :filter-option="(input, option) => {
                     return (option?.label || '')
@@ -1260,9 +1448,9 @@ onMounted(async () => {
               </Form.Item>
             </Col>
             <Col :xs="24" v-if="editForm.jobType === JobTypeEnum.API">
-              <Form.Item :label="$t('page.quartz.jobPage.apiUrl')" name="jobClassOrApi"
+              <Form.Item :label="$t('page.quartz.jobPage.apiUrl')" name="apiUrl"
                 :rules="[{ required: true, message: $t('page.quartz.jobPage.apiUrlRequired') }, { max: 500, message: $t('page.quartz.jobPage.apiUrlMaxLen') }]">
-                <Input v-model:value="editForm.jobClassOrApi"
+                <Input v-model:value="editForm.apiUrl"
                   :placeholder="$t('page.quartz.jobPage.placeholderApiUrl')" />
               </Form.Item>
             </Col>
