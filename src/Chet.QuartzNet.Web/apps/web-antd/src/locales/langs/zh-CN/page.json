@@ -130,7 +130,9 @@
       "migrationFailedCount": "失败",
       "migrationWarnings": "迁移告警",
       "migrationErrorSamples": "错误样本",
-      "migrationSuggestedConfig": "迁移后配置建议"
+      "migrationSuggestedConfig": "迁移后配置建议",
+      "migrationViewSummary": "查看摘要",
+      "migrationClose": "关闭"
     },
     "analyticsPage": {
       "title": "分析页",

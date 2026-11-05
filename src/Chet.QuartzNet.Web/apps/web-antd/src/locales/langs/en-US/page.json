@@ -130,7 +130,9 @@
       "migrationFailedCount": "failed",
       "migrationWarnings": "Migration Warnings",
       "migrationErrorSamples": "Error Samples",
-      "migrationSuggestedConfig": "Suggested Configuration After Migration"
+      "migrationSuggestedConfig": "Suggested Configuration After Migration",
+      "migrationViewSummary": "View Summary",
+      "migrationClose": "Close"
     },
     "analyticsPage": {
       "title": "Analytics",
