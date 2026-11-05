@@ -13,6 +13,8 @@ on:
 
 permissions:
   contents: read
+  # Trusted Publishing 需要 GitHub OIDC 令牌
+  id-token: write
 
 jobs:
   build-and-publish:
@@ -132,6 +134,13 @@ jobs:
       - name: Pack SqlServer package
         run: dotnet pack src/Chet.QuartzNet.EFCore.SqlServer/Chet.QuartzNet.EFCore.SqlServer.csproj --configuration Release --output ./artifacts
 
-      # 6. NuGet 包发布
-      - name: Publish NuGet packages (API Key)
-        run: dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
+      # 6. NuGet 包发布（Trusted Publishing：用 OIDC 换取临时 API Key，无需长期密钥）
+      - name: NuGet login (OIDC → temp API key)
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          # nuget.org 用户名（个人资料名），不是邮箱
+          user: qct
+
+      - name: Publish NuGet packages
+        run: dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --skip-duplicate
