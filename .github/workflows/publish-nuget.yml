@@ -1,12 +1,6 @@
-name: Build, Publish NuGet Packages and Deploy Website
+name: Publish NuGet Packages
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'website/**'
-      - '.github/workflows/build.yml'
   release:
     types:
       - created
@@ -19,19 +13,10 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
   build-and-publish:
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       # 1. 代码检查与依赖安装
       - name: Checkout code
@@ -88,10 +73,10 @@ jobs:
           else
             VERSION=${{ github.event.inputs.version }}
           fi
-          
+
           # 移除版本号中的 v 前缀（如果存在）
           VERSION=${VERSION#v}
-          
+
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
@@ -100,7 +85,7 @@ jobs:
         run: |
           # 使用 sed 命令更新 nuspec 文件中的版本号
           sed -i "s/<version>.*<\/version>/<version>$VERSION<\/version>/g" src/Chet.QuartzNet.UI/Chet.QuartzNet.UI.nuspec
-          
+
           # 验证更新结果
           grep -A 3 "<id>Chet.QuartzNet.UI<\/id>" src/Chet.QuartzNet.UI/Chet.QuartzNet.UI.nuspec
 
@@ -109,13 +94,13 @@ jobs:
         run: |
           # 更新MySQL包nuspec
           sed -i "s/<version>.*<\/version>/<version>$VERSION<\/version>/g" src/Chet.QuartzNet.EFCore.MySql/Chet.QuartzNet.EFCore.MySQL.nuspec
-          
+
           # 更新PostgreSQL包nuspec
           sed -i "s/<version>.*<\/version>/<version>$VERSION<\/version>/g" src/Chet.QuartzNet.EFCore.PostgreSql/Chet.QuartzNet.EFCore.PostgreSQL.nuspec
-          
+
           # 更新SQLite包nuspec
           sed -i "s/<version>.*<\/version>/<version>$VERSION<\/version>/g" src/Chet.QuartzNet.EFCore.SQLite/Chet.QuartzNet.EFCore.SQLite.nuspec
-          
+
           # 更新SqlServer包nuspec
           sed -i "s/<version>.*<\/version>/<version>$VERSION<\/version>/g" src/Chet.QuartzNet.EFCore.SqlServer/Chet.QuartzNet.EFCore.SqlServer.nuspec
 
@@ -131,17 +116,17 @@ jobs:
         run: dotnet build src/Chet.QuartzNet.EFCore.MySql/Chet.QuartzNet.EFCore.MySQL.csproj --configuration Release
       - name: Pack MySQL package
         run: dotnet pack src/Chet.QuartzNet.EFCore.MySql/Chet.QuartzNet.EFCore.MySQL.csproj --configuration Release --output ./artifacts
-      
+
       - name: Build PostgreSQL package
         run: dotnet build src/Chet.QuartzNet.EFCore.PostgreSql/Chet.QuartzNet.EFCore.PostgreSQL.csproj --configuration Release
       - name: Pack PostgreSQL package
         run: dotnet pack src/Chet.QuartzNet.EFCore.PostgreSql/Chet.QuartzNet.EFCore.PostgreSQL.csproj --configuration Release --output ./artifacts
-      
+
       - name: Build SQLite package
         run: dotnet build src/Chet.QuartzNet.EFCore.SQLite/Chet.QuartzNet.EFCore.SQLite.csproj --configuration Release
       - name: Pack SQLite package
         run: dotnet pack src/Chet.QuartzNet.EFCore.SQLite/Chet.QuartzNet.EFCore.SQLite.csproj --configuration Release --output ./artifacts
-      
+
       - name: Build SqlServer package
         run: dotnet build src/Chet.QuartzNet.EFCore.SqlServer/Chet.QuartzNet.EFCore.SqlServer.csproj --configuration Release
       - name: Pack SqlServer package
@@ -150,49 +135,3 @@ jobs:
       # 6. NuGet 包发布
       - name: Publish NuGet packages (API Key)
         run: dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
-
-  # 7. 构建 VitePress 门户网站
-  build-website:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: website/package-lock.json
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Install website dependencies
-        working-directory: website
-        run: npm ci
-
-      - name: Build website
-        working-directory: website
-        run: npm run build
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: website/.vitepress/dist
-
-  # 8. 发布到 GitHub Pages
-  deploy-website:
-    needs: build-website
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
