@@ -209,6 +209,8 @@ Write-Host "版本号同步完成！"
    dotnet nuget push nupkgs\*.nupkg --api-key <YOUR_API_KEY> --source https://api.nuget.org/v3/index.json
    ```
 
+   > 本地手动发布仍需个人 API Key；CI 自动发布使用 Trusted Publishing（OIDC），无需配置长期密钥。
+
 2. **更新GitHub Release**
    - 从 `website/changelog.md` 复制对应版本的更新说明
    - 上传NuGet包作为发布附件
@@ -217,16 +219,25 @@ Write-Host "版本号同步完成！"
 
 ### 6.1 GitHub Actions 工作流
 
-使用 `.github/workflows/release.yml`，实现自动化构建、测试和发布：
+使用 `.github/workflows/publish-nuget.yml`，实现自动化构建、测试和发布：
 
 ```yaml
-# .github/workflows/release.yml
-name: Release
+# .github/workflows/publish-nuget.yml
+name: Publish NuGet Packages
 
 on:
-  push:
-    tags:
-      - v*.*.*
+  release:
+    types:
+      - created
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'NuGet Package Version'
+        required: true
+
+permissions:
+  contents: read
+  id-token: write   # Trusted Publishing 需要 OIDC 令牌
 
 jobs:
   build:
@@ -252,32 +263,32 @@ jobs:
     - name: Pack
       run: dotnet pack --configuration Release --no-build -o nupkgs
     
-    - name: Push to NuGet
-      run: dotnet nuget push nupkgs\*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
-      
-    - name: Create GitHub Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: NuGet login (OIDC → temp API key)
+      id: nuget-login
+      uses: NuGet/login@v1
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
+        user: qct
+
+    - name: Push to NuGet
+      run: dotnet nuget push nupkgs\*.nupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+      
+    # 发布流程由 release 事件触发，无需再创建工作流内的 GitHub Release
 ```
 
 ### 6.2 工作流触发条件
 
-- 当推送符合 `v*.*.*` 格式的git标签时自动触发
-- 执行构建、测试、打包和发布流程
-- 自动创建GitHub Release
+- 创建 GitHub Release 时自动触发
+- 也可在 Actions 页面手动运行 `Publish NuGet Packages` 并指定版本号
+- 执行构建、测试、打包和发布流程；站点部署由 `deploy-pages.yml` 在 main 分支推送时独立执行
 
 ### 6.3 环境变量配置
 
 | 环境变量 | 用途 | 配置位置 |
 |----------|------|----------|
-| `NUGET_API_KEY` | NuGet发布密钥 | GitHub仓库Settings → Secrets and variables → Actions |
+| NuGet 凭证 | 无需配置；工作流通过 GitHub OIDC 换取 1 小时有效的临时 API Key | — |
 | `GITHUB_TOKEN` | GitHub API访问令牌 | 自动生成，无需手动配置 |
+
+NuGet 发布使用 Trusted Publishing：需要在 nuget.org 创建策略（Repository `qiect/Chet.QuartzNet.UI`、Workflow File `publish-nuget.yml`、Glob `Chet.*`），并确保工作流声明 `id-token: write` 权限。旧的 `NUGET_API_KEY` Secret 可以删除。
 
 ## 7. 最佳实践
 
