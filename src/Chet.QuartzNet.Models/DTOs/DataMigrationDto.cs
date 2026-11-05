@@ -151,12 +151,42 @@ public class MigrationStoreDescriptor
     {
         if (Type == MigrationStoreType.File)
         {
-            return $"File({FilePath})";
+            return $"File({GetDisplayPath(FilePath)})";
         }
 
         return string.IsNullOrWhiteSpace(ProfileName)
             ? Type.ToString()
             : $"{Type}({ProfileName})";
+    }
+
+    /// <summary>
+    /// 获取展示用路径：在工作目录内时使用相对路径，否则回退为完整路径
+    /// </summary>
+    private static string GetDisplayPath(string? fullPath)
+    {
+        if (string.IsNullOrWhiteSpace(fullPath))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            var relativePath = Path.GetRelativePath(Environment.CurrentDirectory, fullPath);
+            var isOutsideWorkingDirectory =
+                relativePath.Equals("..", StringComparison.Ordinal)
+                || relativePath.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+                || relativePath.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal);
+            if (!isOutsideWorkingDirectory)
+            {
+                return relativePath;
+            }
+        }
+        catch (Exception)
+        {
+            // 路径解析失败时保持完整路径
+        }
+
+        return fullPath;
     }
 }
 
@@ -583,9 +613,14 @@ public class MigrationFileSourceOptionDto
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// 文件路径
+    /// 文件完整路径（用于实际迁移，避免展示过长）
     /// </summary>
     public string Path { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 用于界面展示的路径：在工作目录内时为相对路径，否则回退为完整路径
+    /// </summary>
+    public string DisplayPath { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -594,7 +629,7 @@ public class MigrationFileSourceOptionDto
 public class MigrationProfileOptionDto
 {
     /// <summary>
-    /// 配置档名称
+    /// 配置档名称（附加数据库固定为 additional）
     /// </summary>
     public string Name { get; set; } = string.Empty;
 
@@ -607,6 +642,11 @@ public class MigrationProfileOptionDto
     /// 是否已配置连接字符串
     /// </summary>
     public bool HasConnectionString { get; set; }
+
+    /// <summary>
+    /// 是否为简化配置的附加数据库
+    /// </summary>
+    public bool IsAdditional { get; set; }
 }
 
 /// <summary>

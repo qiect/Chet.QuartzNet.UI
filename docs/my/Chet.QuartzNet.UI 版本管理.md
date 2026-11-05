@@ -112,7 +112,7 @@ Write-Host "版本号同步完成！"
 采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/) 格式，确保CHANGELOG的可读性和一致性：
 
 ```markdown
-# 更新说明
+# 更新日志
 
 ## [版本号] - 发布日期
 
@@ -139,7 +139,7 @@ Write-Host "版本号同步完成！"
 ### 4.2 实际示例
 
 ```markdown
-# 更新说明
+# 更新日志
 
 ## [1.1.3] - 2025-12-12
 
@@ -174,9 +174,9 @@ Write-Host "版本号同步完成！"
    .\sync-version.ps1 -newVersion 1.1.3
    ```
 
-2. **手动更新说明README.md**
-   - 打开README.md文件
-   - 添加更新说明新版本条目（如果不存在）
+2. **更新网站更新日志**
+   - 编辑 `website/changelog.md`，添加新版本条目
+   - README 已指向更新日志页面，无需再维护版本说明
 
 3. **提交代码**
    ```bash
@@ -210,7 +210,7 @@ Write-Host "版本号同步完成！"
    ```
 
 2. **更新GitHub Release**
-   - 从README.md的更新说明部分复制版本说明
+   - 从 `website/changelog.md` 复制对应版本的更新说明
    - 上传NuGet包作为发布附件
 
 ## 6. 自动化集成

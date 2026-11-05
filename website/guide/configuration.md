@@ -79,11 +79,9 @@ Chet.QuartzNet.UI 读取宿主应用的 ASP.NET Core 配置系统，因此可以
       "PauseSchedulerDuringMigration": false,
       "AllowReplace": false,
       "AllowAdHocConnectionString": false,
-      "Profiles": {
-        "sqlite-dev": {
-          "Provider": "SQLite",
-          "ConnectionString": "Data Source=quartzui.db"
-        }
+      "AdditionalStore": {
+        "Provider": "MySQL",
+        "ConnectionString": "Server=127.0.0.1;Port=3306;Database=quartzui;User=root;Password=***;"
       },
       "FileSources": [
         {
@@ -98,7 +96,8 @@ Chet.QuartzNet.UI 读取宿主应用的 ASP.NET Core 配置系统，因此可以
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
-| `Profiles` | 空 | 数据库配置档，键为配置档名称 |
+| `AdditionalStore` | 空 | 可选，配置后可在当前存储与该数据库之间双向迁移 |
+| `Profiles` | 空 | 旧版数据库配置档，仍然兼容，推荐改用 `AdditionalStore` |
 | `FileSources` | 空 | 额外允许迁移的文件源目录 |
 | `BatchSize` | 500 | 每批读写条数（1–2000） |
 | `ContinueOnError` | false | 写入失败时是否继续后续批次 |

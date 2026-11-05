@@ -176,23 +176,9 @@ app.Run();
       "AllowReplace": false,
       "AllowAdHocConnectionString": false,
 
-      "Profiles": {
-        "sqlite-dev": {
-          "Provider": "SQLite",
-          "ConnectionString": "Data Source=quartzui.db"
-        },
-        "mysql-prod": {
-          "Provider": "MySQL",
-          "ConnectionString": "Server=127.0.0.1;Port=3306;Database=quartzui;User=root;Password=***;"
-        },
-        "pg-archive": {
-          "Provider": "PostgreSQL",
-          "ConnectionString": "Host=127.0.0.1;Port=5432;Database=quartzui;Username=postgres;Password=***;"
-        },
-        "sqlserver-archive": {
-          "Provider": "SqlServer",
-          "ConnectionString": "Data Source=127.0.0.1;Initial Catalog=quartzui;User Id=sa;Password=***;TrustServerCertificate=true;"
-        }
+      "AdditionalStore": {
+        "Provider": "MySQL",
+        "ConnectionString": "Server=127.0.0.1;Port=3306;Database=quartzui;User=root;Password=***;"
       },
 
       "FileSources": [
@@ -212,7 +198,8 @@ app.Run();
 
 | 配置项 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `Profiles` | 对象字典 | 空 | 数据库配置档，键为配置档名称 |
+| `AdditionalStore` | 对象 | 空 | 可选，配置后可在当前存储与该数据库之间双向迁移 |
+| `Profiles` | 对象字典 | 空 | 旧版命名配置档，仍然兼容，推荐改用 `AdditionalStore` |
 | `FileSources` | 数组 | 空 | 额外允许迁移的文件源目录 |
 | `BatchSize` | int | 500 | 每批读写条数，实际取值会夹取到 1–2000 |
 | `ContinueOnError` | bool | false | 批次写入失败时是否继续后续批次 |
@@ -221,9 +208,9 @@ app.Run();
 | `AllowReplace` | bool | false | 是否允许 `Replace` 模式 |
 | `AllowAdHocConnectionString` | bool | false | 是否允许 API 直接提交连接字符串 |
 
-### 4.3 数据库配置档 `Profiles`
+### 4.3 附加数据库 `AdditionalStore`
 
-每个配置档包含：
+大多数场景只需在「当前数据库」与「文件存储」之间迁移，无需配置本项。需要与另一个数据库双向迁移时，配置一个附加数据库。
 
 | 字段 | 说明 |
 | --- | --- |
@@ -233,10 +220,11 @@ app.Run();
 
 使用要点：
 
-- 配置档名称即页面下拉中显示的名称，建议按环境命名（如 `mysql-prod`、`pg-archive`）。
-- 配置档缺少 `ConnectionString` 时，下拉项会置灰并标注「未配置连接字符串」。
-- 请求中的 `Provider` 与配置档中的 `Provider` 不一致时会直接被拒绝，避免误连。
-- 迁移结果不返回连接字符串，只返回存储展示名，例如 `SQLite(sqlite-dev)`。
+- 页面下拉中显示为「附加数据库 · {Provider}」，源和目标均可选择。
+- 未配置 `ConnectionString` 时，下拉项会置灰并标注「未配置连接字符串」。
+- 请求中的 `Provider` 与配置中的 `Provider` 不一致时会直接被拒绝，避免误连。
+- 迁移结果不返回连接字符串，只返回存储展示名，例如 `MySQL(附加数据库)`。
+- 同一时间只配置一个附加数据库；确有多个数据库需要迁移时，可继续使用旧版 `Profiles`。
 
 ### 4.4 文件源 `FileSources`
 
@@ -257,7 +245,7 @@ app.Run();
 `current` 是保留名称，代表「当前应用正在使用的数据库」：
 
 - 仅当 `StorageType = Database` 时可用，否则报「当前应用使用文件存储，不存在可用的当前数据库」。
-- 使用 `ConnectionStrings:QuartzUI` 和 `QuartzUI:DatabaseProvider`，无需在 `Profiles` 中重复配置。
+- 使用 `ConnectionStrings:QuartzUI` 和 `QuartzUI:DatabaseProvider`，无需在 `AdditionalStore` 或旧版 `Profiles` 中重复配置。
 - 页面下拉显示为「当前数据库 · {Provider}」。
 - API 中可通过 `"profileName": "current"` 使用。
 
@@ -265,10 +253,10 @@ app.Run();
 
 ### 4.6 安全建议
 
-- 不要开启 `AllowAdHocConnectionString`，统一使用 `Profiles`，避免连接字符串通过请求体传播。
+- 不要开启 `AllowAdHocConnectionString`，统一使用 `AdditionalStore`（或旧版 `Profiles`），避免连接字符串通过请求体传播。
 - `AllowReplace` 默认关闭，仅在确实需要全量替换时临时开启，用完再关闭。
 - 迁移接口受 JWT 保护，但仍建议放在内网或受控环境，并限制管理账号。
-- `Profiles` 中的密码建议使用环境变量或密钥管理服务注入，不要提交到代码仓库。
+- `AdditionalStore` / `Profiles` 中的密码建议使用环境变量或密钥管理服务注入，不要提交到代码仓库。
 
 ## 5. 页面操作指南
 
@@ -278,24 +266,22 @@ app.Run();
 2. 进入左侧菜单「系统设置」页面。
 3. 页面下方即为「数据迁移」卡片。
 
-卡片顶部会显示：
-
-- 当前存储类型
-- 文件存储路径
-- 路径是否存在
+卡片标题旁会显示当前生效的存储，例如「当前存储：数据库 · SQLite」或「当前存储：文件」。
 
 ### 5.2 选择迁移源与迁移目标
 
-下拉选项包含三类：
+下拉选项包含以下几类：
 
 | 选项形式 | 含义 |
 | --- | --- |
-| `文件存储 · {名称}` | `FileStoragePath` 或 `FileSources` 中的目录 |
-| `当前数据库 · {Provider}` | 保留配置档 `current` |
-| `{配置档名} · {Provider}` | `Profiles` 中的数据库配置档 |
+| `文件存储 · {名称}` | `FileStoragePath` 或 `FileSources` 中的目录；当前为文件存储时显示为「当前文件存储」 |
+| `当前数据库 · {Provider}` | 保留配置档 `current`，仅在数据库存储模式下出现 |
+| `附加数据库 · {Provider}` | `Migration.AdditionalStore` 中配置的数据库 |
+| `{配置档名} · {Provider}` | 旧版 `Profiles` 中的数据库配置档 |
 
 - 源与目标下拉会互相排除已选中的项。
-- 配置档未配置连接字符串时不可选。
+- 当前只有一种可用存储时，源 / 目标表单会隐藏，并提示配置 `Migration.AdditionalStore` 或 `FileSources`。
+- 附加数据库或配置档未配置连接字符串时不可选。
 - 顶部若提示「以下数据库驱动未安装」，对应数据库将无法选择，需先安装 NuGet 包。
 
 ### 5.3 选择写入模式与迁移内容
@@ -318,7 +304,7 @@ app.Run();
 | 将更新 | 预计更新的记录数（仅覆盖模式下的作业/设置） |
 | 将跳过 | 预计跳过的记录数 |
 
-预检返回 `canRun = false` 时会给出原因（例如配置档不存在、Provider 未安装、源目标类型相同、目标库尚未初始化等）。**建议每次迁移前先预检**，确认预计写入量符合预期。
+预检返回 `canRun = false` 时会给出原因（例如附加数据库未配置、Provider 未安装、源目标类型相同、目标库尚未初始化等）。**建议每次迁移前先预检**，确认预计写入量符合预期。
 
 ### 5.5 开始迁移
 
@@ -508,7 +494,7 @@ Authorization: Bearer {accessToken}
 | --- | --- | --- |
 | `type` | string | `File` / `MySql` / `PostgreSql` / `SQLite` / `SqlServer` |
 | `filePath` | string | `File` 类型使用，必须在服务端允许列表内 |
-| `profileName` | string | 数据库配置档名称，或保留值 `current` |
+| `profileName` | string | 附加数据库传 `additional`；旧版 `Profiles` 传配置档名称；`current` 代表当前数据库 |
 | `connectionString` | string | 仅当 `AllowAdHocConnectionString = true` 时允许 |
 | `serverVersion` | string | 可选，MySQL 等场景使用 |
 
@@ -746,8 +732,8 @@ do {
 适用：单机文件存储升级为 SQLite。
 
 1. 安装 `Chet.QuartzNet.EFCore.SQLite` 包并重启。
-2. 配置 `Profiles.sqlite-dev`，`Provider = SQLite`，连接串指向目标文件。
-3. 页面选择源「文件存储 · 当前文件存储」、目标「sqlite-dev · SQLite」。
+2. 配置 `Migration.AdditionalStore`，`Provider = SQLite`，连接串指向目标文件。
+3. 页面选择源「文件存储 · 当前文件存储」、目标「附加数据库 · SQLite」。
 4. 模式选择「合并」，点击「预检」确认预计写入量。
 5. 点击「开始迁移」，等待完成。
 6. 将 `StorageType` 改为 `Database`、`DatabaseProvider` 改为 `sqlite`，连接串指向同一 SQLite 文件，重启应用。
@@ -757,7 +743,7 @@ do {
 
 适用：从数据库导出为文件备份。
 
-1. 页面选择源「sqlite-dev · SQLite」、目标「文件存储 · 当前文件存储」。
+1. 页面选择源「附加数据库 · SQLite」、目标「文件存储 · 当前文件存储」。
 2. 目标目录不存在时会自动创建。
 3. 模式选择「合并」，执行迁移。
 4. 迁移完成后检查目标目录下的 `jobs.json`、`logs.json`、`setting.json`、`notification.json`。
@@ -868,10 +854,10 @@ App_Data/QuartzJobs/
 
 ## 10. 常见问题
 
-### 10.1 未找到迁移配置档：xxx
+### 10.1 未找到迁移配置档 / 未配置附加数据库
 
-- 检查 `Profiles` 的键名拼写与请求中的 `profileName` 是否一致。
-- 确认配置位于 `QuartzUI:Migration:Profiles` 下，而不是 `QuartzUI` 同级。
+- 使用附加数据库时，确认 `QuartzUI:Migration:AdditionalStore` 已配置 `Provider` 与 `ConnectionString`。
+- 使用旧版配置档时，检查 `Profiles` 的键名拼写与请求中的 `profileName` 是否一致。
 - 修改配置后需重启应用才能生效。
 
 ### 10.2 未安装 xxx 包，无法使用 xxx 存储
@@ -938,12 +924,12 @@ App_Data/QuartzJobs/
 ### 10.10 迁移成功但作业没有变化
 
 - 确认是否已修改 `StorageType` / `DatabaseProvider` / 连接串并重启。
-- 确认迁移目标与应用当前使用的存储是同一实例（特别是 `current` 配置档与 `Profiles` 的差异）。
+- 确认迁移目标与应用当前使用的存储是同一实例（特别是 `current` 配置档与 `AdditionalStore` / `Profiles` 的差异）。
 - 检查 `warnings` 中是否有抽样缺失告警。
 
 ### 10.11 不允许直接提交连接字符串
 
-服务端未开启 `AllowAdHocConnectionString`。请使用 `Profiles` 配置档，或临时开启该选项（不推荐长期开启）。
+服务端未开启 `AllowAdHocConnectionString`。请配置 `AdditionalStore`（或旧版 `Profiles`），或临时开启该选项（不推荐长期开启）。
 
 ### 10.12 取消后无法立即重新迁移
 
@@ -951,14 +937,14 @@ App_Data/QuartzJobs/
 
 ## 11. 最佳实践
 
-1. **先预检，再执行**：预检能提前暴露配置档、Provider、路径、目标结构等问题。
+1. **先预检，再执行**：预检能提前暴露附加数据库配置、Provider、路径、目标结构等问题。
 2. **先备份，再 Replace**：数据库端没有自动备份，Replace 前务必做快照或逻辑备份。
 3. **生产迁移期间暂停调度器**：勾选「迁移期间暂停调度器」，避免迁移过程中作业状态被并发改写。
 4. **日志分批处理**：日志量大时优先调整 `BatchSize`（如 1000–2000），并观察状态接口的 `processed/total`。
 5. **迁移期间避免其他写操作**：不要在页面新增/编辑作业，也不要运行另一个迁移任务（服务端只允许一个任务）。
 6. **保留源数据直到验证完成**：迁移不会删除源数据，验证通过后再考虑下线旧存储。
 7. **用合并模式做增量**：日常同步使用 `Merge`；只有确需以源端覆盖目标时才用 `Overwrite`。
-8. **连接串只放服务端**：统一使用 `Profiles`，保持 `AllowAdHocConnectionString = false`。
+8. **连接串只放服务端**：统一使用 `AdditionalStore`（或旧版 `Profiles`），保持 `AllowAdHocConnectionString = false`。
 9. **账号最小权限**：源库只读；目标库按模式授予建表、写入、删除权限。
 10. **迁移后核对告警**：数量告警与抽样告警是判断数据完整性的第一手依据。
 

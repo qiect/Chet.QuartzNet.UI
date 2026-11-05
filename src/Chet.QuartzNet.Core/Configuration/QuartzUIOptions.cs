@@ -128,9 +128,14 @@ public class QuartzUIOptions
 public class MigrationOptions
 {
     /// <summary>
-    /// 数据库迁移配置档（键为配置档名称）
+    /// 数据库迁移配置档（键为配置档名称，兼容旧配置，推荐使用 AdditionalStore）
     /// </summary>
     public Dictionary<string, MigrationProfile> Profiles { get; set; } = new();
+
+    /// <summary>
+    /// 附加数据库（可选）：配置后可在当前存储与该数据库之间双向迁移
+    /// </summary>
+    public MigrationProfile? AdditionalStore { get; set; }
 
     /// <summary>
     /// 可选的文件源

@@ -47,6 +47,11 @@ public class StorageMigrationService
         MigrationEntity.Notifications,
     };
 
+    /// <summary>
+    /// 附加数据库在配置档列表中的保留名称
+    /// </summary>
+    private const string AdditionalStoreProfileName = "additional";
+
     private readonly IOptions<QuartzUIOptions> _options;
     private readonly IConfiguration _configuration;
     private readonly ILogger<StorageMigrationService> _logger;
@@ -111,8 +116,15 @@ public class StorageMigrationService
             MaxErrorSamples = migration.MaxErrorSamples,
         };
 
+        // 只有当前存储确实为文件存储时才标记“当前”，避免与当前数据库混淆
+        var isFileStorageCurrent = options.StorageType == StorageType.File;
         result.FileSources.Add(
-            new MigrationFileSourceOptionDto { Name = "当前文件存储", Path = filePath }
+            new MigrationFileSourceOptionDto
+            {
+                Name = isFileStorageCurrent ? "当前文件存储" : "文件存储",
+                Path = filePath,
+                DisplayPath = GetDisplayPath(filePath),
+            }
         );
         foreach (var source in migration.FileSources)
         {
@@ -132,6 +144,22 @@ public class StorageMigrationService
                 {
                     Name = string.IsNullOrWhiteSpace(source.Name) ? path : source.Name,
                     Path = path,
+                    DisplayPath = GetDisplayPath(path),
+                }
+            );
+        }
+
+        if (!string.IsNullOrWhiteSpace(migration.AdditionalStore?.Provider))
+        {
+            result.Profiles.Add(
+                new MigrationProfileOptionDto
+                {
+                    Name = AdditionalStoreProfileName,
+                    Provider = migration.AdditionalStore.Provider,
+                    HasConnectionString = !string.IsNullOrWhiteSpace(
+                        migration.AdditionalStore.ConnectionString
+                    ),
+                    IsAdditional = true,
                 }
             );
         }
@@ -1094,17 +1122,27 @@ public class StorageMigrationService
 
         if (!string.IsNullOrWhiteSpace(descriptor.ProfileName))
         {
-            var profile = migration.Profiles.GetValueOrDefault(descriptor.ProfileName);
+            var isAdditionalStore = descriptor.ProfileName.Equals(
+                AdditionalStoreProfileName,
+                StringComparison.OrdinalIgnoreCase
+            );
+            var profile = isAdditionalStore
+                ? migration.AdditionalStore
+                : migration.Profiles.GetValueOrDefault(descriptor.ProfileName);
             if (profile == null)
             {
                 throw new InvalidOperationException(
-                    $"未找到迁移配置档：{descriptor.ProfileName}"
+                    isAdditionalStore
+                        ? "未配置 QuartzUI:Migration:AdditionalStore"
+                        : $"未找到迁移配置档：{descriptor.ProfileName}"
                 );
             }
             if (string.IsNullOrWhiteSpace(profile.ConnectionString))
             {
                 throw new InvalidOperationException(
-                    $"迁移配置档 {descriptor.ProfileName} 未配置连接字符串"
+                    isAdditionalStore
+                        ? "QuartzUI:Migration:AdditionalStore 未配置连接字符串"
+                        : $"迁移配置档 {descriptor.ProfileName} 未配置连接字符串"
                 );
             }
 
@@ -1114,7 +1152,9 @@ public class StorageMigrationService
             if (provider != descriptor.Type && descriptor.Type != MigrationStoreType.File)
             {
                 throw new InvalidOperationException(
-                    $"配置档 {descriptor.ProfileName} 的数据库类型为 {provider}，与请求中的 {descriptor.Type} 不一致"
+                    isAdditionalStore
+                        ? $"QuartzUI:Migration:AdditionalStore 的数据库类型为 {provider}，与请求中的 {descriptor.Type} 不一致"
+                        : $"配置档 {descriptor.ProfileName} 的数据库类型为 {provider}，与请求中的 {descriptor.Type} 不一致"
                 );
             }
 
@@ -1123,7 +1163,7 @@ public class StorageMigrationService
                 Type = provider,
                 ConnectionString = profile.ConnectionString,
                 ServerVersion = profile.ServerVersion ?? descriptor.ServerVersion,
-                ProfileName = descriptor.ProfileName,
+                ProfileName = isAdditionalStore ? "附加数据库" : descriptor.ProfileName,
             };
         }
 
@@ -1132,7 +1172,7 @@ public class StorageMigrationService
             if (!migration.AllowAdHocConnectionString)
             {
                 throw new InvalidOperationException(
-                    "服务端未允许直接提交连接字符串，请使用 QuartzUI:Migration:Profiles 配置档"
+                    "服务端未允许直接提交连接字符串，请配置 QuartzUI:Migration:AdditionalStore"
                 );
             }
 
@@ -1140,7 +1180,7 @@ public class StorageMigrationService
         }
 
         throw new InvalidOperationException(
-            $"{descriptor.Type} 存储需要指定配置档名称，或在允许的情况下直接提交连接字符串"
+            $"{descriptor.Type} 存储需要在 QuartzUI:Migration:AdditionalStore 中配置，或在允许的情况下直接提交连接字符串"
         );
     }
 
@@ -1189,6 +1229,36 @@ public class StorageMigrationService
         {
             return path;
         }
+    }
+
+    /// <summary>
+    /// 获取展示用路径：在工作目录内时使用相对路径，否则回退为完整路径
+    /// </summary>
+    private static string GetDisplayPath(string fullPath)
+    {
+        if (string.IsNullOrWhiteSpace(fullPath))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            var relativePath = Path.GetRelativePath(Environment.CurrentDirectory, fullPath);
+            var isOutsideWorkingDirectory =
+                relativePath.Equals("..", StringComparison.Ordinal)
+                || relativePath.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+                || relativePath.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal);
+            if (!isOutsideWorkingDirectory)
+            {
+                return relativePath;
+            }
+        }
+        catch (Exception)
+        {
+            // 路径解析失败时保持完整路径
+        }
+
+        return fullPath;
     }
 
     private static MigrationStoreType ParseStoreType(string value)

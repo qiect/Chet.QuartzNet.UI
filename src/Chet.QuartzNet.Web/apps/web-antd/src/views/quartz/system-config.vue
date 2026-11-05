@@ -242,17 +242,33 @@ function stepName(step: MigrationStepInfo): string {
 interface StorageOption {
   label: string;
   value: string;
+  title?: string;
   disabled?: boolean;
 }
 
 const storageOptions = computed<StorageOption[]>(() => {
   const options = migrationOptions.value;
   const result: StorageOption[] = [];
+  const isFileStorageCurrent = options?.currentStorageType === 'File';
 
   options?.fileSources.forEach((source) => {
+    // 只有当前存储确实为文件存储时，才把该文件源标记为“当前”
+    const isCurrentFile =
+      isFileStorageCurrent && source.path === options?.fileStoragePath;
+    // 展示路径优先使用后端计算的相对路径，完整路径放入 title 提示
+    const displayPath = source.displayPath || source.path;
+    const displayName =
+      source.path === options?.fileStoragePath
+        ? displayPath
+        : source.name && source.name !== source.path
+          ? source.name
+          : displayPath;
     result.push({
-      label: `${$t('page.quartz.systemConfigPage.migrationFileSourceLabel')} · ${source.name}`,
+      label: isCurrentFile
+        ? `${$t('page.quartz.systemConfigPage.migrationCurrentFileStorage')} · ${displayName}`
+        : `${$t('page.quartz.systemConfigPage.migrationFileSourceLabel')} · ${displayName}`,
       value: `file:${source.path}`,
+      title: source.path,
     });
   });
 
@@ -267,8 +283,11 @@ const storageOptions = computed<StorageOption[]>(() => {
   }
 
   options?.profiles.forEach((profile) => {
+    const displayName = profile.isAdditional
+      ? $t('page.quartz.systemConfigPage.migrationAdditionalStore')
+      : profile.name;
     result.push({
-      label: `${profile.name} · ${profile.provider}${profile.hasConnectionString ? '' : ` (${$t('page.quartz.systemConfigPage.migrationProfileNoConnection')})`}`,
+      label: `${displayName} · ${profile.provider}${profile.hasConnectionString ? '' : ` (${$t('page.quartz.systemConfigPage.migrationProfileNoConnection')})`}`,
       value: `profile:${profile.name}`,
       disabled: !profile.hasConnectionString,
     });
@@ -283,6 +302,11 @@ const sourceStorageOptions = computed(() =>
 
 const targetStorageOptions = computed(() =>
   storageOptions.value.filter((item) => item.value !== migrationSource.value),
+);
+
+// 至少需要两种可用存储才能组合出迁移的源和目标
+const hasAvailableStores = computed(
+  () => storageOptions.value.filter((item) => !item.disabled).length >= 2,
 );
 
 const entityOptions = computed(() => [
@@ -337,6 +361,22 @@ const migrationWarnings = computed(() => migrationStatus.value?.warnings ?? []);
 const migrationErrorSamples = computed(
   () => migrationStatus.value?.errorSamples ?? [],
 );
+
+// 当前实际生效的存储模式，兼容选项未加载完成的情况
+const currentStorageDisplay = computed(() => {
+  const options = migrationOptions.value;
+  if (!options) {
+    return migrationStatus.value?.storageType || '-';
+  }
+
+  if (options.currentStorageType === 'Database') {
+    return options.currentDatabaseProvider
+      ? `${$t('page.quartz.systemConfigPage.migrationStorageDatabase')} · ${options.currentDatabaseProvider}`
+      : $t('page.quartz.systemConfigPage.migrationStorageDatabase');
+  }
+
+  return $t('page.quartz.systemConfigPage.migrationStorageFile');
+});
 
 function normalizeProvider(provider: string): MigrationStoreType {
   switch (provider.toLowerCase()) {
@@ -493,6 +533,13 @@ async function loadMigrationOptions() {
     const fileDefault = defaultFileSource?.path
       ? `file:${defaultFileSource.path}`
       : '';
+    // 当前存储为文件时，优先把其他文件源作为迁移目标，避免源和目标都指向当前存储
+    const otherFileSource = options.fileSources.find(
+      (source) => source.path !== options.fileStoragePath,
+    );
+    const otherFileDefault = otherFileSource?.path
+      ? `file:${otherFileSource.path}`
+      : '';
     const profileDefault = options.profiles.find(
       (profile) => profile.hasConnectionString,
     )
@@ -511,12 +558,18 @@ async function loadMigrationOptions() {
     }
 
     if (!migrationTarget.value) {
-      migrationTarget.value = currentDefault || profileDefault || fileDefault;
+      migrationTarget.value =
+        currentDefault || profileDefault || otherFileDefault || fileDefault;
     }
 
     if (migrationSource.value === migrationTarget.value) {
       if (profileDefault && migrationSource.value !== profileDefault) {
         migrationSource.value = profileDefault;
+      } else if (
+        otherFileDefault &&
+        migrationSource.value !== otherFileDefault
+      ) {
+        migrationSource.value = otherFileDefault;
       } else if (fileDefault && migrationSource.value !== fileDefault) {
         migrationSource.value = fileDefault;
       }
@@ -787,6 +840,9 @@ loadMigrationStatus(true);
               <path d="M4 6.5 8 10.5 12 6.5" />
             </svg>
             {{ $t('page.quartz.systemConfigPage.migrationSection') }}
+            <Tag :bordered="false" size="small" class="shrink-0 text-xs">
+              {{ $t('page.quartz.systemConfigPage.migrationCurrentStorage') }}：{{ currentStorageDisplay }}
+            </Tag>
           </span>
           <span class="pl-[22px] text-xs font-normal leading-4 text-muted-foreground">
             {{ $t('page.quartz.systemConfigPage.migrationDescription') }}
@@ -811,8 +867,16 @@ loadMigrationStatus(true);
       <Transition name="expand">
         <div v-if="!migrationCollapsed" class="collapse-grid">
           <div class="collapse-inner">
+            <!-- 只有一种存储时无法组合源和目标 -->
+            <div
+              v-if="!hasAvailableStores"
+              class="rounded-md bg-muted/40 px-3 py-4 text-xs leading-5 text-muted-foreground"
+            >
+              {{ $t('page.quartz.systemConfigPage.migrationNoAvailableStore') }}
+            </div>
+
             <!-- 迁移配置 -->
-            <div class="space-y-3">
+            <div v-else class="space-y-3">
               <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <div class="mb-1 text-xs font-medium text-muted-foreground">
@@ -943,29 +1007,6 @@ loadMigrationStatus(true);
                   </span>
                 </Tooltip>
               </div>
-            </div>
-
-            <!-- 当前存储与本次迁移信息 -->
-            <div
-              v-if="migrationStatus"
-              class="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground"
-            >
-              <span>
-                {{ $t('page.quartz.systemConfigPage.migrationStorageType') }}:
-                <span class="font-mono text-foreground">{{ migrationStatus.storageType || '-' }}</span>
-              </span>
-              <span v-if="migrationStatus.sourceDisplay">
-                {{ $t('page.quartz.systemConfigPage.migrationSource') }}:
-                <span class="font-mono text-foreground">{{ migrationStatus.sourceDisplay }}</span>
-              </span>
-              <span v-if="migrationStatus.targetDisplay">
-                {{ $t('page.quartz.systemConfigPage.migrationTarget') }}:
-                <span class="font-mono text-foreground">{{ migrationStatus.targetDisplay }}</span>
-              </span>
-              <span v-if="migrationStatus.mode">
-                {{ $t('page.quartz.systemConfigPage.migrationMode') }}:
-                <span class="font-mono text-foreground">{{ migrationStatus.mode }}</span>
-              </span>
             </div>
 
             <!-- 预检结果 -->
