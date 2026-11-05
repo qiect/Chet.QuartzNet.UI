@@ -43,8 +43,8 @@
   - `src/Chet.QuartzNet.EFCore.SqlServer`
 
 #### 6. NuGet 包发布
-- 配置 NuGet 源
-- 使用 API 密钥发布所有打包好的 NuGet 包
+- 通过 Trusted Publishing（OIDC）获取临时 API Key
+- 发布所有打包好的 NuGet 包，无需长期密钥
 
 ## 工作流文件内容
 
@@ -67,6 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write   # Trusted Publishing 需要 OIDC 令牌
     steps:
       # 1. 代码检查与依赖安装
       - name: Checkout code
@@ -156,9 +157,15 @@ jobs:
       - name: Pack SqlServer package
         run: dotnet pack src/Chet.QuartzNet.EFCore.SqlServer/Chet.QuartzNet.EFCore.SqlServer.csproj --configuration Release --output ./artifacts -p:PackageVersion=$VERSION
 
-      # 6. NuGet 包发布 (使用API Key)
+      # 6. NuGet 包发布 (Trusted Publishing：OIDC 换取临时 API Key)
+      - name: NuGet login (OIDC → temp API key)
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: qct   # nuget.org 用户名（个人资料名），不是邮箱
+
       - name: Publish NuGet packages
-        run: dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
+        run: dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --skip-duplicate
 ```
 
 ## 配置说明
@@ -232,56 +239,50 @@ jobs:
 - 标签创建后不可修改，如需修改需删除原标签并重新创建
 - 每个标签对应一个特定版本的代码快照，便于版本回溯和管理
 
-### NuGet API Key 配置
+### NuGet Trusted Publishing（OIDC）配置
 
 #### 优势
-- **配置简单**: 无需复杂的 OIDC 配置
-- **兼容性好**: 支持所有 NuGet 服务器版本
-- **使用广泛**: 大多数开发者熟悉 API Key 认证方式
+- **无需长期密钥**: 工作流用 GitHub OIDC 令牌换取 1 小时有效的临时 API Key，不存在密钥过期或泄露问题
+- **自动轮换**: 每次运行都获取新凭证，无需定期更换
+- **仓库绑定**: nuget.org 只信任指定仓库和指定工作流文件，安全性高于可复制的 API Key
 
 #### 配置步骤
 
-##### 1. 获取 NuGet API Key
+##### 1. 在 nuget.org 创建 Trusted Publishing 策略
 1. 登录 [NuGet.org](https://www.nuget.org/)
-2. 点击右上角头像，选择 `Account Settings`
-3. 在左侧导航栏中选择 `API Keys`
-4. 点击 `Create` 按钮
-5. 配置 API Key：
-   - **Name**: 输入一个易于识别的名称（如 `Chet.QuartzNet.UI GitHub Actions`）
-   - **Select Scopes**: 选择 `Push` 权限
-   - **Select Packages**: 选择要授权的包（或选择 `*` 表示所有包）
-   - **Expires In**: 可选设置过期时间（建议定期更换 API Key）
-6. 点击 `Create` 按钮
-7. **复制生成的 API Key**（此 Key 只会显示一次，务必保存好）
+2. 点击右上角头像，选择 `Trusted Publishing`
+3. 创建策略并填写：
+   - **Repository Owner**: `qiect`
+   - **Repository**: `Chet.QuartzNet.UI`
+   - **Workflow File**: `publish-nuget.yml`（只填文件名，不要带 `.github/workflows/` 路径）
+   - **Environment**: 留空（工作流未使用 GitHub Environments）
+   - **Scopes**: 勾选 `Push`，选择 `Push new packages and package versions`
+   - **Glob Patterns and Packages**: `Chet.*`（覆盖全部 5 个包）
+4. 保存策略
 
-##### 2. 在 GitHub 上配置 API Key
-1. 进入 GitHub 仓库
-2. 点击 `Settings` 标签页
-3. 在左侧导航栏中选择 `Secrets and variables` > `Actions`
-4. 点击 `New repository secret` 按钮
-5. 配置 Secret：
-   - **Name**: 输入 `NUGET_API_KEY`（必须与工作流文件中的变量名一致）
-   - **Secret**: 粘贴刚才复制的 NuGet API Key
-6. 点击 `Add secret` 按钮
+> 私有仓库首次创建的策略有 7 天试用期，需要在 7 天内成功发布一次才会永久生效。
+
+##### 2. GitHub 侧配置
+- 不需要新增任何 Secret，旧的 `NUGET_API_KEY` 可以删除
+- 工作流需要声明 `id-token: write` 权限，用于申请 GitHub OIDC 令牌
+- 策略按工作流文件名匹配，不要随意重命名 `publish-nuget.yml`
 
 ##### 3. 工作流配置说明
-- 工作流文件中已包含 API Key 引用：`${{ secrets.NUGET_API_KEY }}`
-- 发布命令格式：`dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate`
-- 无需额外权限配置，`contents: read` 权限已足够
+- OIDC 登录步骤：`NuGet/login@v1`，临时 Key 输出到 `steps.nuget-login.outputs.NUGET_API_KEY`
+- 发布命令格式：`dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --skip-duplicate`
+- 临时 Key 有效期 1 小时，登录步骤必须放在打包之后、推送之前
 
 #### 安全最佳实践
-- **定期更换 API Key**: 建议每 3-6 个月更换一次 API Key
-- **最小权限原则**: 只授予必要的 `Push` 权限，不授予 `Manage Packages` 等高级权限
-- **避免共享 API Key**: 每个项目或用途使用独立的 API Key
-- **定期审查**: 定期检查 NuGet.org 上的 API Key 列表，删除不再使用的 Key
-- **使用 GitHub Environments**: 对于多环境部署，建议使用 GitHub Environments 管理不同环境的 API Key
+- **最小权限**: 策略只勾选 `Push`，Glob 限定为 `Chet.*`
+- **固定工作流文件**: 策略按文件名匹配，重命名后需同步更新策略
+- **不要回退到长期 Key**: 长期 API Key 会过期，且一旦泄露影响所有包
 
 ### 注意事项
-- 确保 API Key 具有发布目标包的权限
-- 首次发布新包时，API Key 需要有 `Push` 和 `Unlist` 权限
-- API Key 是敏感信息，务必妥善保管，不要泄露到代码或日志中
-- 如果 API Key 泄露，立即在 NuGet.org 上删除并重新生成
+- 工作流文件必须命名为 `publish-nuget.yml`，否则 nuget.org 策略匹配失败
+- 工作流必须声明 `id-token: write` 权限，否则无法获取 OIDC 令牌
+- 临时 API Key 有效期只有 1 小时，登录步骤应紧挨发布步骤
 - 发布命令中的 `--skip-duplicate` 参数用于跳过已存在的版本，避免发布失败
+- 新建的 Trusted Publishing 策略需在 7 天内成功发布一次才能永久激活
 
 ## 预期效果
 
@@ -303,10 +304,10 @@ jobs:
 
 1. 前端项目的构建输出目录需与主项目的静态资源目录匹配
 2. 版本号格式需符合语义化版本规范
-3. 首次运行时确保已在 GitHub Secrets 中配置了有效的 `NUGET_API_KEY`
+3. 首次运行前确保已在 nuget.org 创建 Trusted Publishing 策略，且 Workflow File 与实际文件名一致
 4. 建议先在测试环境中验证工作流的正确性
-5. 确保 NuGet API Key 具有发布目标包的权限
+5. 策略的 Scope 需允许 `Push new packages and package versions`，Glob 需覆盖要发布的包
 6. 工作流文件必须位于 `.github/workflows/` 目录下
-7. 定期更换 NuGet API Key 以提高安全性
+7. 不要随意重命名发布工作流文件，否则需同步修改 nuget.org 策略
 
 这个工作流方案完全符合用户的需求，能够自动化完成从前端构建到 NuGet 包发布的整个流程，提高开发效率并确保发布的一致性。
