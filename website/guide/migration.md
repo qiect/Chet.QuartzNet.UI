@@ -53,35 +53,28 @@ description: 在文件、MySQL、PostgreSQL、SQLite、SQL Server 五种存储�
 
 ## 4. 配置数据库与文件来源
 
-### 4.1 数据库配置档
+### 4.1 附加数据库（可选）
+
+大多数场景只需在「当前数据库」与「文件存储」之间迁移，无需配置本项。需要与另一个数据库双向迁移时，配置一个附加数据库：
 
 ```json
 {
   "QuartzUI": {
     "Migration": {
-      "Profiles": {
-        "sqlite-dev": {
-          "Provider": "SQLite",
-          "ConnectionString": "Data Source=quartzui.db"
-        },
-        "mysql-prod": {
-          "Provider": "MySQL",
-          "ConnectionString": "Server=127.0.0.1;Port=3306;Database=quartzui;User=root;Password=***;"
-        },
-        "pg-archive": {
-          "Provider": "PostgreSQL",
-          "ConnectionString": "Host=127.0.0.1;Port=5432;Database=quartzui;Username=postgres;Password=***;"
-        }
+      "AdditionalStore": {
+        "Provider": "MySQL",
+        "ConnectionString": "Server=127.0.0.1;Port=3306;Database=quartzui;User=root;Password=***;"
       }
     }
   }
 }
 ```
 
-- 配置档名称即页面下拉中显示的名称，建议按环境命名；
+- 页面下拉中显示为「附加数据库 · MySQL」，源和目标均可选择；
 - `Provider` 接受 `MySQL` / `PostgreSQL` / `SQLite` / `SqlServer` 及常见别名；
 - 连接字符串只保存在服务端，不会下发到浏览器；
-- `current` 是保留名称，代表当前应用正在使用的数据库。
+- 同一时间只配置一个附加数据库；
+- 旧版的 `Migration.Profiles` 命名配置档仍然兼容，但推荐改用 `AdditionalStore`。
 
 ### 4.2 文件来源白名单
 
@@ -155,7 +148,7 @@ description: 在文件、MySQL、PostgreSQL、SQLite、SQL Server 五种存储�
 
 | 现象 | 原因 / 处理 |
 | --- | --- |
-| 未找到迁移配置档 | 检查 `Migration.Profiles` 名称 |
+| 未找到迁移配置档 | 检查 `Migration.AdditionalStore` 是否配置（旧版配置检查 `Profiles` 名称） |
 | 未安装 xxx 包，无法使用该存储 | 安装对应 EFCore 扩展包并重启 |
 | 源与目标的存储类型相同 | 换成不同类型，或先导出到文件 |
 | `Replace` 模式不可用 | 配置 `AllowReplace: true` |

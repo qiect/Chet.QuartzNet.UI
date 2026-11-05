@@ -211,18 +211,22 @@ export interface MigrationPreviewDto {
 export interface MigrationFileSourceOptionDto {
   /** 名称 */
   name: string;
-  /** 路径 */
+  /** 完整路径 */
   path: string;
+  /** 展示路径（工作目录内为相对路径） */
+  displayPath: string;
 }
 
 // 迁移配置档选项
 export interface MigrationProfileOptionDto {
-  /** 名称 */
+  /** 名称（附加数据库为 additional） */
   name: string;
   /** 数据库类型 */
   provider: string;
   /** 是否已配置连接字符串 */
   hasConnectionString: boolean;
+  /** 是否为简化配置的附加数据库 */
+  isAdditional: boolean;
 }
 
 // 数据库 Provider 安装状态
