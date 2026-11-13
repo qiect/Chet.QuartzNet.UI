@@ -825,7 +825,6 @@ onMounted(async () => {
                   <span>{{ $t('page.quartz.notificationPage.templatePreview') }}</span>
                 </span>
               </Popover>
-              <span class="template-current">{{ currentTemplateLabel }}</span>
             </span>
           </div>
 
@@ -1140,17 +1139,6 @@ onMounted(async () => {
 }
 
 /* ============ 消息模板：格式卡片 ============ */
-.template-current {
-  padding: 2px 9px;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.6;
-  color: hsl(var(--primary));
-  background: hsl(var(--primary) / 0.1);
-  border: 1px solid hsl(var(--primary) / 0.22);
-  border-radius: 999px;
-}
-
 .template-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
