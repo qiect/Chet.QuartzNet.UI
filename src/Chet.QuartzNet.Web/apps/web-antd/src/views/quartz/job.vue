@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive, nextTick, watch } from 'vue';
+import {
+  ref,
+  computed,
+  onDeactivated,
+  onMounted,
+  onUnmounted,
+  reactive,
+  nextTick,
+  watch,
+} from 'vue';
 // 导入日期格式化工具
 import { formatDateTime } from '@vben/utils';
 import { Page } from '@vben/common-ui';
@@ -33,6 +42,7 @@ import CronHelperModal from './components/cron-helper.vue';
 import { useDraggableModal } from './composables/use-draggable-modal';
 
 // 导入i18n
+import { CircleHelp, CircleX, Zap } from '@vben/icons';
 import { $t } from '#/locales';
 import { useI18n } from '@vben/locales';
 
@@ -63,7 +73,10 @@ import {
   getSchedulerStatus,
   startScheduler,
   stopScheduler,
+  drainScheduler,
+  resumeScheduler,
 } from '../../api/quartz/scheduler';
+import type { SchedulerStatusDto } from '../../api/quartz/scheduler';
 import { getJobClasses } from '../../api/quartz/extension';
 
 const { locale } = useI18n();
@@ -93,7 +106,7 @@ const toggleLoadingKeys = ref<Set<string>>(new Set());
 const selectedRows = ref<QuartzJobResponseDto[]>([]);
 
 // 调度器状态
-const schedulerStatus = ref({
+const schedulerStatus = ref<SchedulerStatusDto>({
   schedulerName: '',
   schedulerInstanceId: '',
   isStarted: false,
@@ -106,6 +119,43 @@ const schedulerStatus = ref({
   version: '',
   startTime: undefined,
   runningTime: 0,
+  isDraining: false,
+  remainingExecutingCount: 0,
+});
+
+// 排水期间轮询
+let drainPollTimer: ReturnType<typeof setInterval> | null = null;
+const stopDrainPolling = () => {
+  if (drainPollTimer) {
+    clearInterval(drainPollTimer);
+    drainPollTimer = null;
+  }
+};
+const startDrainPolling = () => {
+  if (drainPollTimer) return;
+  drainPollTimer = setInterval(async () => {
+    const wasDraining = schedulerStatus.value.isDraining;
+    await getSchedulerStatusInfo();
+    if (!schedulerStatus.value.isDraining) {
+      stopDrainPolling();
+      if (wasDraining) {
+        message.info($t('page.quartz.jobPage.drainCompleted'));
+      }
+      await gridApi.query();
+    }
+  }, 3000);
+};
+onDeactivated(stopDrainPolling);
+onUnmounted(stopDrainPolling);
+
+const drainBadgeText = computed(() => {
+  const remaining =
+    schedulerStatus.value.remainingExecutingCount ??
+    schedulerStatus.value.executingJobCount ??
+    0;
+  return remaining > 0
+    ? $t('page.quartz.jobPage.draining', { count: remaining })
+    : $t('page.quartz.jobPage.drainingFinishing');
 });
 
 // 编辑对话框
@@ -130,6 +180,7 @@ const editForm = reactive<QuartzJobDto & { apiUrl: string; jobClassName: string 
   retryIntervalSeconds: 30,
   skipSslValidation: false,
   disallowConcurrentExecution: false,
+  rerunOnRecovery: null,
   dependencies: [],
   startTime: undefined,
   endTime: undefined,
@@ -234,6 +285,50 @@ const editModalDisplayTitle = computed(() => {
 // 判断是否为编辑模式
 const isEditMode = computed(() => editModalTitle.value === 'edit');
 
+// 三态开关：Select 用字符串值承载 null，避免 null 被当成未选择
+const rerunOnRecoveryValue = computed<string>({
+  get: () => {
+    if (editForm.rerunOnRecovery === null || editForm.rerunOnRecovery === undefined) {
+      return 'global';
+    }
+    return editForm.rerunOnRecovery ? 'on' : 'off';
+  },
+  set: (value) => {
+    editForm.rerunOnRecovery =
+      value === 'global' ? null : value === 'on';
+  },
+});
+
+// 列表「自动重跑」图标三态
+const rerunIconInfo = (row: QuartzJobResponseDto) => {
+  const effective = row.effectiveRerunOnRecovery;
+  if (effective === undefined || effective === null) {
+    return {
+      icon: CircleHelp,
+      cls: 'text-muted-foreground',
+      tip: $t('page.quartz.jobPage.rerunUnknown'),
+    };
+  }
+  if (effective) {
+    return {
+      icon: Zap,
+      cls: 'text-success',
+      tip:
+        row.rerunOnRecovery == null
+          ? $t('page.quartz.jobPage.rerunAllowedGlobal')
+          : $t('page.quartz.jobPage.rerunAllowedJob'),
+    };
+  }
+  return {
+    icon: CircleX,
+    cls: 'text-muted-foreground',
+    tip:
+      row.rerunOnRecovery == null
+        ? $t('page.quartz.jobPage.rerunDeniedGlobal')
+        : $t('page.quartz.jobPage.rerunDeniedJob'),
+  };
+};
+
 // 列配置
 const columns = computed(() => [
   { type: 'checkbox', width: 50, fixed: 'left' },
@@ -293,6 +388,13 @@ const columns = computed(() => [
     width: 90,
     align: 'center' as const,
     slots: { default: 'status' },
+  },
+  {
+    field: 'rerunOnRecovery',
+    title: $t('page.quartz.jobPage.colRerun'),
+    width: 80,
+    align: 'center' as const,
+    slots: { default: 'rerunOnRecovery' },
   },
   {
     field: 'dependencies',
@@ -586,6 +688,7 @@ const handleAdd = async () => {
     retryIntervalSeconds: 30,
     skipSslValidation: false,
     disallowConcurrentExecution: false,
+    rerunOnRecovery: null,
     dependencies: [],
     startTime: undefined,
     endTime: undefined,
@@ -632,6 +735,7 @@ const handleCopyJob = async (job: QuartzJobResponseDto) => {
       retryIntervalSeconds: response.data?.retryIntervalSeconds ?? 30,
       skipSslValidation: response.data?.skipSslValidation || false,
       disallowConcurrentExecution: response.data?.disallowConcurrentExecution || false,
+      rerunOnRecovery: response.data?.rerunOnRecovery ?? null,
       dependencies: response.data?.dependencies || [],
       startTime: response.data?.startTime || undefined,
       endTime: response.data?.endTime || undefined,
@@ -689,6 +793,7 @@ const handleEdit = async (job: QuartzJobResponseDto) => {
       retryIntervalSeconds: response.data?.retryIntervalSeconds ?? 30,
       skipSslValidation: response.data?.skipSslValidation || false,
       disallowConcurrentExecution: response.data?.disallowConcurrentExecution || false,
+      rerunOnRecovery: response.data?.rerunOnRecovery ?? null,
       dependencies: response.data?.dependencies || [],
       startTime: response.data?.startTime || undefined,
       endTime: response.data?.endTime || undefined,
@@ -740,6 +845,7 @@ const handleSave = async () => {
       retryIntervalSeconds: editForm.retryIntervalSeconds ?? 30,
       skipSslValidation: editForm.skipSslValidation,
       disallowConcurrentExecution: editForm.disallowConcurrentExecution,
+      rerunOnRecovery: editForm.rerunOnRecovery ?? null,
       dependencies: editForm.dependencies,
       startTime: editForm.startTime,
       endTime: editForm.endTime,
@@ -1007,6 +1113,9 @@ const getSchedulerStatusInfo = async () => {
     if (response.success && response.data) {
       // 直接使用后端返回的数据，不进行命名转换
       schedulerStatus.value = response.data;
+      if (response.data.isDraining) {
+        startDrainPolling();
+      }
     }
   } catch (error) {
     console.error($t('page.quartz.jobPage.schedulerStatusFailed'), error);
@@ -1031,9 +1140,16 @@ const handleStartScheduler = async () => {
 
 // 停止调度器
 const handleStopScheduler = () => {
+  const draining = schedulerStatus.value.isDraining;
+  const remaining =
+    schedulerStatus.value.remainingExecutingCount ??
+    schedulerStatus.value.executingJobCount ??
+    0;
   Modal.confirm({
     title: $t('page.quartz.jobPage.confirmStopScheduler'),
-    content: $t('page.quartz.jobPage.confirmStopSchedulerContent'),
+    content: draining
+      ? $t('page.quartz.jobPage.confirmStopDrainContent', { count: remaining })
+      : $t('page.quartz.jobPage.confirmStopSchedulerContent'),
     okText: $t('page.quartz.jobPage.ok'),
     okType: 'danger',
     cancelText: $t('page.quartz.jobPage.cancel'),
@@ -1042,6 +1158,7 @@ const handleStopScheduler = () => {
         const response = await stopScheduler();
         if (response.success) {
           message.success($t('page.quartz.jobPage.schedulerStoppedSuccess'));
+          stopDrainPolling();
           await getSchedulerStatusInfo();
           gridApi.query();
         }
@@ -1051,6 +1168,62 @@ const handleStopScheduler = () => {
       }
     },
   });
+};
+
+// 排水：停止接收新触发，等待执行中任务收尾
+const handleDrain = () => {
+  Modal.confirm({
+    title: $t('page.quartz.jobPage.confirmDrain'),
+    content: $t('page.quartz.jobPage.confirmDrainContent'),
+    okText: $t('page.quartz.jobPage.ok'),
+    cancelText: $t('page.quartz.jobPage.cancel'),
+    async onOk() {
+      try {
+        const response = await drainScheduler();
+        if (response.success) {
+          message.success($t('page.quartz.jobPage.drainSuccess'));
+          await getSchedulerStatusInfo();
+          startDrainPolling();
+        } else {
+          message.warning(
+            response.message || $t('page.quartz.jobPage.drainFailed'),
+          );
+        }
+      } catch (error: any) {
+        message.error(error?.message || $t('page.quartz.jobPage.drainFailed'));
+      }
+    },
+  });
+};
+
+// 取消排水，恢复调度
+const handleResumeScheduler = async () => {
+  try {
+    // 按钮可能来自上一次状态快照，先拉最新状态，避免对已结束的排水发恢复请求
+    await getSchedulerStatusInfo();
+    if (!schedulerStatus.value.isDraining) {
+      stopDrainPolling();
+      message.info($t('page.quartz.jobPage.drainCompleted'));
+      await gridApi.query();
+      return;
+    }
+
+    const response = await resumeScheduler();
+    if (response.success) {
+      message.success($t('page.quartz.jobPage.resumeSuccess'));
+      stopDrainPolling();
+      await getSchedulerStatusInfo();
+      gridApi.query();
+    } else {
+      message.warning(
+        response.message || $t('page.quartz.jobPage.resumeFailed'),
+      );
+      await getSchedulerStatusInfo();
+    }
+  } catch (error: any) {
+    message.error(error?.message || $t('page.quartz.jobPage.resumeFailed'));
+    await getSchedulerStatusInfo();
+  }
 };
 
 const API_METHOD_COLORS: Record<string, string> = {
@@ -1206,22 +1379,41 @@ onMounted(async () => {
       <Grid>
         <!-- 工具栏：左侧调度器控制 + 右侧作业操作 -->
         <template #toolbar-actions>
-          <div class="flex w-full items-center justify-between">
+          <div class="toolbar-shell">
             <div class="scheduler-bar">
-              <span class="scheduler-status" :class="schedulerStatus.isStarted ? 'is-running' : 'is-stopped'">
+              <span
+                class="scheduler-status"
+                :class="
+                  schedulerStatus.isDraining
+                    ? 'is-draining'
+                    : schedulerStatus.isStarted
+                      ? 'is-running'
+                      : 'is-stopped'
+                "
+              >
                 <i class="status-dot"></i>
-                {{ schedulerStatus.status }}
+                {{ schedulerStatus.isDraining ? drainBadgeText : schedulerStatus.status }}
               </span>
               <span class="scheduler-sep"></span>
-              <Button type="primary" :disabled="schedulerStatus.isStarted" @click="handleStartScheduler">
-                {{ $t('page.quartz.jobPage.startScheduler') }}
-              </Button>
-              <Button danger :disabled="!schedulerStatus.isStarted || schedulerStatus.isShutdown"
-                @click="handleStopScheduler">
-                {{ $t('page.quartz.jobPage.stopScheduler') }}
-              </Button>
+              <div class="scheduler-actions">
+                <Button size="small" type="primary"
+                  :disabled="schedulerStatus.isStarted || schedulerStatus.isDraining" @click="handleStartScheduler">
+                  {{ $t('page.quartz.jobPage.startScheduler') }}
+                </Button>
+                <Button size="small" danger :disabled="!schedulerStatus.isStarted || schedulerStatus.isShutdown"
+                  @click="handleStopScheduler">
+                  {{ $t('page.quartz.jobPage.stopScheduler') }}
+                </Button>
+                <Button v-if="!schedulerStatus.isDraining" size="small"
+                  :disabled="!schedulerStatus.isStarted || schedulerStatus.isShutdown" @click="handleDrain">
+                  {{ $t('page.quartz.jobPage.drainScheduler') }}
+                </Button>
+                <Button v-else size="small" type="primary" ghost @click="handleResumeScheduler">
+                  {{ $t('page.quartz.jobPage.resumeScheduler') }}
+                </Button>
+              </div>
             </div>
-            <Space>
+            <Space :size="8" class="toolbar-actions">
               <Button type="primary" @click="handleAdd"> {{ $t('page.quartz.jobPage.addJob') }} </Button>
               <Dropdown :trigger="['click']">
                 <Button :disabled="selectedRows.length === 0">
@@ -1273,6 +1465,19 @@ onMounted(async () => {
           <Tag :color="jobStatusMap[row.status as JobStatusEnum]?.status || 'default'">
             {{ jobStatusMap[row.status as JobStatusEnum]?.text?.() || row.status || $t('page.quartz.jobPage.unknown') }}
           </Tag>
+        </template>
+
+        <!-- 中断后自动重跑三态图标 -->
+        <template #rerunOnRecovery="{ row }">
+          <Tooltip :title="rerunIconInfo(row).tip">
+            <component
+              :is="rerunIconInfo(row).icon"
+              :class="rerunIconInfo(row).cls"
+              class="rerun-state-icon inline-flex h-4 w-4"
+              tabindex="-1"
+              focusable="false"
+            />
+          </Tooltip>
         </template>
 
         <!-- 前置依赖 -->
@@ -1365,8 +1570,8 @@ onMounted(async () => {
 
           <!-- 调度设置 -->
           <div class="form-section-title">{{ $t('page.quartz.jobPage.sectionSchedule') }}</div>
-          <Row :gutter="16">
-            <Col :xs="24" :md="16">
+          <Row :gutter="16" class="schedule-grid">
+            <Col :xs="24" :md="24">
               <Form.Item :label="$t('page.quartz.jobPage.cronExpression')" name="cronExpression"
                 :rules="[{ required: true, message: $t('page.quartz.jobPage.cronRequired') }, { max: 200, message: $t('page.quartz.jobPage.cronMaxLen') }]">
                 <Space.Compact style="width: 100%">
@@ -1376,7 +1581,7 @@ onMounted(async () => {
                 </Space.Compact>
               </Form.Item>
             </Col>
-            <Col :xs="24" :md="8">
+            <Col :xs="24">
               <Form.Item name="disallowConcurrentExecution">
                 <template #label>
                   <Tooltip :title="$t('page.quartz.jobPage.disallowConcurrentHint')">
@@ -1387,7 +1592,26 @@ onMounted(async () => {
                 <Switch v-model:checked="editForm.disallowConcurrentExecution" />
               </Form.Item>
             </Col>
-            <!-- 失败重试 + 禁止并发：同一行布局 -->
+            <Col :xs="24">
+              <Form.Item name="rerunOnRecovery">
+                <template #label>
+                  <Tooltip :title="$t('page.quartz.jobPage.rerunOnRecoveryHint')">
+                    <i class="vxe-icon-warning-circle retry-hint-icon" style="color: hsl(var(--warning)); cursor: help;"></i>
+                    {{ $t('page.quartz.jobPage.rerunOnRecovery') }}
+                  </Tooltip>
+                </template>
+                <Select
+                  v-model:value="rerunOnRecoveryValue"
+                  :options="[
+                    { label: $t('page.quartz.jobPage.rerunFollowGlobal'), value: 'global' },
+                    { label: $t('page.quartz.jobPage.rerunEnabled'), value: 'on' },
+                    { label: $t('page.quartz.jobPage.rerunDisabled'), value: 'off' },
+                  ]"
+                  style="width: 100%"
+                />
+              </Form.Item>
+            </Col>
+            <!-- 失败重试：次数与间隔紧凑组合 -->
             <Col :xs="24">
               <Form.Item name="retryCount" :rules="[
                 { type: 'number', min: 0, max: 10, message: $t('page.quartz.jobPage.retryCountRange') },
@@ -1694,12 +1918,53 @@ onMounted(async () => {
 
 
 
+/* ====== 调度设置：单列对齐，标签列与表单其余分区保持一致 ====== */
+.schedule-grid :deep(.ant-form-item) {
+  margin-bottom: 12px;
+}
+
+.schedule-grid :deep(.ant-form-item-row) {
+  flex-wrap: nowrap;
+}
+
+.schedule-grid :deep(.ant-form-item-label) {
+  display: flex;
+  flex: 0 0 110px;
+  width: 110px;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 6px;
+}
+
+.schedule-grid :deep(.ant-form-item-label > label) {
+  justify-content: flex-end;
+  height: auto;
+  line-height: 1.4;
+  font-size: 13px;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* 提示图标不占额外行高，也不把标签文字挤折行 */
+.schedule-grid :deep(.retry-hint-icon) {
+  vertical-align: -1px;
+}
+
+.schedule-grid :deep(.ant-form-item-control) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* ====== 失败重试紧凑配置组 ====== */
 .retry-group {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
+  padding: 3px 10px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: hsl(var(--muted) / 0.18);
 }
 
 .retry-group__input {
@@ -1844,10 +2109,41 @@ onMounted(async () => {
 }
 
 /* ====== 调度器状态条 ====== */
+.toolbar-shell {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .scheduler-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+  padding: 4px 8px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--muted) / 0.25);
+}
+
+.scheduler-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-actions {
+  flex-shrink: 0;
+}
+
+/* 列表状态图标仅展示，不显示焦点框 */
+.rerun-state-icon:focus,
+.rerun-state-icon:focus-visible {
+  outline: none;
 }
 
 .scheduler-status {
@@ -1890,6 +2186,18 @@ onMounted(async () => {
 
 .scheduler-status.is-stopped .status-dot {
   background: hsl(var(--destructive));
+}
+
+.scheduler-status.is-draining {
+  color: hsl(var(--warning));
+  background: hsl(var(--warning) / 0.08);
+  border: 1px solid hsl(var(--warning) / 0.2);
+}
+
+.scheduler-status.is-draining .status-dot {
+  background: hsl(var(--warning));
+  box-shadow: 0 0 0 3px hsl(var(--warning) / 0.15);
+  animation: pulse 1.4s ease-in-out infinite;
 }
 
 @keyframes pulse {

@@ -192,6 +192,11 @@ public class QuartzJobDto
     public bool DisallowConcurrentExecution { get; set; } = false;
 
     /// <summary>
+    /// 中断后是否自动重跑。null = 跟随全局；true = 开启；false = 关闭
+    /// </summary>
+    public bool? RerunOnRecovery { get; set; }
+
+    /// <summary>
     /// 前置依赖作业列表，依赖作业最近一次执行成功后才执行本作业
     /// </summary>
     public List<JobDependencyDto> Dependencies { get; set; } = new();
@@ -372,6 +377,16 @@ public class QuartzJobResponseDto
     /// 禁止并发执行
     /// </summary>
     public bool DisallowConcurrentExecution { get; set; }
+
+    /// <summary>
+    /// 中断后是否自动重跑（原值，null = 跟随全局）
+    /// </summary>
+    public bool? RerunOnRecovery { get; set; }
+
+    /// <summary>
+    /// 中断后是否自动重跑（按全局配置解析后的最终值）
+    /// </summary>
+    public bool EffectiveRerunOnRecovery { get; set; }
 
     /// <summary>
     /// 前置依赖作业列表

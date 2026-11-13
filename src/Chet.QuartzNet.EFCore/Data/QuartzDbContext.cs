@@ -167,6 +167,8 @@ public class QuartzJobInfoConfiguration : IEntityTypeConfiguration<QuartzJobInfo
             .HasDefaultValue(false)
             .HasComment("禁止并发执行");
 
+        builder.Property(j => j.RerunOnRecovery).HasComment("中断后是否自动重跑(null=跟随全局)");
+
         builder.Property(j => j.Dependencies).HasColumnType("text").HasComment("前置依赖作业(JSON格式)");
 
         builder.Property(j => j.StartTime).HasComment("开始时间");
@@ -268,11 +270,51 @@ public class QuartzJobLogConfiguration : IEntityTypeConfiguration<QuartzJobLog>
 
         builder.Property(l => l.CreateTime).IsRequired().HasComment("创建时间");
 
+        // 中断恢复字段
+        builder.Property(l => l.InstanceId).HasMaxLength(64).HasComment("执行实例标识");
+
+        builder.Property(l => l.BootId).HasComment("进程启动标识");
+
+        builder.Property(l => l.TriggerType).IsRequired().HasDefaultValue(TriggerType.Cron).HasComment("触发来源");
+
+        builder.Property(l => l.TriggeredBy).HasMaxLength(100).HasComment("操作人");
+
+        builder.Property(l => l.RecoverySourceLogId).HasComment("补偿来源日志ID");
+
+        builder
+            .Property(l => l.RecoveryAttempt)
+            .IsRequired()
+            .HasDefaultValue(1)
+            .HasComment("第几次尝试");
+
+        builder.Property(l => l.HeartbeatTime).HasComment("最后心跳时间");
+
+        builder.Property(l => l.InterruptedAt).HasComment("判定中断时间");
+
+        builder
+            .Property(l => l.CompensationStatus)
+            .IsRequired()
+            .HasDefaultValue(CompensationStatus.None)
+            .HasComment("补偿状态");
+
+        builder.Property(l => l.CompensationLogId).HasComment("补偿产生的日志ID");
+
+        builder.Property(l => l.SkipReason).HasMaxLength(500).HasComment("跳过补偿原因");
+
         // 索引配置
         builder.HasIndex(l => new { l.JobName, l.JobGroup }).HasDatabaseName("idx_log_job");
         builder.HasIndex(l => l.Status).HasDatabaseName("idx_log_status");
         builder.HasIndex(l => l.CreateTime).HasDatabaseName("idx_log_create_time");
         builder.HasIndex(l => l.StartTime).HasDatabaseName("idx_log_start_time");
+        builder
+            .HasIndex(l => new { l.Status, l.HeartbeatTime })
+            .HasDatabaseName("idx_log_recovery");
+        builder
+            .HasIndex(l => new { l.Status, l.CompensationStatus })
+            .HasDatabaseName("idx_log_compensation");
+        builder
+            .HasIndex(l => l.RecoverySourceLogId)
+            .HasDatabaseName("idx_log_recovery_source");
     }
 }
 

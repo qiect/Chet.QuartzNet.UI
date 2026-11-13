@@ -108,6 +108,12 @@ public class QuartzJobInfo
     public bool DisallowConcurrentExecution { get; set; } = false;
 
     /// <summary>
+    /// 中断后是否自动重跑。
+    /// null = 跟随全局配置；true = 开启；false = 关闭。
+    /// </summary>
+    public bool? RerunOnRecovery { get; set; }
+
+    /// <summary>
     /// 前置依赖作业（JSON数组，元素为 {"jobGroup":"...","jobName":"..."}）
     /// 依赖作业最近一次执行成功后才执行本作业，否则本次跳过
     /// </summary>
@@ -320,6 +326,64 @@ public class QuartzJobLog
     /// 创建时间
     /// </summary>
     public DateTime CreateTime { get; set; } = DateTime.Now;
+
+    /// <summary>
+    /// 执行该记录的实例标识（机器名 + 进程号 + 启动短标识）
+    /// </summary>
+    [StringLength(64)]
+    public string InstanceId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 进程启动标识，用于区分同一实例的上一次运行
+    /// </summary>
+    public Guid? BootId { get; set; }
+
+    /// <summary>
+    /// 触发来源
+    /// </summary>
+    public TriggerType TriggerType { get; set; } = TriggerType.Cron;
+
+    /// <summary>
+    /// 手动触发/补偿触发的操作人
+    /// </summary>
+    [StringLength(100)]
+    public string? TriggeredBy { get; set; }
+
+    /// <summary>
+    /// 补偿记录指向被补偿的中断记录
+    /// </summary>
+    public Guid? RecoverySourceLogId { get; set; }
+
+    /// <summary>
+    /// 第几次尝试（补偿记录 = 源记录 + 1）
+    /// </summary>
+    public int RecoveryAttempt { get; set; } = 1;
+
+    /// <summary>
+    /// 最后一次心跳时间
+    /// </summary>
+    public DateTime? HeartbeatTime { get; set; }
+
+    /// <summary>
+    /// 判定为中断的时刻
+    /// </summary>
+    public DateTime? InterruptedAt { get; set; }
+
+    /// <summary>
+    /// 中断记录的补偿状态
+    /// </summary>
+    public CompensationStatus CompensationStatus { get; set; } = CompensationStatus.None;
+
+    /// <summary>
+    /// 本次补偿产生的日志ID
+    /// </summary>
+    public Guid? CompensationLogId { get; set; }
+
+    /// <summary>
+    /// 跳过补偿的原因
+    /// </summary>
+    [StringLength(500)]
+    public string? SkipReason { get; set; }
 }
 
 /// <summary>
@@ -346,4 +410,63 @@ public enum LogStatus
     /// 跳过（前置依赖未满足等场景，本次未执行）
     /// </summary>
     Skipped = 3,
+
+    /// <summary>
+    /// 中断（进程退出/崩溃/停机超时，未正常收尾）
+    /// </summary>
+    Interrupted = 4,
+}
+
+/// <summary>
+/// 日志触发来源
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum TriggerType
+{
+    /// <summary>
+    /// Cron 定时触发
+    /// </summary>
+    Cron = 0,
+
+    /// <summary>
+    /// 手动触发
+    /// </summary>
+    Manual = 1,
+
+    /// <summary>
+    /// 中断补偿重跑
+    /// </summary>
+    Recovery = 2,
+}
+
+/// <summary>
+/// 中断记录的补偿状态
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum CompensationStatus
+{
+    /// <summary>
+    /// 无（非中断记录，或尚未进入补偿流程）
+    /// </summary>
+    None = 0,
+
+    /// <summary>
+    /// 已判定中断，等待补偿
+    /// </summary>
+    Pending = 1,
+
+    /// <summary>
+    /// 已触发补偿
+    /// </summary>
+    Triggered = 2,
+
+    /// <summary>
+    /// 按策略跳过
+    /// </summary>
+    Skipped = 3,
+
+    /// <summary>
+    /// 补偿触发失败
+    /// </summary>
+    Failed = 4,
 }

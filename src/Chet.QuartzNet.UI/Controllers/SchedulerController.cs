@@ -70,6 +70,90 @@ public class SchedulerController : ControllerBase
     }
 
     /// <summary>
+    /// 排水：停止接收新触发，等待执行中任务收尾后自动停止
+    /// </summary>
+    [HttpPost("DrainScheduler")]
+    public async Task<ActionResult<ApiResponseDto<bool>>> DrainScheduler(
+        [FromBody] DrainSchedulerRequestDto request,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var result = await _jobService.DrainSchedulerAsync(
+                request.TimeoutSeconds,
+                cancellationToken
+            );
+            if (result.Success)
+            {
+                _logger.LogSuccess("排水调度器");
+            }
+            else
+            {
+                _logger.LogWarn("排水调度器", $"失败, 原因: {result.Message}");
+            }
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("排水调度器", ex);
+            return Ok(ApiResponseDto<bool>.ErrorResponse("排水失败: " + ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// 取消排水并恢复调度
+    /// </summary>
+    [HttpPost("ResumeScheduler")]
+    public async Task<ActionResult<ApiResponseDto<bool>>> ResumeScheduler(
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var result = await _jobService.ResumeSchedulerAsync(cancellationToken);
+            if (result.Success)
+            {
+                _logger.LogSuccess("恢复调度器");
+            }
+            else
+            {
+                _logger.LogWarn("恢复调度器", $"失败, 原因: {result.Message}");
+            }
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("恢复调度器", ex);
+            return Ok(ApiResponseDto<bool>.ErrorResponse("恢复调度失败: " + ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// 获取本次启动的中断恢复汇总
+    /// </summary>
+    [HttpGet("GetRecoverySummary")]
+    public async Task<ActionResult<ApiResponseDto<RecoverySummaryDto>>> GetRecoverySummary(
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var result = await _jobService.GetRecoverySummaryAsync(cancellationToken);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("获取恢复汇总", ex);
+            return Ok(
+                ApiResponseDto<RecoverySummaryDto>.ErrorResponse(
+                    "获取恢复汇总失败: " + ex.Message
+                )
+            );
+        }
+    }
+
+    /// <summary>
     /// 停止调度器
     /// </summary>
     [HttpPost("StopScheduler")]

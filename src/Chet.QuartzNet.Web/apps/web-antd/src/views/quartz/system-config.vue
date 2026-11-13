@@ -5,6 +5,7 @@ import { Page } from '@vben/common-ui';
 import { formatDateTime } from '@vben/utils';
 
 import {
+  Alert,
   Button,
   Card,
   Checkbox,
@@ -15,6 +16,7 @@ import {
   message,
   Modal,
   Select,
+  Switch,
   Tag,
   Tooltip,
 } from 'ant-design-vue';
@@ -32,6 +34,7 @@ import {
   MigrationStepStatus,
 } from '../../api/quartz/system-config';
 import type {
+  CatchUpStrategy,
   DataMigrationStatusDto,
   MigrationEntity,
   MigrationOptionsDto,
@@ -40,6 +43,8 @@ import type {
   MigrationStoreDescriptor,
   MigrationStoreType,
   MigrationWriteMode,
+  ShutdownMode,
+  SystemConfigDto,
 } from '../../api/quartz/system-config';
 import { useSystemConfig } from '../../composables/use-system-config';
 
@@ -54,6 +59,55 @@ const serviceDescription = ref('');
 const logRetentionDays = ref(30);
 const logMaxCount = ref(0);
 const logCleanupIntervalHours = ref(6);
+
+// 停机与恢复（启动期配置）
+const shutdownMode = ref<ShutdownMode>('Drain');
+const shutdownWaitTimeoutSeconds = ref(30);
+const drainTimeoutSeconds = ref(60);
+const recoveryEnabled = ref(true);
+const compensationDelaySeconds = ref(30);
+const heartbeatIntervalSeconds = ref(15);
+const leaseDurationSeconds = ref(60);
+const skipIfNextFireWithinSeconds = ref(120);
+const catchUpStrategy = ref<CatchUpStrategy>('Latest');
+const maxRecoveryAttempts = ref(3);
+const defaultRerunOnRecovery = ref(true);
+const interruptedLogRetentionDays = ref(30);
+
+// 启动期配置状态
+const restartRequired = ref(false);
+const recoveryCollapsed = ref(true);
+
+const shutdownModeOptions = computed(() => [
+  {
+    label: $t('page.quartz.systemConfigPage.shutdownModeImmediate'),
+    value: 'Immediate',
+  },
+  {
+    label: $t('page.quartz.systemConfigPage.shutdownModeDrain'),
+    value: 'Drain',
+  },
+  {
+    label: $t('page.quartz.systemConfigPage.shutdownModeWait'),
+    value: 'Wait',
+  },
+]);
+
+const catchUpStrategyOptions = computed(() => [
+  {
+    label: $t('page.quartz.systemConfigPage.catchUpNone'),
+    value: 'None',
+  },
+  {
+    label: $t('page.quartz.systemConfigPage.catchUpLatest'),
+    value: 'Latest',
+  },
+  {
+    label: $t('page.quartz.systemConfigPage.catchUpAll'),
+    value: 'All',
+  },
+]);
+
 
 const environmentOptions = computed(() => [
   { label: $t('page.quartz.systemConfigPage.envDEV'), value: 'DEV' },
@@ -78,6 +132,23 @@ async function loadConfig() {
     logRetentionDays.value = data?.logRetentionDays ?? 30;
     logMaxCount.value = data?.logMaxCount ?? 0;
     logCleanupIntervalHours.value = data?.logCleanupIntervalHours ?? 6;
+
+    shutdownMode.value = (data?.shutdownMode as ShutdownMode) || 'Drain';
+    shutdownWaitTimeoutSeconds.value = data?.shutdownWaitTimeoutSeconds ?? 30;
+    drainTimeoutSeconds.value = data?.drainTimeoutSeconds ?? 60;
+    recoveryEnabled.value = data?.recoveryEnabled ?? true;
+    compensationDelaySeconds.value = data?.compensationDelaySeconds ?? 30;
+    heartbeatIntervalSeconds.value = data?.heartbeatIntervalSeconds ?? 15;
+    leaseDurationSeconds.value = data?.leaseDurationSeconds ?? 60;
+    skipIfNextFireWithinSeconds.value =
+      data?.skipIfNextFireWithinSeconds ?? 120;
+    catchUpStrategy.value = (data?.catchUpStrategy as CatchUpStrategy) || 'Latest';
+    maxRecoveryAttempts.value = data?.maxRecoveryAttempts ?? 3;
+    defaultRerunOnRecovery.value = data?.defaultRerunOnRecovery ?? true;
+    interruptedLogRetentionDays.value =
+      data?.interruptedLogRetentionDays ?? 30;
+
+    restartRequired.value = data?.restartRequired === true;
   } catch (error) {
     message.error($t('page.quartz.systemConfigPage.getConfigFailed'));
     console.error($t('page.quartz.systemConfigPage.getConfigFailed'), error);
@@ -86,23 +157,36 @@ async function loadConfig() {
   }
 }
 
-async function handleSave() {
-  if (!serviceName.value.trim()) {
-    message.warning($t('page.quartz.systemConfigPage.serviceNameRequired'));
-    return;
-  }
+const buildConfig = (): SystemConfigDto => ({
+  serviceName: serviceName.value,
+  environment: environment.value,
+  serviceDescription: serviceDescription.value,
+  logRetentionDays: logRetentionDays.value ?? 30,
+  logMaxCount: logMaxCount.value ?? 0,
+  logCleanupIntervalHours: logCleanupIntervalHours.value ?? 6,
+  shutdownMode: shutdownMode.value,
+  shutdownWaitTimeoutSeconds: shutdownWaitTimeoutSeconds.value,
+  drainTimeoutSeconds: drainTimeoutSeconds.value,
+  recoveryEnabled: recoveryEnabled.value,
+  compensationDelaySeconds: compensationDelaySeconds.value,
+  heartbeatIntervalSeconds: heartbeatIntervalSeconds.value,
+  leaseDurationSeconds: leaseDurationSeconds.value,
+  skipIfNextFireWithinSeconds: skipIfNextFireWithinSeconds.value,
+  catchUpStrategy: catchUpStrategy.value,
+  maxRecoveryAttempts: maxRecoveryAttempts.value,
+  defaultRerunOnRecovery: defaultRerunOnRecovery.value,
+  interruptedLogRetentionDays: interruptedLogRetentionDays.value,
+});
+
+async function saveConfig() {
   saveLoading.value = true;
   try {
-    const response = await saveSystemConfig({
-      serviceName: serviceName.value,
-      environment: environment.value,
-      serviceDescription: serviceDescription.value,
-      logRetentionDays: logRetentionDays.value ?? 30,
-      logMaxCount: logMaxCount.value ?? 0,
-      logCleanupIntervalHours: logCleanupIntervalHours.value ?? 6,
-    });
+    const response = await saveSystemConfig(buildConfig());
     if (response.success) {
-      message.success($t('page.quartz.systemConfigPage.saveSuccess'));
+      message.success(
+        response.message || $t('page.quartz.systemConfigPage.saveRestartHint'),
+      );
+      await loadConfig();
       const { systemConfig } = useSystemConfig();
       systemConfig.value = {
         serviceName: serviceName.value,
@@ -118,6 +202,54 @@ async function handleSave() {
   } finally {
     saveLoading.value = false;
   }
+}
+
+function validateConfig() {
+  if (!serviceName.value.trim()) {
+    message.warning($t('page.quartz.systemConfigPage.serviceNameRequired'));
+    return false;
+  }
+
+  if (heartbeatIntervalSeconds.value * 2 > leaseDurationSeconds.value) {
+    message.warning($t('page.quartz.systemConfigPage.leaseInvalid'));
+    return false;
+  }
+
+  return true;
+}
+
+async function handleSave() {
+  if (!validateConfig()) return;
+
+  if (catchUpStrategy.value === 'All') {
+    Modal.confirm({
+      title: $t('page.quartz.systemConfigPage.catchUpStrategy'),
+      content: $t('page.quartz.systemConfigPage.catchUpAllConfirm'),
+      okText: $t('page.quartz.systemConfigPage.save'),
+      onOk: saveConfig,
+    });
+    return;
+  }
+
+  await saveConfig();
+}
+
+// 停机与恢复是启动期配置，保存前二次确认，避免误改后以为立即生效
+function handleRecoverySave() {
+  if (!validateConfig()) return;
+
+  const base = $t('page.quartz.systemConfigPage.confirmSaveContent');
+  const content =
+    catchUpStrategy.value === 'All'
+      ? `${base} ${$t('page.quartz.systemConfigPage.catchUpAllConfirm')}`
+      : base;
+
+  Modal.confirm({
+    title: $t('page.quartz.systemConfigPage.confirmSaveTitle'),
+    content,
+    okText: $t('page.quartz.systemConfigPage.save'),
+    onOk: saveConfig,
+  });
 }
 
 async function handleReset() {
@@ -831,6 +963,196 @@ loadMigrationStatus(true);
       </div>
     </Card>
 
+    <!-- 停机与恢复 -->
+    <Card>
+      <template #title>
+        <div
+          class="flex cursor-pointer select-none flex-col"
+          @click="recoveryCollapsed = !recoveryCollapsed"
+        >
+          <span class="flex items-center gap-2">
+            <svg
+              class="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200"
+              :class="recoveryCollapsed ? '-rotate-90' : ''"
+              fill="none"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 16 16"
+            >
+              <path d="M4 6.5 8 10.5 12 6.5" />
+            </svg>
+            {{ $t('page.quartz.systemConfigPage.recoverySection') }}
+            <Tag v-if="restartRequired" color="warning" :bordered="false" size="small" class="shrink-0">
+              {{ $t('page.quartz.systemConfigPage.restartRequiredShort') }}
+            </Tag>
+          </span>
+          <span class="pl-[22px] text-xs font-normal leading-4 text-muted-foreground">
+            {{ $t('page.quartz.systemConfigPage.recoveryDescription') }}
+          </span>
+        </div>
+      </template>
+
+      <Transition name="expand">
+        <div v-if="!recoveryCollapsed" class="collapse-grid">
+          <div class="collapse-inner">
+            <Form layout="vertical" class="compact-form">
+              <div class="config-group">
+                <div class="config-group__title">
+                  {{ $t('page.quartz.systemConfigPage.shutdownGroup') }}
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-6">
+                  <FormItem :label="$t('page.quartz.systemConfigPage.shutdownMode')">
+                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintShutdownMode')">
+                      <Select
+                        v-model:value="shutdownMode"
+                        :options="shutdownModeOptions"
+                        class="w-full"
+                        size="middle"
+                      />
+                    </Tooltip>
+                  </FormItem>
+                  <FormItem :label="$t('page.quartz.systemConfigPage.shutdownWaitTimeout')">
+                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintWaitTimeout')">
+                      <InputNumber
+                        v-model:value="shutdownWaitTimeoutSeconds"
+                        :min="0"
+                        :max="3600"
+                        class="w-full"
+                        size="middle"
+                      />
+                    </Tooltip>
+                  </FormItem>
+                  <FormItem :label="$t('page.quartz.systemConfigPage.drainTimeout')">
+                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintDrainTimeout')">
+                      <InputNumber
+                        v-model:value="drainTimeoutSeconds"
+                        :min="0"
+                        :max="3600"
+                        class="w-full"
+                        size="middle"
+                      />
+                    </Tooltip>
+                  </FormItem>
+                </div>
+              </div>
+
+              <div class="config-group mt-4">
+                <div class="config-group__title">
+                  {{ $t('page.quartz.systemConfigPage.recoveryGroup') }}
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-6">
+                  <FormItem :label="$t('page.quartz.systemConfigPage.recoveryEnabled')">
+                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintRecoveryEnabled')">
+                      <Switch v-model:checked="recoveryEnabled" />
+                    </Tooltip>
+                  </FormItem>
+                  <FormItem :label="$t('page.quartz.systemConfigPage.compensationDelay')">
+                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintCompensationDelay')">
+                      <InputNumber
+                        v-model:value="compensationDelaySeconds"
+                        :min="0"
+                        :max="3600"
+                        class="w-full"
+                        size="middle"
+                      />
+                    </Tooltip>
+                  </FormItem>
+                  <FormItem :label="$t('page.quartz.systemConfigPage.heartbeatInterval')">
+                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintHeartbeat')">
+                      <InputNumber
+                        v-model:value="heartbeatIntervalSeconds"
+                        :min="5"
+                        :max="300"
+                        class="w-full"
+                        size="middle"
+                      />
+                    </Tooltip>
+                  </FormItem>
+                  <FormItem :label="$t('page.quartz.systemConfigPage.leaseDuration')">
+                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintLease')">
+                      <InputNumber
+                        v-model:value="leaseDurationSeconds"
+                        :min="10"
+                        :max="3600"
+                        class="w-full"
+                        size="middle"
+                      />
+                    </Tooltip>
+                  </FormItem>
+                  <FormItem :label="$t('page.quartz.systemConfigPage.skipIfNextFire')">
+                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintSkipNearFire')">
+                      <InputNumber
+                        v-model:value="skipIfNextFireWithinSeconds"
+                        :min="0"
+                        :max="86400"
+                        class="w-full"
+                        size="middle"
+                      />
+                    </Tooltip>
+                  </FormItem>
+                  <FormItem :label="$t('page.quartz.systemConfigPage.catchUpStrategy')">
+                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintCatchUp')">
+                      <Select
+                        v-model:value="catchUpStrategy"
+                        :options="catchUpStrategyOptions"
+                        class="w-full"
+                        size="middle"
+                      />
+                    </Tooltip>
+                  </FormItem>
+                  <FormItem :label="$t('page.quartz.systemConfigPage.maxRecoveryAttempts')">
+                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintMaxAttempts')">
+                      <InputNumber
+                        v-model:value="maxRecoveryAttempts"
+                        :min="1"
+                        :max="10"
+                        class="w-full"
+                        size="middle"
+                      />
+                    </Tooltip>
+                  </FormItem>
+                  <FormItem :label="$t('page.quartz.systemConfigPage.defaultRerunOnRecovery')">
+                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintDefaultRerun')">
+                      <Switch v-model:checked="defaultRerunOnRecovery" />
+                    </Tooltip>
+                  </FormItem>
+                  <FormItem :label="$t('page.quartz.systemConfigPage.interruptedLogRetentionDays')">
+                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintInterruptedRetention')">
+                      <InputNumber
+                        v-model:value="interruptedLogRetentionDays"
+                        :min="0"
+                        :max="3650"
+                        class="w-full"
+                        size="middle"
+                      />
+                    </Tooltip>
+                  </FormItem>
+                </div>
+              </div>
+            </Form>
+
+            <Alert
+              v-if="restartRequired"
+              type="warning"
+              show-icon
+              :message="$t('page.quartz.systemConfigPage.restartRequired')"
+              class="mt-2"
+            />
+            <div class="mt-4 flex gap-2 border-t border-dashed border-border pt-4">
+              <Button type="primary" :loading="saveLoading" @click="handleRecoverySave">
+                {{ $t('page.quartz.systemConfigPage.save') }}
+              </Button>
+              <Button @click="handleReset">
+                {{ $t('page.quartz.systemConfigPage.reset') }}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Card>
+
     <!-- 数据迁移 -->
     <Card>
       <template #title>
@@ -1405,6 +1727,36 @@ loadMigrationStatus(true);
 
 .compact-form :deep(.ant-form-item-label) {
   padding-bottom: 4px;
+}
+
+/* ============ 停机与恢复 ============ */
+.config-group {
+  padding: 12px 14px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--muted) / 0.15);
+}
+
+.config-group__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.config-group__title::before {
+  content: '';
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: hsl(var(--primary));
+}
+
+/* Tooltip 包裹控件时仍保持占满栅格列 */
+.config-group :deep(.ant-form-item-control-input-content) {
+  width: 100%;
 }
 
 /* ============ 数据迁移 ============ */

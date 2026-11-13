@@ -22,7 +22,19 @@ export enum LogStatusEnum {
   SUCCESS = 1,
   ERROR = 2,
   SKIPPED = 3,
+  INTERRUPTED = 4,
 }
+
+// 触发来源
+export type TriggerType = 'Cron' | 'Manual' | 'Recovery' | 'Unknown';
+
+// 补偿状态
+export type CompensationStatus =
+  | 'None'
+  | 'Pending'
+  | 'Triggered'
+  | 'Skipped'
+  | 'Failed';
 
 // 日志查询参数
 export interface LogQueryParams {
@@ -38,6 +50,8 @@ export interface LogQueryParams {
   jobGroup?: string;
   /** 日志状态 */
   status?: LogStatusEnum;
+  /** 日志状态集合（多状态筛选） */
+  statuses?: LogStatusEnum[];
   /** 开始时间 */
   startTime?: string;
   /** 结束时间 */
@@ -92,6 +106,24 @@ export interface LogResponseDto {
   createTime?: string;
   /** 触发时间 - 根据实际API返回添加 */
   fireTime?: string;
+  /** 触发来源 */
+  triggerType?: TriggerType;
+  /** 操作人 */
+  triggeredBy?: string | null;
+  /** 补偿来源日志ID */
+  recoverySourceLogId?: string | null;
+  /** 补偿来源执行开始时间（前端按需补齐） */
+  recoverySourceStartTime?: string | null;
+  /** 第几次尝试 */
+  recoveryAttempt?: number;
+  /** 最后心跳时间 */
+  heartbeatTime?: string | null;
+  /** 判定中断时间 */
+  interruptedAt?: string | null;
+  /** 补偿状态 */
+  compensationStatus?: CompensationStatus;
+  /** 跳过补偿原因 */
+  skipReason?: string | null;
 }
 
 /**
@@ -103,6 +135,26 @@ export async function getLogList(
   params: LogQueryParams
 ): Promise<ApiResponse<PageResponse<LogResponseDto>>> {
   return requestClient.post('/api/quartz/GetJobLogs', params);
+}
+
+/**
+ * 获取单条日志详情
+ * @param logId 日志ID
+ */
+export async function getJobLog(
+  logId: string,
+): Promise<ApiResponse<LogResponseDto>> {
+  return requestClient.get('/api/quartz/GetJobLog', { params: { logId } });
+}
+
+/**
+ * 手动重新执行一条中断日志
+ * @param logId 中断日志ID
+ */
+export async function rerunInterruptedLog(
+  logId: string,
+): Promise<ApiResponse<boolean>> {
+  return requestClient.post('/api/quartz/RerunInterruptedLog', { logId });
 }
 
 /**
@@ -147,7 +199,7 @@ export async function clearLogs(params: any = {}): Promise<ApiResponse<boolean>>
  * @param params 查询参数
  * @returns 统计信息
  */
-export async function getLogStatistics(params?: { startTime?: string; endTime?: string }): Promise<{
+export async function getLogStatistics(_params?: { startTime?: string; endTime?: string }): Promise<{
   totalLogs: number;
   successCount: number;
   failureCount: number;

@@ -1,6 +1,7 @@
 using Chet.QuartzNet.Core.Consts;
 using Chet.QuartzNet.Core.Helpers;
 using Chet.QuartzNet.Core.Interfaces;
+using Chet.QuartzNet.Core.Recovery;
 using Chet.QuartzNet.Models.Entities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -19,19 +20,27 @@ namespace Chet.QuartzNet.Core.Services
         private const string SkipLogKey = "__DependencySkipReason";
 
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly JobExecutionRegistry _registry;
+        private readonly RuntimeInstance _instance;
         private readonly ILogger<QuartzJobListener> _logger;
 
         /// <summary>
         /// 构造函数
         /// </summary>
         /// <param name="scopeFactory">服务作用域工厂</param>
+        /// <param name="registry">本进程执行登记表</param>
+        /// <param name="instance">当前实例信息</param>
         /// <param name="logger">日志记录器</param>
         public QuartzJobListener(
             IServiceScopeFactory scopeFactory,
+            JobExecutionRegistry registry,
+            RuntimeInstance instance,
             ILogger<QuartzJobListener> logger
         )
         {
             _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+            _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+            _instance = instance ?? throw new ArgumentNullException(nameof(instance));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -64,62 +73,43 @@ namespace Chet.QuartzNet.Core.Services
                     return;
                 }
 
-                var jobLog = new QuartzJobLog
-                {
-                    JobName = context.JobDetail.Key.Name,
-                    JobGroup = context.JobDetail.Key.Group,
-                    TriggerName = context.Trigger.Key.Name,
-                    TriggerGroup = context.Trigger.Key.Group,
-                    StartTime = context.FireTimeUtc.LocalDateTime,
-                    EndTime = DateTime.Now,
-                    Duration = (long)
-                        (DateTime.Now - context.FireTimeUtc.LocalDateTime).TotalMilliseconds,
-                    Result = context.Result?.ToString(),
-                };
+                var triggerType = ResolveTriggerType(context);
+                var logId = ResolveLogId(context);
 
-                // 判断是否手动触发
-                var isManualTrigger =
-                    context.MergedJobDataMap != null
-                    && context.MergedJobDataMap.TryGetValue("IsManualTrigger", out var manualFlag)
-                    && manualFlag is bool
-                    && (bool)manualFlag;
-                var triggerLabel = isManualTrigger ? "（手动触发）" : string.Empty;
-
-                // 处理执行结果
-                if (executionException == null)
-                {
-                    jobLog.Status = LogStatus.Success;
-                    jobLog.Message = $"作业执行成功{triggerLabel}";
-                }
-                else
-                {
-                    jobLog.Status = LogStatus.Failed;
-                    jobLog.Message = $"作业执行失败{triggerLabel}";
-                    jobLog.Exception = executionException.ToString();
-                    jobLog.ErrorMessage = executionException.Message;
-                    jobLog.ErrorStackTrace = executionException.StackTrace;
-                }
-
-                // 记录作业数据：保存用户配置的原始 JSON，保证日志展示与配置一致
-                if (
-                    context.MergedJobDataMap != null
-                    && context.MergedJobDataMap.TryGetValue(
-                        QuartzJobConst.JobData,
-                        out var jobDataValue
-                    )
-                    && !string.IsNullOrEmpty(jobDataValue?.ToString())
-                )
-                {
-                    jobLog.JobData = jobDataValue.ToString();
-                }
-
-                // 创建作用域来解析IJobStorage
                 using var scope = _scopeFactory.CreateScope();
                 var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
                 var jobService = scope.ServiceProvider.GetRequiredService<IQuartzJobService>();
 
-                // 记录作业日志
-                await jobStorage.AddJobLogAsync(jobLog, cancellationToken);
+                QuartzJobLog? jobLog = logId.HasValue
+                    ? await jobStorage.GetJobLogAsync(logId.Value, cancellationToken)
+                    : null;
+
+                if (jobLog == null)
+                {
+                    jobLog = new QuartzJobLog
+                    {
+                        JobName = context.JobDetail.Key.Name,
+                        JobGroup = context.JobDetail.Key.Group,
+                        TriggerName = context.Trigger.Key.Name,
+                        TriggerGroup = context.Trigger.Key.Group,
+                        StartTime = context.FireTimeUtc.LocalDateTime,
+                        TriggerType = triggerType,
+                        InstanceId = _instance.InstanceId,
+                        BootId = _instance.BootId,
+                    };
+                }
+
+                FillExecutionResult(jobLog, context, executionException, triggerType);
+
+                if (logId.HasValue)
+                {
+                    await jobStorage.UpdateJobLogAsync(jobLog, cancellationToken);
+                    _registry.Unregister(logId.Value);
+                }
+                else
+                {
+                    await jobStorage.AddJobLogAsync(jobLog, cancellationToken);
+                }
 
                 // 更新作业的下次执行时间和上次执行时间
                 await jobService.UpdateJobExecutionTimesAsync(
@@ -137,7 +127,7 @@ namespace Chet.QuartzNet.Core.Services
                         context.JobDetail.Key.Name,
                         context.JobDetail.Key.Group,
                         executionException == null,
-                        jobLog.Message,
+                        jobLog.Message ?? string.Empty,
                         jobLog.Duration ?? 0,
                         jobLog.ErrorMessage,
                         cancellationToken
@@ -151,6 +141,12 @@ namespace Chet.QuartzNet.Core.Services
             }
             catch (Exception ex)
             {
+                var currentLogId = ResolveLogId(context);
+                if (currentLogId.HasValue)
+                {
+                    _registry.Unregister(currentLogId.Value);
+                }
+
                 _logger.LogFailure(
                     "作业执行完成",
                     $"记录作业执行日志失败: {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}",
@@ -171,6 +167,30 @@ namespace Chet.QuartzNet.Core.Services
         {
             try
             {
+                using var scope = _scopeFactory.CreateScope();
+                var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
+                var logId = ResolveLogId(context);
+
+                if (logId.HasValue)
+                {
+                    var existing = await jobStorage.GetJobLogAsync(logId.Value, cancellationToken);
+                    if (existing != null)
+                    {
+                        var now = DateTime.Now;
+                        existing.Status = LogStatus.Failed;
+                        existing.EndTime = now;
+                        existing.Duration = Math.Max(
+                            0,
+                            (long)(now - existing.StartTime).TotalMilliseconds
+                        );
+                        existing.Message = "作业执行被否决";
+                        existing.ErrorMessage = "作业执行被否决";
+                        await jobStorage.UpdateJobLogAsync(existing, cancellationToken);
+                        _registry.Unregister(logId.Value);
+                        return;
+                    }
+                }
+
                 var jobLog = new QuartzJobLog
                 {
                     JobName = context.JobDetail.Key.Name,
@@ -178,13 +198,14 @@ namespace Chet.QuartzNet.Core.Services
                     TriggerName = context.Trigger.Key.Name,
                     TriggerGroup = context.Trigger.Key.Group,
                     StartTime = context.FireTimeUtc.LocalDateTime,
+                    EndTime = DateTime.Now,
                     Status = LogStatus.Failed,
                     Message = "作业执行被否决",
+                    TriggerType = ResolveTriggerType(context),
+                    InstanceId = _instance.InstanceId,
+                    BootId = _instance.BootId,
                 };
 
-                // 创建作用域来解析IJobStorage
-                using var scope = _scopeFactory.CreateScope();
-                var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
                 await jobStorage.AddJobLogAsync(jobLog, cancellationToken);
 
                 _logger.LogInfo(
@@ -215,22 +236,14 @@ namespace Chet.QuartzNet.Core.Services
         {
             try
             {
-                // 检查是否是手动触发的作业
-                bool isManualTrigger =
-                    context.MergedJobDataMap.TryGetValue(
-                        "IsManualTrigger",
-                        out var manualTriggerValue
-                    )
-                    && manualTriggerValue is bool
-                    && (bool)manualTriggerValue;
+                var triggerType = ResolveTriggerType(context);
 
-                if (!isManualTrigger)
+                using var scope = _scopeFactory.CreateScope();
+                var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
+
+                // 手动触发与中断补偿：本次执行资格已在原触发时获得，跳过暂停/依赖预检
+                if (triggerType == TriggerType.Cron)
                 {
-                    // 不是手动触发，检查作业状态
-                    using var scope = _scopeFactory.CreateScope();
-                    var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
-
-                    // 获取作业信息
                     var jobInfo = await jobStorage.GetJobAsync(
                         context.JobDetail.Key.Name,
                         context.JobDetail.Key.Group,
@@ -239,19 +252,16 @@ namespace Chet.QuartzNet.Core.Services
 
                     if (jobInfo != null && jobInfo.Status == JobStatus.Paused)
                     {
-                        // 作业被暂停，记录日志并抛出异常阻止执行
                         _logger.LogWarn(
                             "作业即将执行",
                             $"作业执行被阻止: 作业已被暂停 - {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}"
                         );
 
-                        // 抛出JobExecutionException来阻止作业执行
                         throw new JobExecutionException(
                             $"作业 {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name} 已被暂停，执行被阻止"
                         );
                     }
 
-                    // 检查前置依赖：依赖作业最近一次执行成功才允许执行
                     if (jobInfo != null)
                     {
                         await CheckDependenciesAsync(
@@ -264,13 +274,21 @@ namespace Chet.QuartzNet.Core.Services
                 }
                 else
                 {
-                    // 是手动触发的作业，即使处于暂停状态也允许执行
                     _logger.LogInfo(
-                        "手动触发作业",
-                        "忽略暂停状态检查: {JobKey}",
-                        $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}"
+                        "作业即将执行",
+                        "跳过暂停/依赖校验: {JobKey}, 来源: {TriggerType}",
+                        $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}",
+                        triggerType
                     );
                 }
+
+                // 所有可能抛异常阻止执行的校验之后，才创建运行中记录
+                await EnsureRunningLogAsync(
+                    context,
+                    jobStorage,
+                    triggerType,
+                    cancellationToken
+                );
             }
             catch (JobExecutionException)
             {
@@ -282,19 +300,212 @@ namespace Chet.QuartzNet.Core.Services
                 // 记录检查过程中的错误，但不阻止作业执行
                 _logger.LogError(
                     ex,
-                    "检查作业暂停状态时发生错误: {JobKey}",
+                    "准备作业执行日志时发生错误: {JobKey}",
                     $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}"
                 );
             }
         }
 
         /// <summary>
+        /// 创建运行中日志，或认领补偿预建的日志
+        /// </summary>
+        private async Task EnsureRunningLogAsync(
+            IJobExecutionContext context,
+            IJobStorage jobStorage,
+            TriggerType triggerType,
+            CancellationToken cancellationToken
+        )
+        {
+            var now = DateTime.Now;
+            var logId = ResolveLogId(context);
+
+            if (logId.HasValue)
+            {
+                var existing = await jobStorage.GetJobLogAsync(logId.Value, cancellationToken);
+                if (existing != null)
+                {
+                    existing.Status = LogStatus.Running;
+                    existing.HeartbeatTime = now;
+                    if (existing.StartTime == default)
+                    {
+                        existing.StartTime = now;
+                    }
+
+                    await jobStorage.UpdateJobLogAsync(existing, cancellationToken);
+                    _registry.Register(
+                        new JobExecutionRegistry.ExecutionEntry(
+                            existing.LogId,
+                            existing.JobName,
+                            existing.JobGroup,
+                            existing.StartTime
+                        )
+                    );
+                    return;
+                }
+            }
+
+            var jobLog = new QuartzJobLog
+            {
+                LogId = logId ?? Guid.NewGuid(),
+                JobName = context.JobDetail.Key.Name,
+                JobGroup = context.JobDetail.Key.Group,
+                TriggerName = context.Trigger.Key.Name,
+                TriggerGroup = context.Trigger.Key.Group,
+                Status = LogStatus.Running,
+                StartTime = now,
+                HeartbeatTime = now,
+                CreateTime = now,
+                TriggerType = triggerType,
+                InstanceId = _instance.InstanceId,
+                BootId = _instance.BootId,
+            };
+
+            context.MergedJobDataMap.TryGetValue(
+                QuartzJobConst.TriggeredBy,
+                out var triggeredBy
+            );
+            jobLog.TriggeredBy = triggeredBy?.ToString();
+
+            context.MergedJobDataMap.TryGetValue(
+                QuartzJobConst.RecoverySourceLogId,
+                out var sourceLogId
+            );
+            if (
+                sourceLogId != null
+                && Guid.TryParse(sourceLogId.ToString(), out var parsedSourceId)
+            )
+            {
+                jobLog.RecoverySourceLogId = parsedSourceId;
+            }
+
+            context.MergedJobDataMap.TryGetValue(
+                QuartzJobConst.RecoveryAttempt,
+                out var attempt
+            );
+            if (attempt != null && int.TryParse(attempt.ToString(), out var parsedAttempt))
+            {
+                jobLog.RecoveryAttempt = Math.Max(1, parsedAttempt);
+            }
+
+            if (
+                context.MergedJobDataMap.TryGetValue(
+                    QuartzJobConst.JobData,
+                    out var jobDataValue
+                )
+                && !string.IsNullOrEmpty(jobDataValue?.ToString())
+            )
+            {
+                jobLog.JobData = jobDataValue.ToString();
+            }
+
+            await jobStorage.AddJobLogAsync(jobLog, cancellationToken);
+            context.MergedJobDataMap[QuartzJobConst.LogId] = jobLog.LogId.ToString();
+
+            _registry.Register(
+                new JobExecutionRegistry.ExecutionEntry(
+                    jobLog.LogId,
+                    jobLog.JobName,
+                    jobLog.JobGroup,
+                    jobLog.StartTime
+                )
+            );
+        }
+
+        private static void FillExecutionResult(
+            QuartzJobLog jobLog,
+            IJobExecutionContext context,
+            JobExecutionException? executionException,
+            TriggerType triggerType
+        )
+        {
+            var now = DateTime.Now;
+            var triggerLabel = triggerType switch
+            {
+                TriggerType.Manual => "（手动触发）",
+                TriggerType.Recovery => "（中断补偿重跑）",
+                _ => string.Empty,
+            };
+
+            jobLog.EndTime = now;
+            jobLog.Duration = Math.Max(0, (long)(now - jobLog.StartTime).TotalMilliseconds);
+            jobLog.TriggerType = triggerType;
+
+            if (executionException == null)
+            {
+                jobLog.Status = LogStatus.Success;
+                jobLog.Message = $"作业执行成功{triggerLabel}";
+            }
+            else
+            {
+                jobLog.Status = LogStatus.Failed;
+                jobLog.Message = $"作业执行失败{triggerLabel}";
+                jobLog.Exception = executionException.ToString();
+                jobLog.ErrorMessage = executionException.Message;
+                jobLog.ErrorStackTrace = executionException.StackTrace;
+            }
+
+            jobLog.Result = context.Result?.ToString();
+
+            if (
+                context.MergedJobDataMap != null
+                && context.MergedJobDataMap.TryGetValue(
+                    QuartzJobConst.JobData,
+                    out var jobDataValue
+                )
+                && !string.IsNullOrEmpty(jobDataValue?.ToString())
+            )
+            {
+                jobLog.JobData = jobDataValue.ToString();
+            }
+        }
+
+        private static TriggerType ResolveTriggerType(IJobExecutionContext context)
+        {
+            if (
+                context.MergedJobDataMap != null
+                && context.MergedJobDataMap.TryGetValue(
+                    QuartzJobConst.TriggerType,
+                    out var value
+                )
+                && value != null
+                && Enum.TryParse<TriggerType>(value.ToString(), true, out var parsed)
+            )
+            {
+                return parsed;
+            }
+
+            // 兼容旧路径：没有 TriggerType 时按 IsManualTrigger 判断
+            if (
+                context.MergedJobDataMap != null
+                && context.MergedJobDataMap.TryGetValue("IsManualTrigger", out var manualFlag)
+                && manualFlag is bool manual
+                && manual
+            )
+            {
+                return TriggerType.Manual;
+            }
+
+            return TriggerType.Cron;
+        }
+
+        private static Guid? ResolveLogId(IJobExecutionContext context)
+        {
+            if (
+                context.MergedJobDataMap != null
+                && context.MergedJobDataMap.TryGetValue(QuartzJobConst.LogId, out var value)
+                && value != null
+                && Guid.TryParse(value.ToString(), out var logId)
+            )
+            {
+                return logId;
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// 检查前置依赖是否满足，未满足时记录跳过日志并阻止本次执行
         /// </summary>
-        /// <param name="jobInfo">当前作业信息</param>
-        /// <param name="jobStorage">作业存储</param>
-        /// <param name="context">作业执行上下文</param>
-        /// <param name="cancellationToken">取消令牌</param>
         private async Task CheckDependenciesAsync(
             QuartzJobInfo jobInfo,
             IJobStorage jobStorage,
@@ -353,6 +564,9 @@ namespace Chet.QuartzNet.Core.Services
                     Duration = 0,
                     Status = LogStatus.Skipped,
                     Message = reason,
+                    TriggerType = TriggerType.Cron,
+                    InstanceId = _instance.InstanceId,
+                    BootId = _instance.BootId,
                 },
                 cancellationToken
             );

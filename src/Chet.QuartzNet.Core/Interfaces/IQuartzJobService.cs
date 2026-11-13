@@ -129,6 +129,20 @@ public interface IQuartzJobService
     );
 
     /// <summary>
+    /// 带执行上下文触发作业（手动/补偿共用），执行级标记只写入触发器，不写入 JobDetail
+    /// </summary>
+    Task<ApiResponseDto<bool>> TriggerJobWithContextAsync(
+        string jobName,
+        string jobGroup,
+        TriggerType triggerType,
+        Guid? logId = null,
+        Guid? recoverySourceLogId = null,
+        int recoveryAttempt = 1,
+        string? triggeredBy = null,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
     /// 获取作业列表
     /// </summary>
     /// <param name="queryDto">查询条件</param>
@@ -164,6 +178,17 @@ public interface IQuartzJobService
     );
 
     /// <summary>
+    /// 获取单条日志
+    /// </summary>
+    /// <param name="logId">日志ID</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>日志详情</returns>
+    Task<ApiResponseDto<QuartzJobLog>> GetJobLogAsync(
+        Guid logId,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
     /// 获取调度器状态
     /// </summary>
     /// <param name="cancellationToken">取消令牌</param>
@@ -185,6 +210,48 @@ public interface IQuartzJobService
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>操作结果</returns>
     Task<ApiResponseDto<bool>> ShutdownSchedulerAsync(
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 排水：停止接收新触发，等待执行中任务收尾后自动停止
+    /// </summary>
+    /// <param name="timeoutSeconds">覆盖默认排水超时（秒），null 使用配置值</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>操作结果</returns>
+    Task<ApiResponseDto<bool>> DrainSchedulerAsync(
+        int? timeoutSeconds = null,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 取消排水并恢复调度
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>操作结果</returns>
+    Task<ApiResponseDto<bool>> ResumeSchedulerAsync(
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 获取本次启动的中断恢复汇总
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>恢复汇总</returns>
+    Task<ApiResponseDto<RecoverySummaryDto>> GetRecoverySummaryAsync(
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 手动重新执行一条中断日志
+    /// </summary>
+    /// <param name="logId">中断日志ID</param>
+    /// <param name="triggeredBy">操作人</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>操作结果</returns>
+    Task<ApiResponseDto<bool>> RerunInterruptedLogAsync(
+        Guid logId,
+        string? triggeredBy = null,
         CancellationToken cancellationToken = default
     );
 
@@ -353,7 +420,7 @@ public interface IQuartzJobService
     /// </summary>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>系统配置</returns>
-    Task<ApiResponseDto<SystemConfigDto>> GetSystemConfigAsync(
+    Task<ApiResponseDto<SystemConfigResponseDto>> GetSystemConfigAsync(
         CancellationToken cancellationToken = default
     );
 
@@ -415,6 +482,31 @@ public class SchedulerStatusDto
     /// 正在执行的作业数量
     /// </summary>
     public int ExecutingJobCount { get; set; }
+
+    /// <summary>
+    /// 是否正在排水
+    /// </summary>
+    public bool IsDraining { get; set; }
+
+    /// <summary>
+    /// 排水开始时间
+    /// </summary>
+    public DateTime? DrainStartedAt { get; set; }
+
+    /// <summary>
+    /// 排水截止时间
+    /// </summary>
+    public DateTime? DrainDeadline { get; set; }
+
+    /// <summary>
+    /// 排水仍需等待的执行中任务数
+    /// </summary>
+    public int RemainingExecutingCount { get; set; }
+
+    /// <summary>
+    /// 本实例恢复队列中尚未完成的补偿数
+    /// </summary>
+    public int PendingCompensationCount { get; set; }
 
     /// <summary>
     /// 线程池大小

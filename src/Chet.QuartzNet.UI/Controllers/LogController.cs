@@ -1,6 +1,7 @@
 using Chet.QuartzNet.Core.Helpers;
 using Chet.QuartzNet.Core.Interfaces;
 using Chet.QuartzNet.Models.DTOs;
+using Chet.QuartzNet.Models.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -42,6 +43,64 @@ public class LogController : ControllerBase
                     "获取作业日志失败: " + ex.Message
                 )
             );
+        }
+    }
+
+    /// <summary>
+    /// 获取单条日志详情
+    /// </summary>
+    [HttpGet("GetJobLog")]
+    public async Task<ActionResult<ApiResponseDto<QuartzJobLog>>> GetJobLog(
+        Guid logId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var result = await _jobService.GetJobLogAsync(logId, cancellationToken);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("获取日志详情", ex);
+            return Ok(ApiResponseDto<QuartzJobLog>.ErrorResponse("获取日志详情失败: " + ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// 手动重新执行一条中断日志
+    /// </summary>
+    [HttpPost("RerunInterruptedLog")]
+    public async Task<ActionResult<ApiResponseDto<bool>>> RerunInterruptedLog(
+        [FromBody] RerunInterruptedLogRequestDto request,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var triggeredBy = User?.Identity?.Name;
+            var result = await _jobService.RerunInterruptedLogAsync(
+                request.LogId,
+                triggeredBy,
+                cancellationToken
+            );
+            if (result.Success)
+            {
+                _logger.LogSuccess("重新执行中断日志", request.LogId.ToString());
+            }
+            else
+            {
+                _logger.LogWarn(
+                    "重新执行中断日志",
+                    $"失败, 原因: {result.Message}, 错误码: {result.ErrorCode}"
+                );
+            }
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("重新执行中断日志", ex);
+            return Ok(ApiResponseDto<bool>.ErrorResponse("重新执行失败: " + ex.Message));
         }
     }
 
