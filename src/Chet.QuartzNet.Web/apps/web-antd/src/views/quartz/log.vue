@@ -1225,8 +1225,24 @@ onMounted(async () => {
   margin-bottom: var(--space-lg);
 }
 
+/* 列宽按内容自适应，避免「执行时长」「时间」等短值被固定列宽挤到换行 */
+.detail-desc :deep(.ant-descriptions-view table) {
+  table-layout: auto;
+}
+
 .detail-desc :deep(.ant-descriptions-item-label) {
-  min-width: 100px;
+  min-width: 84px;
+  white-space: nowrap;
+}
+
+.detail-desc :deep(.ant-descriptions-item-content) {
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .detail-desc :deep(.ant-descriptions-item-content) {
+    white-space: normal;
+  }
 }
 
 /* 内容区 */
