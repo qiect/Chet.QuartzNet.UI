@@ -26,7 +26,7 @@ description: 通知管理页配置 PushPlus 渠道、通知策略与模板，并
 | 启用通知 | 总开关 |
 | Token | PushPlus 个人 Token |
 | 推送渠道 | 微信 / 企业微信 / 钉钉 / 邮件等 |
-| 消息模板 | HTML / Markdown / 纯文本 |
+| 消息模板 | HTML / Markdown / 纯文本 / JSON，配置页提供实时推送预览 |
 | 主题 | 通知主题（可选） |
 
 配置步骤与 PushPlus 注册见 [通知配置](/guide/notification)。
