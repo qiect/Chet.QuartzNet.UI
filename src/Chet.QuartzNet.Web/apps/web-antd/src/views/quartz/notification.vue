@@ -14,6 +14,7 @@ import {
   Form,
   Switch,
   message,
+  Popover,
   Tag,
   Row,
   Col,
@@ -24,7 +25,7 @@ import {
   DescriptionsItem,
 } from 'ant-design-vue';
 import type { FormInstance } from 'ant-design-vue';
-import { Check } from '@vben/icons';
+import { Check, Eye } from '@vben/icons';
 import dayjs from 'dayjs';
 
 // 导入i18n
@@ -745,6 +746,85 @@ onMounted(async () => {
           <div class="form-section-title">
             <span>{{ $t('page.quartz.notificationPage.messageTemplate') }}</span>
             <span class="section-title-action">
+              <Popover trigger="hover" placement="rightTop" overlay-class-name="template-preview-popover"
+                :overlay-inner-style="{ padding: 0, background: 'transparent', boxShadow: 'none' }"
+                :mouse-enter-delay="0.15" :mouse-leave-delay="0.1">
+                <template #content>
+                  <div class="template-preview">
+                    <div class="preview-bar">
+                      <span class="preview-dots"><i></i><i></i><i></i></span>
+                      <span class="preview-bar__title">{{ $t('page.quartz.notificationPage.templatePreview') }}</span>
+                      <span class="preview-bar__tag">{{ currentTemplateLabel }}</span>
+                    </div>
+
+                    <div class="preview-canvas">
+                      <!-- HTML：富文本消息卡片 -->
+                      <div v-if="previewMode === 'html'" class="mock-rich">
+                        <div class="mock-rich__head">
+                          <span class="mock-badge"><Check :size="13" /></span>
+                          <div class="mock-rich__titles">
+                            <span class="mock-rich__title">{{ $t('page.quartz.notificationPage.previewStatusSuccess') }}</span>
+                            <span class="mock-rich__sub">{{ previewSample.jobName }}</span>
+                          </div>
+                        </div>
+                        <div class="mock-row">
+                          <span>{{ $t('page.quartz.notificationPage.previewFieldJob') }}</span>
+                          <b>{{ previewSample.jobName }}</b>
+                        </div>
+                        <div class="mock-row">
+                          <span>{{ $t('page.quartz.notificationPage.previewFieldStatus') }}</span>
+                          <b class="is-ok">{{ $t('page.quartz.notificationPage.previewStatusSuccess') }}</b>
+                        </div>
+                        <div class="mock-row">
+                          <span>{{ $t('page.quartz.notificationPage.previewFieldTime') }}</span>
+                          <b>{{ previewSample.triggerTime }}</b>
+                        </div>
+                        <div class="mock-row">
+                          <span>{{ $t('page.quartz.notificationPage.previewFieldDuration') }}</span>
+                          <b>1.28 s</b>
+                        </div>
+                        <div class="mock-foot">{{ $t('page.quartz.notificationPage.previewFooter') }}</div>
+                      </div>
+
+                      <!-- Markdown：结构化表格 -->
+                      <div v-else-if="previewMode === 'markdown'" class="mock-md">
+                        <div class="mock-md__title">
+                          {{ $t('page.quartz.notificationPage.previewStatusSuccess') }}: {{ previewSample.jobName }}
+                        </div>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>{{ $t('page.quartz.notificationPage.previewFieldJob') }}</th>
+                              <th>{{ $t('page.quartz.notificationPage.previewFieldStatus') }}</th>
+                              <th>{{ $t('page.quartz.notificationPage.previewFieldTime') }}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>{{ previewSample.jobName }}</td>
+                              <td class="is-ok">{{ $t('page.quartz.notificationPage.previewStatusSuccess') }}</td>
+                              <td>{{ previewSample.triggerTime }}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                        <div class="mock-foot">{{ $t('page.quartz.notificationPage.previewFooter') }}</div>
+                      </div>
+
+                      <!-- TXT：纯文本 -->
+                      <pre v-else-if="previewMode === 'txt'" class="preview-code">{{ previewText }}</pre>
+
+                      <!-- JSON：结构化数据 -->
+                      <pre v-else class="preview-code">{{ previewJson }}</pre>
+                    </div>
+
+                    <div class="preview-foot">{{ $t('page.quartz.notificationPage.templatePreviewHint') }}</div>
+                  </div>
+                </template>
+                <span class="preview-trigger">
+                  <Eye :size="13" />
+                  <span>{{ $t('page.quartz.notificationPage.templatePreview') }}</span>
+                </span>
+              </Popover>
               <span class="template-current">{{ currentTemplateLabel }}</span>
             </span>
           </div>
@@ -762,77 +842,6 @@ onMounted(async () => {
                 <Check :size="10" />
               </span>
             </button>
-          </div>
-
-          <!-- 推送预览 -->
-          <div class="template-preview">
-            <div class="preview-bar">
-              <span class="preview-dots"><i></i><i></i><i></i></span>
-              <span class="preview-bar__title">{{ $t('page.quartz.notificationPage.templatePreview') }}</span>
-              <span class="preview-bar__tag">{{ currentTemplateLabel }}</span>
-            </div>
-
-            <div class="preview-canvas">
-              <!-- HTML：富文本消息卡片 -->
-              <div v-if="previewMode === 'html'" class="mock-rich">
-                <div class="mock-rich__head">
-                  <span class="mock-badge"><Check :size="13" /></span>
-                  <div class="mock-rich__titles">
-                    <span class="mock-rich__title">{{ $t('page.quartz.notificationPage.previewStatusSuccess') }}</span>
-                    <span class="mock-rich__sub">{{ previewSample.jobName }}</span>
-                  </div>
-                </div>
-                <div class="mock-row">
-                  <span>{{ $t('page.quartz.notificationPage.previewFieldJob') }}</span>
-                  <b>{{ previewSample.jobName }}</b>
-                </div>
-                <div class="mock-row">
-                  <span>{{ $t('page.quartz.notificationPage.previewFieldStatus') }}</span>
-                  <b class="is-ok">{{ $t('page.quartz.notificationPage.previewStatusSuccess') }}</b>
-                </div>
-                <div class="mock-row">
-                  <span>{{ $t('page.quartz.notificationPage.previewFieldTime') }}</span>
-                  <b>{{ previewSample.triggerTime }}</b>
-                </div>
-                <div class="mock-row">
-                  <span>{{ $t('page.quartz.notificationPage.previewFieldDuration') }}</span>
-                  <b>1.28 s</b>
-                </div>
-                <div class="mock-foot">{{ $t('page.quartz.notificationPage.previewFooter') }}</div>
-              </div>
-
-              <!-- Markdown：结构化表格 -->
-              <div v-else-if="previewMode === 'markdown'" class="mock-md">
-                <div class="mock-md__title">
-                  {{ $t('page.quartz.notificationPage.previewStatusSuccess') }}: {{ previewSample.jobName }}
-                </div>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>{{ $t('page.quartz.notificationPage.previewFieldJob') }}</th>
-                      <th>{{ $t('page.quartz.notificationPage.previewFieldStatus') }}</th>
-                      <th>{{ $t('page.quartz.notificationPage.previewFieldTime') }}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>{{ previewSample.jobName }}</td>
-                      <td class="is-ok">{{ $t('page.quartz.notificationPage.previewStatusSuccess') }}</td>
-                      <td>{{ previewSample.triggerTime }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <div class="mock-foot">{{ $t('page.quartz.notificationPage.previewFooter') }}</div>
-              </div>
-
-              <!-- TXT：纯文本 -->
-              <pre v-else-if="previewMode === 'txt'" class="preview-code">{{ previewText }}</pre>
-
-              <!-- JSON：结构化数据 -->
-              <pre v-else class="preview-code">{{ previewJson }}</pre>
-            </div>
-
-            <div class="preview-foot">{{ $t('page.quartz.notificationPage.templatePreviewHint') }}</div>
           </div>
 
           <!-- 通知策略 -->
@@ -1250,14 +1259,51 @@ onMounted(async () => {
   transform: scale(1);
 }
 
-/* ============ 推送预览 ============ */
+/* ============ 推送预览（悬浮显示） ============ */
+.preview-trigger {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.6;
+  color: hsl(var(--primary));
+  cursor: pointer;
+  user-select: none;
+  background: hsl(var(--primary) / 0.08);
+  border: 1px solid hsl(var(--primary) / 0.2);
+  border-radius: 999px;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+
+  &:hover {
+    background: hsl(var(--primary) / 0.16);
+    border-color: hsl(var(--primary) / 0.4);
+  }
+}
+
+/* 悬浮层容器去掉默认内边距与底色，由预览卡片自带样式 */
+:global(.template-preview-popover .ant-popover-inner) {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:global(.template-preview-popover .ant-popover-arrow) {
+  display: none;
+}
+
 .template-preview {
-  margin-bottom: 6px;
+  width: 380px;
   overflow: hidden;
   background: hsl(var(--card));
   border: 1px solid hsl(var(--border));
   border-radius: 14px;
-  box-shadow: 0 20px 44px -34px hsl(var(--foreground));
+  box-shadow:
+    0 24px 48px -24px hsl(var(--foreground) / 0.45),
+    0 2px 8px -4px hsl(var(--foreground) / 0.2);
 }
 
 .preview-bar {
@@ -1300,7 +1346,9 @@ onMounted(async () => {
 }
 
 .preview-canvas {
+  max-height: 340px;
   padding: 14px;
+  overflow: auto;
   background: hsl(var(--accent) / 0.32);
 }
 
@@ -1398,12 +1446,12 @@ onMounted(async () => {
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 12px;
+    font-size: 11.5px;
   }
 
   th,
   td {
-    padding: 6px 10px;
+    padding: 6px 8px;
     text-align: left;
     border: 1px solid hsl(var(--border));
   }
