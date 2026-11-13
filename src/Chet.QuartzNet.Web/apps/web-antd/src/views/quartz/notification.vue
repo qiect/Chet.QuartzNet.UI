@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted, nextTick, watch } from 'vue';
+import {
+  ref,
+  computed,
+  reactive,
+  onActivated,
+  onMounted,
+  nextTick,
+  watch,
+} from 'vue';
 import { formatDateTime } from '@vben/utils';
 import { Page } from '@vben/common-ui';
 // 导入 vbenadmin 的 Vxe Table 适配器
@@ -48,6 +56,8 @@ import type {
 } from '../../api/quartz/notification';
 // 导入可拖动 Modal 组合式函数
 import { useDraggableModal } from './composables/use-draggable-modal';
+// 导入表头排序标识恢复逻辑
+import { applyGridSortIndicator } from './composables/grid-sort-indicator';
 
 const { locale } = useI18n();
 
@@ -292,6 +302,8 @@ const savedSort = (() => {
 // 默认排序：与后端缺省排序（创建时间倒序）保持一致，保证首次进入也有排序标识
 const DEFAULT_SORT = { field: 'createTime', order: 'desc' as const };
 const initialSort = savedSort ?? DEFAULT_SORT;
+// 当前生效的排序：点击表头后会同步更新，搜索/刷新后据此恢复列头标识与查询参数
+const currentSort = { field: initialSort.field, order: initialSort.order };
 const savedSearch = (() => {
   try {
     const raw = localStorage.getItem(SEARCH_KEY);
@@ -321,9 +333,9 @@ const gridOptions: VxeTableGridOptions<QuartzNotificationDto> = {
     autoLoad: false,
     ajax: {
       query: async ({ page, sort }: any, formValues: any) => {
-        // autoLoad 首次 query 时 defaultSort 可能未注入，回退到默认排序
-        const sortField = sort?.field ?? initialSort.field;
-        const sortOrderRaw = sort?.order ?? initialSort.order;
+        // 代理 reload（搜索/刷新）会清空列头排序，回退到当前生效的排序
+        const sortField = sort?.field ?? currentSort.field;
+        const sortOrderRaw = sort?.order ?? currentSort.order;
         // 保持原有行为：sortOrder 使用 ascend/descend 形式
         const sortOrder =
           sortOrderRaw === 'asc' ? 'ascend' : sortOrderRaw === 'desc' ? 'descend' : undefined;
@@ -383,6 +395,11 @@ const gridOptions: VxeTableGridOptions<QuartzNotificationDto> = {
           return { result: [], page: { total: 0 } };
         }
       },
+      // 搜索/刷新走的是代理 reload，vxe 在 reload 前会 clearSort 清空列头排序状态，
+      // 数据仍按 initialSort 排序，这里把列头标识补回来，避免标识与数据不一致
+      querySuccess: () => {
+        restoreSortIndicator();
+      },
     },
     sort: true,
   },
@@ -430,11 +447,16 @@ const [Grid, gridApi] = useVbenVxeGrid({
     sortChange: ({ property, field, order }: any) => {
       const sortField = property || field;
       if (sortField && order) {
+        currentSort.field = sortField;
+        currentSort.order = order;
         localStorage.setItem(
           SORT_KEY,
           JSON.stringify({ field: sortField, order }),
         );
       } else {
+        // 取消排序后回退到默认排序，保证列头标识与查询参数始终一致
+        currentSort.field = DEFAULT_SORT.field;
+        currentSort.order = DEFAULT_SORT.order;
         localStorage.removeItem(SORT_KEY);
       }
     },
@@ -444,6 +466,21 @@ const [Grid, gridApi] = useVbenVxeGrid({
 // 对话框支持拖动
 useDraggableModal(configModalVisible, 'quartz-notification-config-modal');
 useDraggableModal(detailModalVisible, 'quartz-notification-detail-modal');
+
+// 恢复表头排序标识：仅在当前排序与期望不一致时设置，避免触发多余查询
+const restoreSortIndicator = () => applyGridSortIndicator(gridApi, currentSort);
+
+// 页面被 keep-alive 缓存后重新激活时，表头排序标识会丢失，需要重新同步
+let sortIndicatorActivated = false;
+onActivated(async () => {
+  if (!sortIndicatorActivated) {
+    // 首次激活与 onMounted 中的恢复重叠，跳过
+    sortIndicatorActivated = true;
+    return;
+  }
+  await nextTick();
+  await restoreSortIndicator();
+});
 
 // 监听语言切换，更新表格列头和搜索表单
 watch(locale, () => {
@@ -601,28 +638,6 @@ const handleClearNotifications = () => {
       }
     },
   });
-};
-
-// 恢复表头排序标识：仅在当前排序与期望不一致时设置，避免重复触发查询
-const restoreSortIndicator = async () => {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    await nextTick();
-    const grid: any = gridApi.grid;
-    if (!grid?.setSort) {
-      // grid 尚未就绪，稍后重试
-      await new Promise((resolve) => setTimeout(resolve, 60));
-      continue;
-    }
-
-    const current = (grid.getSortColumns?.() ?? [])[0];
-    const currentField = current?.field ?? current?.property;
-    if (currentField === initialSort.field && current?.order === initialSort.order) {
-      return;
-    }
-
-    grid.setSort({ field: initialSort.field, order: initialSort.order });
-    return;
-  }
 };
 
 // 恢复表格排序视觉状态（列头箭头）
