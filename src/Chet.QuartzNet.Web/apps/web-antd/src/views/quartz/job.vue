@@ -1539,7 +1539,7 @@ onMounted(async () => {
         :body-style="{ padding: '24px' }" wrapClassName="quartz-job-edit-modal" destroyOnClose
         @cancel="editModalVisible = false">
         <Form ref="formRef" :model="editForm" layout="horizontal" :label-col="{ style: { width: '110px' } }"
-          :wrapper-col="{ flex: 1 }">
+          :wrapper-col="{ flex: 1 }" autocomplete="off">
           <!-- 基本信息 -->
           <div class="form-section-title">{{ $t('page.quartz.jobPage.sectionBasic') }}</div>
           <Row :gutter="16">
@@ -1571,7 +1571,7 @@ onMounted(async () => {
           <!-- 调度设置 -->
           <div class="form-section-title">{{ $t('page.quartz.jobPage.sectionSchedule') }}</div>
           <Row :gutter="16" class="schedule-grid">
-            <Col :xs="24" :md="24">
+            <Col :xs="24" :md="15" class="schedule-col">
               <Form.Item :label="$t('page.quartz.jobPage.cronExpression')" name="cronExpression"
                 :rules="[{ required: true, message: $t('page.quartz.jobPage.cronRequired') }, { max: 200, message: $t('page.quartz.jobPage.cronMaxLen') }]">
                 <Space.Compact style="width: 100%">
@@ -1581,72 +1581,57 @@ onMounted(async () => {
                 </Space.Compact>
               </Form.Item>
             </Col>
-            <Col :xs="24">
-              <Form.Item name="disallowConcurrentExecution">
-                <template #label>
-                  <Tooltip :title="$t('page.quartz.jobPage.disallowConcurrentHint')">
-                    <i class="vxe-icon-warning-circle retry-hint-icon" style="color: hsl(var(--warning)); cursor: help;"></i>
-                    {{ $t('page.quartz.jobPage.disallowConcurrent') }}
-                  </Tooltip>
-                </template>
-                <Switch v-model:checked="editForm.disallowConcurrentExecution" />
+            <Col :xs="24" :md="9" class="schedule-col schedule-col--inline-label">
+              <Form.Item :label="$t('page.quartz.jobPage.disallowConcurrent')" name="disallowConcurrentExecution">
+                <Tooltip :title="$t('page.quartz.jobPage.disallowConcurrentHint')">
+                  <Switch v-model:checked="editForm.disallowConcurrentExecution" />
+                </Tooltip>
               </Form.Item>
             </Col>
-            <Col :xs="24">
-              <Form.Item name="rerunOnRecovery">
-                <template #label>
-                  <Tooltip :title="$t('page.quartz.jobPage.rerunOnRecoveryHint')">
-                    <i class="vxe-icon-warning-circle retry-hint-icon" style="color: hsl(var(--warning)); cursor: help;"></i>
-                    {{ $t('page.quartz.jobPage.rerunOnRecovery') }}
-                  </Tooltip>
-                </template>
-                <Select
-                  v-model:value="rerunOnRecoveryValue"
-                  :options="[
-                    { label: $t('page.quartz.jobPage.rerunFollowGlobal'), value: 'global' },
-                    { label: $t('page.quartz.jobPage.rerunEnabled'), value: 'on' },
-                    { label: $t('page.quartz.jobPage.rerunDisabled'), value: 'off' },
-                  ]"
-                  style="width: 100%"
-                />
+            <!-- 前置依赖：独占整行 -->
+            <Col :xs="24" class="schedule-col">
+              <Form.Item :label="$t('page.quartz.jobPage.dependencies')" name="dependencies">
+                <Tooltip :title="$t('page.quartz.jobPage.dependenciesHint')">
+                  <Select v-model:value="dependencyKeys" mode="multiple" :options="dependencySelectOptions"
+                    :placeholder="$t('page.quartz.jobPage.dependenciesPlaceholder')" allowClear
+                    optionFilterProp="label" :maxTagCount="'responsive'" />
+                </Tooltip>
               </Form.Item>
             </Col>
             <!-- 失败重试：次数与间隔紧凑组合 -->
-            <Col :xs="24">
-              <Form.Item name="retryCount" :rules="[
+            <Col :xs="24" :md="15" class="schedule-col">
+              <Form.Item :label="$t('page.quartz.jobPage.retryLabel')" name="retryCount" :rules="[
                 { type: 'number', min: 0, max: 10, message: $t('page.quartz.jobPage.retryCountRange') },
               ]">
-                <template #label>
-                  <Tooltip :title="$t('page.quartz.jobPage.retryCountHint')">
-                    <i class="vxe-icon-warning-circle retry-hint-icon" style="color: hsl(var(--warning)); cursor: help;"></i>
-                    {{ $t('page.quartz.jobPage.retryLabel') }}
-                  </Tooltip>
-                </template>
-                <div class="retry-group">
-                  <InputNumber v-model:value="editForm.retryCount" :min="0" :max="10" class="retry-group__input"
-                    :placeholder="$t('page.quartz.jobPage.placeholderRetryCount')" />
-                  <span class="retry-group__unit">{{ $t('page.quartz.jobPage.retryTimesUnit') }}</span>
-                  <span class="retry-group__sep" aria-hidden="true"></span>
-                  <span class="retry-group__inline-label">{{ $t('page.quartz.jobPage.retryIntervalInline') }}</span>
-                  <InputNumber v-model:value="editForm.retryIntervalSeconds" :min="1" :max="3600"
-                    class="retry-group__input retry-group__input--interval"
-                    :placeholder="$t('page.quartz.jobPage.placeholderRetryInterval')"
-                    :disabled="!editForm.retryCount" />
-                  <span class="retry-group__unit">{{ $t('page.quartz.jobPage.retrySecondsUnit') }}</span>
-                </div>
+                <Tooltip :title="$t('page.quartz.jobPage.retryCountHint')">
+                  <div class="retry-group">
+                    <InputNumber v-model:value="editForm.retryCount" :min="0" :max="10" class="retry-group__input"
+                      :placeholder="$t('page.quartz.jobPage.placeholderRetryCount')" />
+                    <span class="retry-group__unit">{{ $t('page.quartz.jobPage.retryTimesUnit') }}</span>
+                    <span class="retry-group__sep" aria-hidden="true"></span>
+                    <span class="retry-group__inline-label">{{ $t('page.quartz.jobPage.retryIntervalInline') }}</span>
+                    <InputNumber v-model:value="editForm.retryIntervalSeconds" :min="1" :max="3600"
+                      class="retry-group__input retry-group__input--interval"
+                      :placeholder="$t('page.quartz.jobPage.placeholderRetryInterval')"
+                      :disabled="!editForm.retryCount" />
+                    <span class="retry-group__unit">{{ $t('page.quartz.jobPage.retrySecondsUnit') }}</span>
+                  </div>
+                </Tooltip>
               </Form.Item>
             </Col>
-            <Col :xs="24">
-              <Form.Item name="dependencies">
-                <template #label>
-                  <Tooltip :title="$t('page.quartz.jobPage.dependenciesHint')">
-                    <i class="vxe-icon-warning-circle retry-hint-icon" style="color: hsl(var(--warning)); cursor: help;"></i>
-                    {{ $t('page.quartz.jobPage.dependencies') }}
-                  </Tooltip>
-                </template>
-                <Select v-model:value="dependencyKeys" mode="multiple" :options="dependencySelectOptions"
-                  :placeholder="$t('page.quartz.jobPage.dependenciesPlaceholder')" allowClear
-                  optionFilterProp="label" :maxTagCount="'responsive'" />
+            <Col :xs="24" :md="9" class="schedule-col schedule-col--inline-label">
+              <Form.Item :label="$t('page.quartz.jobPage.rerunOnRecovery')" name="rerunOnRecovery">
+                <Tooltip :title="$t('page.quartz.jobPage.rerunOnRecoveryHint')">
+                  <Select
+                    v-model:value="rerunOnRecoveryValue"
+                    :options="[
+                      { label: $t('page.quartz.jobPage.rerunFollowGlobal'), value: 'global' },
+                      { label: $t('page.quartz.jobPage.rerunEnabled'), value: 'on' },
+                      { label: $t('page.quartz.jobPage.rerunDisabled'), value: 'off' },
+                    ]"
+                    style="width: 100%"
+                  />
+                </Tooltip>
               </Form.Item>
             </Col>
           </Row>
@@ -1760,8 +1745,7 @@ onMounted(async () => {
                 <Form.Item name="skipSslValidation" valuePropName="checked">
                   <template #label>
                     <Tooltip :title="$t('page.quartz.jobPage.skipSslWarning')">
-                      <i class="vxe-icon-warning-circle retry-hint-icon" style="color: hsl(var(--warning)); cursor: help;"></i>
-                      {{ $t('page.quartz.jobPage.skipSsl') }}
+                      <span>{{ $t('page.quartz.jobPage.skipSsl') }}</span>
                     </Tooltip>
                   </template>
                   <Switch v-model:checked="editForm.skipSslValidation" />
@@ -1918,13 +1902,14 @@ onMounted(async () => {
 
 
 
-/* ====== 调度设置：单列对齐，标签列与表单其余分区保持一致 ====== */
+/* ====== 调度设置：两列混排，标签列与表单其余分区保持一致 ====== */
 .schedule-grid :deep(.ant-form-item) {
   margin-bottom: 12px;
 }
 
 .schedule-grid :deep(.ant-form-item-row) {
   flex-wrap: nowrap;
+  align-items: center;
 }
 
 .schedule-grid :deep(.ant-form-item-label) {
@@ -1936,6 +1921,14 @@ onMounted(async () => {
   padding-right: 6px;
 }
 
+/* 同行右侧字段：标签宽度随文案伸缩，避免英文长标签溢出到左侧字段 */
+.schedule-grid .schedule-col--inline-label :deep(.ant-form-item-label) {
+  flex: 0 0 auto;
+  /* 覆盖 Form labelCol 注入的内联 width */
+  width: auto !important;
+  min-width: 110px;
+}
+
 .schedule-grid :deep(.ant-form-item-label > label) {
   justify-content: flex-end;
   height: auto;
@@ -1945,34 +1938,33 @@ onMounted(async () => {
   text-align: right;
 }
 
-/* 提示图标不占额外行高，也不把标签文字挤折行 */
-.schedule-grid :deep(.retry-hint-icon) {
-  vertical-align: -1px;
-}
+
 
 .schedule-grid :deep(.ant-form-item-control) {
   flex: 1 1 auto;
   min-width: 0;
 }
 
-/* ====== 失败重试紧凑配置组 ====== */
+/* ====== 失败重试：无外框组合，与同行下拉框控件基线对齐 ====== */
 .retry-group {
   display: inline-flex;
   align-items: center;
   flex-wrap: nowrap;
+  max-width: 100%;
+  min-height: 32px;
   gap: 8px;
-  padding: 3px 10px;
-  border: 1px solid hsl(var(--border));
-  border-radius: 6px;
-  background: hsl(var(--muted) / 0.18);
 }
 
+/* 双列布局下输入框可收缩，避免撑破同行另一列 */
 .retry-group__input {
-  width: 96px;
+  width: 88px;
+  flex: 0 1 88px;
+  min-width: 64px;
 }
 
 .retry-group__input--interval {
-  width: 104px;
+  width: 96px;
+  flex-basis: 96px;
 }
 
 .retry-group__unit,
@@ -1985,18 +1977,6 @@ onMounted(async () => {
 
 .retry-group__inline-label {
   color: hsl(var(--foreground));
-}
-
-/* ====== 表单字段辅助提示 ====== */
-.retry-hint-icon {
-  font-size: 11px;
-  color: hsl(var(--muted-foreground));
-  cursor: pointer;
-  transition: color 0.2s;
-}
-
-.retry-hint-icon:hover {
-  color: hsl(var(--primary));
 }
 
 .retry-group__sep {
