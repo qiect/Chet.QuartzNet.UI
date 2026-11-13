@@ -198,6 +198,9 @@ const savedSort = (() => {
     return undefined;
   }
 })();
+// 默认排序：与后端缺省排序（创建时间倒序）保持一致，保证首次进入也有排序标识
+const DEFAULT_SORT = { field: 'createTime', order: 'desc' as const };
+const initialSort = savedSort ?? DEFAULT_SORT;
 const savedSearch = (() => {
   try {
     const raw = localStorage.getItem(SEARCH_KEY);
@@ -217,7 +220,7 @@ const gridOptions: VxeTableGridOptions<QuartzNotificationDto> = {
   sortConfig: {
     trigger: 'cell',
     remote: true,
-    defaultSort: savedSort,
+    defaultSort: initialSort,
   },
   customConfig: { storage: true },
   columnConfig: { resizable: true },
@@ -227,18 +230,9 @@ const gridOptions: VxeTableGridOptions<QuartzNotificationDto> = {
     autoLoad: false,
     ajax: {
       query: async ({ page, sort }: any, formValues: any) => {
-        // autoLoad 首次 query 时 defaultSort 可能未注入，从 localStorage 兜底
-        let sortField = sort?.field;
-        let sortOrderRaw = sort?.order;
-        if (!sortField) {
-          try {
-            const saved = JSON.parse(localStorage.getItem(SORT_KEY) || 'null');
-            if (saved) {
-              sortField = saved.field;
-              sortOrderRaw = saved.order;
-            }
-          } catch {}
-        }
+        // autoLoad 首次 query 时 defaultSort 可能未注入，回退到默认排序
+        const sortField = sort?.field ?? initialSort.field;
+        const sortOrderRaw = sort?.order ?? initialSort.order;
         // 保持原有行为：sortOrder 使用 ascend/descend 形式
         const sortOrder =
           sortOrderRaw === 'asc' ? 'ascend' : sortOrderRaw === 'desc' ? 'descend' : undefined;
@@ -333,6 +327,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
         label: $t('page.quartz.notificationPage.triggeredBy'),
       },
     ],
+    commonConfig: {
+      // 关闭浏览器对搜索框的自动填充/历史建议
+      componentProps: { autocomplete: 'off' },
+    },
     showCollapseButton: false,
     submitOnChange: false,
     submitOnEnter: true,
@@ -503,6 +501,28 @@ const handleClearNotifications = () => {
   });
 };
 
+// 恢复表头排序标识：仅在当前排序与期望不一致时设置，避免重复触发查询
+const restoreSortIndicator = async () => {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await nextTick();
+    const grid: any = gridApi.grid;
+    if (!grid?.setSort) {
+      // grid 尚未就绪，稍后重试
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      continue;
+    }
+
+    const current = (grid.getSortColumns?.() ?? [])[0];
+    const currentField = current?.field ?? current?.property;
+    if (currentField === initialSort.field && current?.order === initialSort.order) {
+      return;
+    }
+
+    grid.setSort({ field: initialSort.field, order: initialSort.order });
+    return;
+  }
+};
+
 // 恢复表格排序视觉状态（列头箭头）
 onMounted(async () => {
   // 恢复搜索条件到表单
@@ -513,14 +533,8 @@ onMounted(async () => {
   }
   // 手动触发首次查询（autoLoad: false，此时 formApi 已回填搜索条件）
   await gridApi.query();
-  // 数据加载后恢复排序视觉状态
-  await nextTick();
-  try {
-    const saved = JSON.parse(localStorage.getItem(SORT_KEY) || 'null');
-    if (saved) {
-      gridApi.grid?.setSort({ field: saved.field, order: saved.order });
-    }
-  } catch {}
+  // defaultSort 未生效时兜底恢复排序标识
+  await restoreSortIndicator();
 });
 </script>
 

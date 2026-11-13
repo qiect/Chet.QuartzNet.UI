@@ -14,12 +14,12 @@ import { useRoute } from 'vue-router';
 import { formatDateTime } from '@vben/utils';
 import dayjs from 'dayjs';
 import { Page } from '@vben/common-ui';
+import { CircleAlert } from '@vben/icons';
 // 导入 vbenadmin 的 Vxe Table 适配器
 import { useVbenVxeGrid } from '@vben/plugins/vxe-table';
 import type { VxeTableGridOptions } from '@vben/plugins/vxe-table';
 import {
   Button,
-  Checkbox,
   Descriptions,
   DescriptionsItem,
   Modal,
@@ -113,6 +113,11 @@ const handleNeedsAttentionChange = async () => {
     await gridApi.formApi.setValues({ status: undefined });
   }
   await gridApi.query();
+};
+
+const toggleNeedsAttention = async () => {
+  needsAttentionOnly.value = !needsAttentionOnly.value;
+  await handleNeedsAttentionChange();
 };
 
 // 响应式数据
@@ -249,6 +254,9 @@ const savedSort = (() => {
     return undefined;
   }
 })();
+// 默认排序：日志按开始时间倒序，保证首次进入也有排序标识
+const DEFAULT_SORT = { field: 'startTime', order: 'desc' as const };
+const initialSort = savedSort ?? DEFAULT_SORT;
 const savedSearch = (() => {
   try {
     const raw = localStorage.getItem(SEARCH_KEY);
@@ -268,7 +276,7 @@ const gridOptions: VxeTableGridOptions<LogResponseDto> = {
   sortConfig: {
     trigger: 'cell',
     remote: true,
-    defaultSort: savedSort,
+    defaultSort: initialSort,
   },
   customConfig: { storage: true },
   columnConfig: { resizable: true },
@@ -278,18 +286,9 @@ const gridOptions: VxeTableGridOptions<LogResponseDto> = {
     autoLoad: false,
     ajax: {
       query: async ({ page, sort }: any, formValues: any) => {
-        // autoLoad 首次 query 时 defaultSort 可能未注入，从 localStorage 兜底
-        let sortField = sort?.field;
-        let sortOrderRaw = sort?.order;
-        if (!sortField) {
-          try {
-            const saved = JSON.parse(localStorage.getItem(SORT_KEY) || 'null');
-            if (saved) {
-              sortField = saved.field;
-              sortOrderRaw = saved.order;
-            }
-          } catch {}
-        }
+        // autoLoad 首次 query 时 defaultSort 可能未注入，回退到默认排序
+        const sortField = sort?.field ?? initialSort.field;
+        const sortOrderRaw = sort?.order ?? initialSort.order;
         // 保持原有行为：sortOrder 使用 asc/desc 形式
         const sortOrder =
           sortOrderRaw === 'asc' ? 'asc' : sortOrderRaw === 'desc' ? 'desc' : '';
@@ -434,6 +433,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
         label: $t('page.quartz.logPage.endTime'),
       },
     ],
+    commonConfig: {
+      // 关闭浏览器对搜索框的自动填充/历史建议
+      componentProps: { autocomplete: 'off' },
+    },
     showCollapseButton: true,
     collapsed: true,
     submitOnChange: false,
@@ -556,7 +559,40 @@ const handleDetail = async (log: LogResponseDto) => {
 // 重新执行
 const isRerunning = (logId: string) => rerunningIds.value.has(logId);
 
+// 已认领过补偿（Triggered）的中断记录不允许再次重试，与后端补偿认领口径保持一致
+const canRerun = (row: LogResponseDto) =>
+  row.status === LogStatusEnum.INTERRUPTED &&
+  row.compensationStatus !== 'Triggered';
+
+const rerunTip = (row: LogResponseDto) =>
+  canRerun(row)
+    ? $t('page.quartz.logPage.rerun')
+    : $t('page.quartz.logPage.rerunTriggered');
+
+const refreshDetailIfNeeded = async (logId: string) => {
+  if (!detailModalVisible.value || logDetail.value?.logId !== logId) return;
+  try {
+    const response = await getJobLog(logId);
+    if (
+      response.success &&
+      response.data &&
+      logDetail.value?.logId === logId
+    ) {
+      logDetail.value = {
+        ...response.data,
+        recoverySourceStartTime: logDetail.value.recoverySourceStartTime,
+      };
+    }
+  } catch {
+    // 详情刷新失败时保留原样，按钮状态由下次列表刷新兜底
+  }
+};
+
 const handleRerun = (row: LogResponseDto) => {
+  if (!canRerun(row)) {
+    message.warning($t('page.quartz.logPage.rerunTriggered'));
+    return;
+  }
   Modal.confirm({
     title: $t('page.quartz.logPage.confirmRerun'),
     content: `${row.jobName} · ${row.jobGroup}\n${$t('page.quartz.logPage.rerunStartTime')}: ${formatDateTime(row.startTime)}\n${$t('page.quartz.logPage.rerunWarning')}`,
@@ -576,6 +612,7 @@ const handleRerun = (row: LogResponseDto) => {
           );
         }
         await gridApi.query();
+        await refreshDetailIfNeeded(row.logId);
       } catch (error: any) {
         message.error(error?.message || $t('page.quartz.logPage.rerunFailed'));
       } finally {
@@ -720,11 +757,34 @@ onActivated(async () => {
     // 切回页面时只刷新一次
     await gridApi.query();
   }
+  await restoreSortIndicator();
   if (hasRunningRows.value) {
     startTicker();
     startStatusPolling();
   }
 });
+
+// 恢复表头排序标识：仅在当前排序与期望不一致时设置，避免重复触发查询
+const restoreSortIndicator = async () => {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await nextTick();
+    const grid: any = gridApi.grid;
+    if (!grid?.setSort) {
+      // grid 尚未就绪，稍后重试
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      continue;
+    }
+
+    const current = (grid.getSortColumns?.() ?? [])[0];
+    const currentField = current?.field ?? current?.property;
+    if (currentField === initialSort.field && current?.order === initialSort.order) {
+      return;
+    }
+
+    grid.setSort({ field: initialSort.field, order: initialSort.order });
+    return;
+  }
+};
 
 // 恢复表格排序视觉状态（列头箭头）
 onMounted(async () => {
@@ -750,14 +810,8 @@ onMounted(async () => {
   if (!routeFilterApplied) {
     await gridApi.query();
   }
-  // 数据加载后恢复排序视觉状态
-  await nextTick();
-  try {
-    const saved = JSON.parse(localStorage.getItem(SORT_KEY) || 'null');
-    if (saved) {
-      gridApi.grid?.setSort({ field: saved.field, order: saved.order });
-    }
-  } catch {}
+  // defaultSort 未生效时兜底恢复排序标识
+  await restoreSortIndicator();
   pageMounted = true;
 });
 </script>
@@ -769,15 +823,29 @@ onMounted(async () => {
       <Grid>
         <!-- 工具栏：快捷筛选 + 清空日志 -->
         <template #toolbar-actions>
-          <div class="flex w-full items-center justify-between gap-2">
-            <Checkbox
-              v-model:checked="needsAttentionOnly"
-              class="log-quick-filter"
-              @change="handleNeedsAttentionChange"
+          <div class="log-toolbar">
+            <Tooltip
+              :title="$t('page.quartz.logPage.needsAttentionHint')"
+              placement="bottomLeft"
             >
-              <span class="text-xs">{{ $t('page.quartz.logPage.needsAttention') }}</span>
-            </Checkbox>
-            <Button danger @click="handleClear">{{ $t('page.quartz.logPage.clearLogs') }}</Button>
+              <button
+                type="button"
+                class="log-attention-filter"
+                :class="{ 'is-active': needsAttentionOnly }"
+                :aria-pressed="needsAttentionOnly"
+                @click="toggleNeedsAttention"
+              >
+                <CircleAlert class="log-attention-filter__icon" />
+                <span>{{ $t('page.quartz.logPage.needsAttention') }}</span>
+                <span
+                  v-if="needsAttentionOnly"
+                  class="log-attention-filter__dot"
+                ></span>
+              </button>
+            </Tooltip>
+            <Button danger @click="handleClear">
+              {{ $t('page.quartz.logPage.clearLogs') }}
+            </Button>
           </div>
         </template>
 
@@ -849,12 +917,12 @@ onMounted(async () => {
             </Tooltip>
             <Tooltip
               v-if="row.status === LogStatusEnum.INTERRUPTED"
-              :title="$t('page.quartz.logPage.rerun')"
+              :title="rerunTip(row)"
             >
               <i
                 class="vxe-icon-refresh text-warning cursor-pointer hover:opacity-80 px-1"
-                :class="{ 'pointer-events-none opacity-50': isRerunning(row.logId) }"
-                @click="!isRerunning(row.logId) && handleRerun(row)"
+                :class="{ 'pointer-events-none opacity-50': isRerunning(row.logId) || !canRerun(row) }"
+                @click="canRerun(row) && !isRerunning(row.logId) && handleRerun(row)"
               ></i>
             </Tooltip>
           </div>
@@ -999,9 +1067,11 @@ onMounted(async () => {
               v-if="logDetail.status === LogStatusEnum.INTERRUPTED"
               class="mr-2"
               :loading="isRerunning(logDetail.logId)"
+              :disabled="!canRerun(logDetail)"
+              :title="canRerun(logDetail) ? '' : $t('page.quartz.logPage.rerunTriggered')"
               @click="handleRerun(logDetail)"
             >
-              {{ $t('page.quartz.logPage.rerun') }}
+              {{ canRerun(logDetail) ? $t('page.quartz.logPage.rerun') : $t('page.quartz.logPage.rerunTriggered') }}
             </Button>
             <Button @click="detailModalVisible = false" type="primary">
               {{ $t('page.quartz.logPage.close') }}
@@ -1014,15 +1084,62 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-/* 工具栏快捷筛选：紧凑勾选，不占用表单行 */
-.log-quick-filter {
-  white-space: nowrap;
-  font-size: 12px;
+/* 工具栏快捷筛选 */
+.log-toolbar {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.log-quick-filter :deep(.ant-checkbox-wrapper) {
-  font-size: 12px;
+.log-attention-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 999px;
+  background: hsl(var(--card));
   color: hsl(var(--muted-foreground));
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.log-attention-filter:hover {
+  color: hsl(var(--destructive));
+  border-color: hsl(var(--destructive) / 0.45);
+}
+
+.log-attention-filter.is-active {
+  color: hsl(var(--destructive));
+  border-color: hsl(var(--destructive) / 0.55);
+  background: hsl(var(--destructive) / 0.08);
+  font-weight: 500;
+}
+
+.log-attention-filter:focus-visible {
+  outline: 2px solid hsl(var(--destructive) / 0.35);
+  outline-offset: 2px;
+}
+
+.log-attention-filter__icon {
+  width: 14px;
+  height: 14px;
+}
+
+.log-attention-filter__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 /* ============ 详情对话框 ============ */

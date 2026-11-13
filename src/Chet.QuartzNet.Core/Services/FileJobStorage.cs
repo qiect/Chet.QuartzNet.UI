@@ -484,7 +484,7 @@ public class FileJobStorage : IJobStorage
             try
             {
                 // 读取与写入在同一把锁内完成，避免并发执行时日志被覆盖丢失
-                var logs = LoadLogsCore();
+                var logs = LoadLogsCore(throwOnError: true);
                 logs.Add(jobLog);
                 SaveLogsCore(logs);
 
@@ -672,7 +672,7 @@ public class FileJobStorage : IJobStorage
     {
         try
         {
-            var logs = await LoadLogsAsync();
+            var logs = await LoadLogsAsync(throwOnError: true);
             var cutoffDate = DateTime.Now.AddDays(-daysToKeep);
 
             // 筛选过期日志
@@ -719,7 +719,7 @@ public class FileJobStorage : IJobStorage
                 return 0;
             }
 
-            var logs = await LoadLogsAsync();
+            var logs = await LoadLogsAsync(throwOnError: true);
             if (logs.Count <= maxCount)
             {
                 return 0;
@@ -752,7 +752,7 @@ public class FileJobStorage : IJobStorage
     {
         try
         {
-            var logs = await LoadLogsAsync();
+            var logs = await LoadLogsAsync(throwOnError: true);
             var originalCount = logs.Count;
 
             // 找出需要删除的日志（即匹配查询条件的日志）
@@ -863,10 +863,14 @@ public class FileJobStorage : IJobStorage
         {
             try
             {
-                var logs = LoadLogsCore();
+                var logs = LoadLogsCore(throwOnError: true);
                 var index = logs.FindIndex(l => l.LogId == jobLog.LogId);
                 if (index < 0)
                 {
+                    _logger.LogWarn(
+                        "更新作业日志",
+                        $"未找到日志记录，收尾结果未写入: {jobLog.LogId}, 状态: {jobLog.Status}"
+                    );
                     return Task.FromResult(false);
                 }
 
@@ -902,7 +906,7 @@ public class FileJobStorage : IJobStorage
             try
             {
                 var idSet = logIds.ToHashSet();
-                var logs = LoadLogsCore();
+                var logs = LoadLogsCore(throwOnError: true);
                 var updated = 0;
                 foreach (var log in logs)
                 {
@@ -971,7 +975,7 @@ public class FileJobStorage : IJobStorage
         {
             try
             {
-                var logs = LoadLogsCore();
+                var logs = LoadLogsCore(throwOnError: true);
                 var log = logs.FirstOrDefault(l => l.LogId == logId);
                 if (log == null || log.Status != LogStatus.Running)
                 {
@@ -1011,7 +1015,7 @@ public class FileJobStorage : IJobStorage
         {
             try
             {
-                var logs = LoadLogsCore();
+                var logs = LoadLogsCore(throwOnError: true);
                 var log = logs.FirstOrDefault(l => l.LogId == logId);
                 if (
                     log == null
@@ -1050,7 +1054,7 @@ public class FileJobStorage : IJobStorage
         {
             try
             {
-                var logs = LoadLogsCore();
+                var logs = LoadLogsCore(throwOnError: true);
                 var log = logs.FirstOrDefault(l => l.LogId == logId);
                 if (log == null)
                 {
@@ -1082,7 +1086,7 @@ public class FileJobStorage : IJobStorage
     {
         try
         {
-            var logs = await LoadLogsAsync();
+            var logs = await LoadLogsAsync(throwOnError: true);
             var now = DateTime.Now;
             var cutoff = now.AddDays(-Math.Max(0, daysToKeep));
             var interruptedCutoff = interruptedDaysToKeep > 0
@@ -1142,7 +1146,7 @@ public class FileJobStorage : IJobStorage
                 return 0;
             }
 
-            var logs = await LoadLogsAsync();
+            var logs = await LoadLogsAsync(throwOnError: true);
             if (logs.Count <= maxCount)
             {
                 return 0;
@@ -1335,15 +1339,19 @@ public class FileJobStorage : IJobStorage
         WriteFileAtomically(_jobsFilePath, json);
     }
 
-    private Task<List<QuartzJobLog>> LoadLogsAsync()
+    private Task<List<QuartzJobLog>> LoadLogsAsync(bool throwOnError = false)
     {
-        return Task.FromResult(LoadLogsCore());
+        return Task.FromResult(LoadLogsCore(throwOnError));
     }
 
     /// <summary>
     /// 读取日志数据（不加锁：写入端使用临时文件原子替换，读到的始终是完整文件）
     /// </summary>
-    private List<QuartzJobLog> LoadLogsCore()
+    /// <param name="throwOnError">
+    /// 读取失败时是否抛出异常。写操作必须传 true，否则会把「读失败」当成「没有数据」写回，
+    /// 造成收尾丢失甚至整表被覆盖。查询类调用保持 false，由上层降级为空结果。
+    /// </param>
+    private List<QuartzJobLog> LoadLogsCore(bool throwOnError = false)
     {
         try
         {
@@ -1370,6 +1378,11 @@ public class FileJobStorage : IJobStorage
         catch (Exception ex)
         {
             _logger.LogFailure("加载作业日志", ex);
+            if (throwOnError)
+            {
+                throw;
+            }
+
             return new List<QuartzJobLog>();
         }
     }
@@ -2396,7 +2409,7 @@ public class FileJobStorage : IJobStorage
 
         try
         {
-            var existingLogs = await LoadLogsAsync();
+            var existingLogs = await LoadLogsAsync(throwOnError: true);
             var existingIds = new HashSet<Guid>(existingLogs.Select(l => l.LogId));
 
             var newLogs = logs.Where(l => !existingIds.Contains(l.LogId)).ToList();

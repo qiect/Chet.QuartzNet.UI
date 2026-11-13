@@ -119,6 +119,7 @@ public class QuartzJobService : IQuartzJobService
             {
                 SchedulerName = _scheduler.SchedulerName,
                 SchedulerInstanceId = _scheduler.SchedulerInstanceId,
+                RuntimeInstanceId = _runtimeInstance.InstanceId,
                 IsStarted = _scheduler.IsStarted,
                 IsShutdown = _scheduler.IsShutdown,
                 InStandbyMode = _scheduler.InStandbyMode,

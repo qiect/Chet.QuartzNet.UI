@@ -454,6 +454,11 @@ public class SchedulerStatusDto
     public string SchedulerInstanceId { get; set; } = string.Empty;
 
     /// <summary>
+    /// 当前进程运行实例标识（机器名:进程号:启动短标识），用于区分多进程部署下的实例
+    /// </summary>
+    public string RuntimeInstanceId { get; set; } = string.Empty;
+
+    /// <summary>
     /// 是否启动
     /// </summary>
     public bool IsStarted { get; set; }

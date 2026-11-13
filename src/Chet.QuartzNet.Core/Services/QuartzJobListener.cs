@@ -80,14 +80,25 @@ namespace Chet.QuartzNet.Core.Services
                 var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
                 var jobService = scope.ServiceProvider.GetRequiredService<IQuartzJobService>();
 
-                QuartzJobLog? jobLog = logId.HasValue
-                    ? await jobStorage.GetJobLogAsync(logId.Value, cancellationToken)
-                    : null;
+                var claimedExisting = false;
+                QuartzJobLog? jobLog = null;
+                if (logId.HasValue)
+                {
+                    jobLog = await TryLoadJobLogAsync(
+                        jobStorage,
+                        logId.Value,
+                        cancellationToken
+                    );
+                    claimedExisting = jobLog != null;
+                }
 
                 if (jobLog == null)
                 {
+                    // 认领失败时必须沿用本次执行的 LogId 走插入，
+                    // 否则用全新的 LogId 去 UPDATE 会更新 0 行，运行中记录将永久停留为僵尸记录
                     jobLog = new QuartzJobLog
                     {
+                        LogId = logId ?? Guid.NewGuid(),
                         JobName = context.JobDetail.Key.Name,
                         JobGroup = context.JobDetail.Key.Group,
                         TriggerName = context.Trigger.Key.Name,
@@ -101,14 +112,18 @@ namespace Chet.QuartzNet.Core.Services
 
                 FillExecutionResult(jobLog, context, executionException, triggerType);
 
-                if (logId.HasValue)
+                if (claimedExisting)
                 {
                     await jobStorage.UpdateJobLogAsync(jobLog, cancellationToken);
-                    _registry.Unregister(logId.Value);
                 }
                 else
                 {
                     await jobStorage.AddJobLogAsync(jobLog, cancellationToken);
+                }
+
+                if (logId.HasValue)
+                {
+                    _registry.Unregister(logId.Value);
                 }
 
                 // 更新作业的下次执行时间和上次执行时间
@@ -193,6 +208,7 @@ namespace Chet.QuartzNet.Core.Services
 
                 var jobLog = new QuartzJobLog
                 {
+                    LogId = logId ?? Guid.NewGuid(),
                     JobName = context.JobDetail.Key.Name,
                     JobGroup = context.JobDetail.Key.Group,
                     TriggerName = context.Trigger.Key.Name,
@@ -498,6 +514,46 @@ namespace Chet.QuartzNet.Core.Services
             )
             {
                 return logId;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 读取本次执行对应的运行中日志，读取失败时重试一次。
+        /// 连续失败返回 null，由调用方按原 LogId 重新插入，避免收尾彻底丢失。
+        /// </summary>
+        private async Task<QuartzJobLog?> TryLoadJobLogAsync(
+            IJobStorage jobStorage,
+            Guid logId,
+            CancellationToken cancellationToken
+        )
+        {
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                try
+                {
+                    var jobLog = await jobStorage.GetJobLogAsync(logId, cancellationToken);
+                    if (jobLog != null)
+                    {
+                        return jobLog;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarn(
+                        "作业执行完成",
+                        $"读取运行中日志失败(第 {attempt + 1} 次): {logId}, {ex.Message}"
+                    );
+                }
+            }
+
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarn(
+                    "作业执行完成",
+                    $"未找到运行中日志，将按原 LogId 重新写入收尾结果: {logId}"
+                );
             }
 
             return null;

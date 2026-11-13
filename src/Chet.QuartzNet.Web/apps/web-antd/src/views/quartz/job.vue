@@ -42,7 +42,7 @@ import CronHelperModal from './components/cron-helper.vue';
 import { useDraggableModal } from './composables/use-draggable-modal';
 
 // 导入i18n
-import { CircleHelp, CircleX, Zap } from '@vben/icons';
+import { CircleHelp, CircleX, RotateCw, Zap } from '@vben/icons';
 import { $t } from '#/locales';
 import { useI18n } from '@vben/locales';
 
@@ -109,6 +109,7 @@ const selectedRows = ref<QuartzJobResponseDto[]>([]);
 const schedulerStatus = ref<SchedulerStatusDto>({
   schedulerName: '',
   schedulerInstanceId: '',
+  runtimeInstanceId: '',
   isStarted: false,
   isShutdown: true,
   inStandbyMode: false,
@@ -157,6 +158,25 @@ const drainBadgeText = computed(() => {
     ? $t('page.quartz.jobPage.draining', { count: remaining })
     : $t('page.quartz.jobPage.drainingFinishing');
 });
+
+// 调度器操作态：按钮 loading，同时避免重复提交
+const schedulerAction = ref<'drain' | 'resume' | 'start' | 'stop' | null>(null);
+const isSchedulerBusy = computed(() => schedulerAction.value !== null);
+
+const executingCount = computed(
+  () =>
+    schedulerStatus.value.remainingExecutingCount ??
+    schedulerStatus.value.executingJobCount ??
+    0,
+);
+
+const schedulerStateClass = computed(() =>
+  schedulerStatus.value.isDraining
+    ? 'is-draining'
+    : schedulerStatus.value.isStarted
+      ? 'is-running'
+      : 'is-stopped',
+);
 
 // 编辑对话框
 const editModalVisible = ref(false);
@@ -440,6 +460,9 @@ const savedSort = (() => {
     return undefined;
   }
 })();
+// 默认排序：与后端缺省排序（创建时间倒序）保持一致，保证首次进入也有排序标识
+const DEFAULT_SORT = { field: 'createTime', order: 'desc' as const };
+const initialSort = savedSort ?? DEFAULT_SORT;
 const savedSearch = (() => {
   try {
     const raw = localStorage.getItem(SEARCH_KEY);
@@ -459,7 +482,7 @@ const gridOptions: VxeTableGridOptions<QuartzJobResponseDto> = {
   sortConfig: {
     trigger: 'cell',
     remote: true,
-    defaultSort: savedSort,
+    defaultSort: initialSort,
   },
   customConfig: { storage: true },
   checkboxConfig: { highlight: true, range: false },
@@ -470,18 +493,9 @@ const gridOptions: VxeTableGridOptions<QuartzJobResponseDto> = {
     autoLoad: false,
     ajax: {
       query: async ({ page, sort }: any, formValues: any) => {
-        // autoLoad 首次 query 时 defaultSort 可能未注入，从 localStorage 兜底
-        let sortField = sort?.field;
-        let sortOrderRaw = sort?.order;
-        if (!sortField) {
-          try {
-            const saved = JSON.parse(localStorage.getItem(SORT_KEY) || 'null');
-            if (saved) {
-              sortField = saved.field;
-              sortOrderRaw = saved.order;
-            }
-          } catch { }
-        }
+        // autoLoad 首次 query 时 defaultSort 可能未注入，回退到默认排序
+        const sortField = sort?.field ?? initialSort.field;
+        const sortOrderRaw = sort?.order ?? initialSort.order;
         // 保持原有行为：sortOrder 使用 ascend/descend 形式
         const sortOrder =
           sortOrderRaw === 'asc' ? 'ascend' : sortOrderRaw === 'desc' ? 'descend' : '';
@@ -591,6 +605,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
         label: $t('page.quartz.jobPage.isEnabled'),
       },
     ],
+    commonConfig: {
+      // 关闭浏览器对搜索框的自动填充/历史建议
+      componentProps: { autocomplete: 'off' },
+    },
     showCollapseButton: false,
     submitOnChange: false,
     submitOnEnter: true,
@@ -1125,21 +1143,30 @@ const getSchedulerStatusInfo = async () => {
 
 // 启动调度器
 const handleStartScheduler = async () => {
+  if (isSchedulerBusy.value) return;
+  schedulerAction.value = 'start';
   try {
     const response = await startScheduler();
     if (response.success) {
       message.success($t('page.quartz.jobPage.schedulerStartedSuccess'));
       await getSchedulerStatusInfo();
       gridApi.query();
+    } else {
+      message.warning(
+        response.message || $t('page.quartz.jobPage.schedulerStartFailed'),
+      );
     }
   } catch (error) {
     console.error($t('page.quartz.jobPage.schedulerStartFailed'), error);
     message.error($t('page.quartz.jobPage.schedulerStartFailed'));
+  } finally {
+    schedulerAction.value = null;
   }
 };
 
 // 停止调度器
 const handleStopScheduler = () => {
+  if (isSchedulerBusy.value) return;
   const draining = schedulerStatus.value.isDraining;
   const remaining =
     schedulerStatus.value.remainingExecutingCount ??
@@ -1154,6 +1181,7 @@ const handleStopScheduler = () => {
     okType: 'danger',
     cancelText: $t('page.quartz.jobPage.cancel'),
     async onOk() {
+      schedulerAction.value = 'stop';
       try {
         const response = await stopScheduler();
         if (response.success) {
@@ -1161,10 +1189,16 @@ const handleStopScheduler = () => {
           stopDrainPolling();
           await getSchedulerStatusInfo();
           gridApi.query();
+        } else {
+          message.warning(
+            response.message || $t('page.quartz.jobPage.schedulerStopFailed'),
+          );
         }
       } catch (error) {
         console.error($t('page.quartz.jobPage.schedulerStopFailed'), error);
         message.error($t('page.quartz.jobPage.schedulerStopFailed'));
+      } finally {
+        schedulerAction.value = null;
       }
     },
   });
@@ -1172,12 +1206,14 @@ const handleStopScheduler = () => {
 
 // 排水：停止接收新触发，等待执行中任务收尾
 const handleDrain = () => {
+  if (isSchedulerBusy.value) return;
   Modal.confirm({
     title: $t('page.quartz.jobPage.confirmDrain'),
     content: $t('page.quartz.jobPage.confirmDrainContent'),
     okText: $t('page.quartz.jobPage.ok'),
     cancelText: $t('page.quartz.jobPage.cancel'),
     async onOk() {
+      schedulerAction.value = 'drain';
       try {
         const response = await drainScheduler();
         if (response.success) {
@@ -1191,6 +1227,8 @@ const handleDrain = () => {
         }
       } catch (error: any) {
         message.error(error?.message || $t('page.quartz.jobPage.drainFailed'));
+      } finally {
+        schedulerAction.value = null;
       }
     },
   });
@@ -1198,6 +1236,8 @@ const handleDrain = () => {
 
 // 取消排水，恢复调度
 const handleResumeScheduler = async () => {
+  if (isSchedulerBusy.value) return;
+  schedulerAction.value = 'resume';
   try {
     // 按钮可能来自上一次状态快照，先拉最新状态，避免对已结束的排水发恢复请求
     await getSchedulerStatusInfo();
@@ -1223,6 +1263,8 @@ const handleResumeScheduler = async () => {
   } catch (error: any) {
     message.error(error?.message || $t('page.quartz.jobPage.resumeFailed'));
     await getSchedulerStatusInfo();
+  } finally {
+    schedulerAction.value = null;
   }
 };
 
@@ -1350,6 +1392,28 @@ const formatJsonOnBlur = (property: keyof QuartzJobDto) => {
   }
 };
 
+// 恢复表头排序标识：仅在当前排序与期望不一致时设置，避免重复触发查询
+const restoreSortIndicator = async () => {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await nextTick();
+    const grid: any = gridApi.grid;
+    if (!grid?.setSort) {
+      // grid 尚未就绪，稍后重试
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      continue;
+    }
+
+    const current = (grid.getSortColumns?.() ?? [])[0];
+    const currentField = current?.field ?? current?.property;
+    if (currentField === initialSort.field && current?.order === initialSort.order) {
+      return;
+    }
+
+    grid.setSort({ field: initialSort.field, order: initialSort.order });
+    return;
+  }
+};
+
 // 生命周期
 onMounted(async () => {
   await getSchedulerStatusInfo();
@@ -1361,14 +1425,8 @@ onMounted(async () => {
   }
   // 手动触发首次查询（此时 formApi 已回填搜索条件，query 回调能拿到值）
   await gridApi.query();
-  // 数据加载后恢复排序视觉状态
-  await nextTick();
-  try {
-    const saved = JSON.parse(localStorage.getItem(SORT_KEY) || 'null');
-    if (saved) {
-      gridApi.grid?.setSort({ field: saved.field, order: saved.order });
-    }
-  } catch { }
+  // defaultSort 未生效时兜底恢复排序标识
+  await restoreSortIndicator();
 });
 </script>
 
@@ -1381,36 +1439,88 @@ onMounted(async () => {
         <template #toolbar-actions>
           <div class="toolbar-shell">
             <div class="scheduler-bar">
-              <span
-                class="scheduler-status"
-                :class="
-                  schedulerStatus.isDraining
-                    ? 'is-draining'
-                    : schedulerStatus.isStarted
-                      ? 'is-running'
-                      : 'is-stopped'
-                "
+              <Tooltip
+                placement="bottomLeft"
+                :overlay-style="{ maxWidth: '420px' }"
               >
-                <i class="status-dot"></i>
-                {{ schedulerStatus.isDraining ? drainBadgeText : schedulerStatus.status }}
-              </span>
+                <template #title>
+                  <div class="scheduler-tip">
+                    <div>
+                      {{ $t('page.quartz.jobPage.runtimeInstance') }}:
+                      {{ schedulerStatus.runtimeInstanceId || schedulerStatus.schedulerInstanceId || '-' }}
+                    </div>
+                    <div>
+                      {{ $t('page.quartz.jobPage.threadPoolSize') }}:
+                      {{ schedulerStatus.threadPoolSize }} ·
+                      {{ $t('page.quartz.jobPage.executingJobs') }}:
+                      {{ executingCount }}
+                    </div>
+                    <div v-if="schedulerStatus.startTime">
+                      {{ $t('page.quartz.jobPage.schedulerStartTime') }}:
+                      {{ formatDateTime(schedulerStatus.startTime) }}
+                    </div>
+                  </div>
+                </template>
+                <span class="scheduler-status" :class="schedulerStateClass">
+                  <i class="status-dot"></i>
+                  <span class="scheduler-status__text">
+                    {{ schedulerStatus.isDraining ? drainBadgeText : schedulerStatus.status }}
+                  </span>
+                  <span
+                    v-if="schedulerStatus.isStarted && executingCount > 0"
+                    class="scheduler-status__count"
+                  >
+                    {{ executingCount }}
+                  </span>
+                </span>
+              </Tooltip>
               <span class="scheduler-sep"></span>
               <div class="scheduler-actions">
-                <Button size="small" type="primary"
-                  :disabled="schedulerStatus.isStarted || schedulerStatus.isDraining" @click="handleStartScheduler">
+                <Button
+                  v-if="!schedulerStatus.isStarted"
+                  size="small"
+                  type="primary"
+                  :loading="schedulerAction === 'start'"
+                  @click="handleStartScheduler"
+                >
                   {{ $t('page.quartz.jobPage.startScheduler') }}
                 </Button>
-                <Button size="small" danger :disabled="!schedulerStatus.isStarted || schedulerStatus.isShutdown"
-                  @click="handleStopScheduler">
-                  {{ $t('page.quartz.jobPage.stopScheduler') }}
-                </Button>
-                <Button v-if="!schedulerStatus.isDraining" size="small"
-                  :disabled="!schedulerStatus.isStarted || schedulerStatus.isShutdown" @click="handleDrain">
-                  {{ $t('page.quartz.jobPage.drainScheduler') }}
-                </Button>
-                <Button v-else size="small" type="primary" ghost @click="handleResumeScheduler">
-                  {{ $t('page.quartz.jobPage.resumeScheduler') }}
-                </Button>
+                <template v-else>
+                  <Tooltip
+                    v-if="!schedulerStatus.isDraining"
+                    :title="$t('page.quartz.jobPage.drainHint')"
+                    placement="bottom"
+                  >
+                    <Button
+                      size="small"
+                      :loading="schedulerAction === 'drain'"
+                      :disabled="schedulerStatus.isShutdown"
+                      @click="handleDrain"
+                    >
+                      {{ $t('page.quartz.jobPage.drainScheduler') }}
+                    </Button>
+                  </Tooltip>
+                  <Button
+                    v-else
+                    size="small"
+                    type="primary"
+                    ghost
+                    :loading="schedulerAction === 'resume'"
+                    @click="handleResumeScheduler"
+                  >
+                    <RotateCw class="scheduler-btn-icon" />
+                    {{ $t('page.quartz.jobPage.resumeScheduler') }}
+                  </Button>
+                  <Button
+                    size="small"
+                    danger
+                    :loading="schedulerAction === 'stop'"
+                    :disabled="schedulerStatus.isShutdown"
+                    @click="handleStopScheduler"
+                  >
+                    {{ $t('page.quartz.jobPage.stopScheduler') }}
+                  </Button>
+                </template>
               </div>
             </div>
             <Space :size="8" class="toolbar-actions">
@@ -2102,18 +2212,31 @@ onMounted(async () => {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  padding: 4px 8px;
+  gap: 8px;
+  padding: 4px 6px 4px 8px;
   border: 1px solid hsl(var(--border));
-  border-radius: 8px;
-  background: hsl(var(--muted) / 0.25);
+  border-radius: 10px;
+  background: hsl(var(--card));
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.04);
 }
 
 .scheduler-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+}
+
+.scheduler-actions :deep(.scheduler-btn-icon) {
+  width: 13px;
+  height: 13px;
+  margin-right: 4px;
+}
+
+.scheduler-tip {
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: nowrap;
 }
 
 .toolbar-actions {
@@ -2129,13 +2252,38 @@ onMounted(async () => {
 .scheduler-status {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
+  min-width: 84px;
   font-size: 12px;
   font-weight: 500;
   padding: 4px 11px 4px 9px;
   border-radius: 999px;
   line-height: 1;
   letter-spacing: 0.01em;
+  cursor: default;
+  transition: background 0.2s ease;
+}
+
+.scheduler-status__text {
+  max-width: 190px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.scheduler-status__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: hsl(var(--background) / 0.85);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .scheduler-status .status-dot {

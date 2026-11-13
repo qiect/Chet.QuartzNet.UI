@@ -825,6 +825,14 @@ public class EFCoreJobStorage : IJobStorage
         {
             _dbContext.QuartzJobLogs.Update(jobLog);
             var result = await _dbContext.SaveChangesAsync(cancellationToken);
+            if (result == 0)
+            {
+                _logger.LogWarn(
+                    "更新作业日志",
+                    $"未找到日志记录，收尾结果未写入: {jobLog.LogId}, 状态: {jobLog.Status}"
+                );
+            }
+
             return result > 0;
         }
         catch (Exception ex)

@@ -6,6 +6,8 @@ import type { ApiResponse } from './job';
 export interface SchedulerStatusDto {
   schedulerName: string;
   schedulerInstanceId: string;
+  /** 当前进程运行实例标识（机器名:进程号:启动短标识） */
+  runtimeInstanceId?: string;
   isStarted: boolean;
   isShutdown: boolean;
   inStandbyMode: boolean;
