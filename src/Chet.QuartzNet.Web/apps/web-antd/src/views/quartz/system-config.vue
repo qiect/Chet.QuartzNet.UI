@@ -1884,8 +1884,8 @@ loadMigrationStatus();
 
       <!-- 第二步：迁移选项 -->
       <div v-else-if="wizardStep === 1" class="space-y-4">
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
+        <div class="space-y-3">
+          <div class="sm:max-w-[240px]">
             <div class="mb-1 text-xs font-medium text-muted-foreground">
               {{ $t('page.quartz.systemConfigPage.migrationMode') }}
             </div>
@@ -1902,6 +1902,7 @@ loadMigrationStatus();
               {{ $t('page.quartz.systemConfigPage.migrationEntities') }}
             </div>
             <Checkbox.Group
+              class="migration-entities"
               :value="migrationEntities"
               :options="entityOptions"
               :disabled="isMigrationRunning"
@@ -1910,27 +1911,32 @@ loadMigrationStatus();
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]">
-          <Checkbox
-            v-model:checked="migrationContinueOnError"
-            :disabled="isMigrationRunning"
-          >
-            {{ $t('page.quartz.systemConfigPage.migrationContinueOnError') }}
-          </Checkbox>
-          <Checkbox
-            v-model:checked="migrationPauseScheduler"
-            :disabled="isMigrationRunning"
-          >
-            {{ $t('page.quartz.systemConfigPage.migrationPauseScheduler') }}
-          </Checkbox>
-          <Checkbox
-            v-model:checked="migrationAllowUpgradeSource"
-            :disabled="isMigrationRunning"
-          >
-            {{
-              $t('page.quartz.systemConfigPage.migrationAllowUpgradeSource')
-            }}
-          </Checkbox>
+        <div>
+          <div class="mb-1 text-xs font-medium text-muted-foreground">
+            {{ $t('page.quartz.systemConfigPage.migrationExecutionOptions') }}
+          </div>
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]">
+            <Checkbox
+              v-model:checked="migrationContinueOnError"
+              :disabled="isMigrationRunning"
+            >
+              {{ $t('page.quartz.systemConfigPage.migrationContinueOnError') }}
+            </Checkbox>
+            <Checkbox
+              v-model:checked="migrationPauseScheduler"
+              :disabled="isMigrationRunning"
+            >
+              {{ $t('page.quartz.systemConfigPage.migrationPauseScheduler') }}
+            </Checkbox>
+            <Checkbox
+              v-model:checked="migrationAllowUpgradeSource"
+              :disabled="isMigrationRunning"
+            >
+              {{
+                $t('page.quartz.systemConfigPage.migrationAllowUpgradeSource')
+              }}
+            </Checkbox>
+          </div>
         </div>
 
         <div
@@ -2454,6 +2460,19 @@ loadMigrationStatus();
   font-size: 15px;
   font-weight: 500;
   line-height: 40px;
+}
+
+/* ============ 迁移选项：数据项按列排布，避免窄栏下参差换行 ============ */
+.migration-entities {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px 16px;
+  min-height: 32px;
+  align-content: center;
+}
+
+.migration-entities :deep(.ant-checkbox-wrapper) {
+  margin-inline-start: 0;
 }
 
 /* ============ 分组 ============ */
