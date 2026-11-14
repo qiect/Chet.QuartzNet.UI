@@ -9,7 +9,7 @@ namespace Chet.QuartzNet.File.Example.Jobs
     [QuartzJob(
         "BasicSampleJob",
         "DEFAULT",
-        "0/1 * * * * ?",
+        "0 0/1 * * * ?",
         Description = "基础示例作业，每1分钟执行一次"
     )]
     public class BasicSampleJob : IJob
