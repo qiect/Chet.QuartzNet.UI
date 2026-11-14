@@ -106,8 +106,18 @@ const enabledRatio = computed(() =>
   (statsOverview.value.enabledJobs / (statsOverview.value.totalJobs || 1)) * 100,
 );
 const enabledPercentText = computed(() => `${Math.round(enabledRatio.value)}%`);
-const dailyTrendData = computed(() => {
-  const map = new Map<string, { time: string; successCount: number; failedCount: number; totalCount: number }>();
+type DailyTrend = { time: string; successCount: number; failedCount: number; totalCount: number };
+
+// 趋势最小展示天数：后端窗口为最近 7 天，不足时补齐，避免“近 7 日”被稀疏数据缩水
+const TREND_MIN_DAYS = 7;
+
+const formatDayKey = (date: Date): string => {
+  const pad = (n: number) => `${n}`.padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+const dailyTrendData = computed<DailyTrend[]>(() => {
+  const map = new Map<string, DailyTrend>();
   for (const item of trendData.value) {
     const day = item.time.slice(0, 10);
     const existing = map.get(day);
@@ -124,7 +134,31 @@ const dailyTrendData = computed(() => {
       });
     }
   }
-  return Array.from(map.values()).sort((a, b) => a.time.localeCompare(b.time));
+
+  const loaded = Array.from(map.values()).sort((a, b) => a.time.localeCompare(b.time));
+  if (loaded.length === 0) {
+    return [];
+  }
+
+  // 以今天为终点补齐缺失的日历天（无执行补 0），保证“近 7 日”名副其实
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const first = new Date(`${loaded[0]!.time}T00:00:00`);
+  const lastLoaded = new Date(`${loaded[loaded.length - 1]!.time}T00:00:00`);
+  const endDay = lastLoaded.getTime() > today.getTime() ? lastLoaded : today;
+  const spanDays = Math.round((endDay.getTime() - first.getTime()) / 86_400_000) + 1;
+  const totalDays = Math.max(spanDays, TREND_MIN_DAYS);
+
+  const result: DailyTrend[] = [];
+  for (let offset = totalDays - 1; offset >= 0; offset--) {
+    const date = new Date(endDay);
+    date.setDate(date.getDate() - offset);
+    const key = formatDayKey(date);
+    result.push(
+      map.get(key) ?? { time: key, successCount: 0, failedCount: 0, totalCount: 0 },
+    );
+  }
+  return result;
 });
 const recent7Data = computed(() => dailyTrendData.value.slice(-7));
 const recent7TotalExecutions = computed(() =>
@@ -230,14 +264,59 @@ const riskJobCount = computed(() => silentJobCount.value + failedJobStats.value.
 const topFailJobs = computed(() => failedJobStats.value.slice(0, 5));
 const worstFailJob = computed(() => failedJobStats.value[0]);
 
-const trendSummary = ref({
-  recent7Avg: 0,
-  prev7Avg: 0,
-  changePercent: 0,
-  anomalyCount: 0,
+type TrendAnomalyPoint = { coord: [number, number]; value: number };
+
+// 失败数 2σ 异常判定，同时返回阈值供 tooltip 展示
+const detectTrendAnomalies = (
+  failedValues: number[],
+  totalValues: number[],
+): { points: TrendAnomalyPoint[]; threshold: number } => {
+  const n = failedValues.length;
+  if (n === 0) return { points: [], threshold: 0 };
+  const mean = failedValues.reduce((a, b) => a + b, 0) / n;
+  const std = Math.sqrt(failedValues.reduce((sum, v) => sum + (v - mean) ** 2, 0) / n);
+  const threshold = mean + 2 * std;
+  const points: TrendAnomalyPoint[] = [];
+  for (let i = 0; i < n; i++) {
+    if (failedValues[i]! > threshold && failedValues[i]! > 0) {
+      points.push({ coord: [i, totalValues[i]!], value: failedValues[i]! });
+    }
+  }
+  return { points, threshold };
+};
+
+const trendAnomalyStats = computed(() => {
+  const data = dailyTrendData.value;
+  return detectTrendAnomalies(
+    data.map((d) => d.failedCount),
+    data.map((d) => d.totalCount),
+  );
 });
 
-const getTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
+// 趋势摘要：基于补齐后的自然日；窗口只有 7 天，环比取“最近一天 vs 前一天”
+const trendSummary = computed(() => {
+  const data = dailyTrendData.value;
+  const recent = data.slice(-7).map((d) => d.totalCount);
+  const recentAvg = recent.length > 0 ? recent.reduce((a, b) => a + b, 0) / recent.length : 0;
+
+  const lastDay = data[data.length - 1];
+  const prevDay = data[data.length - 2];
+  const changePercent =
+    lastDay && prevDay && prevDay.totalCount > 0
+      ? Number(
+          (((lastDay.totalCount - prevDay.totalCount) / prevDay.totalCount) * 100).toFixed(1),
+        )
+      : null;
+
+  return {
+    recent7Avg: Number(recentAvg.toFixed(1)),
+    changePercent,
+    anomalyCount: trendAnomalyStats.value.points.length,
+  };
+});
+
+const getTrendOption = (): EChartsOption => {
+  const data = dailyTrendData.value;
   const dates = data.map((d) => d.time);
   const successValues = data.map((d) => d.successCount);
   const failedValues = data.map((d) => d.failedCount);
@@ -245,69 +324,13 @@ const getTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
   const successRateValues = data.map((d) =>
     d.totalCount > 0 ? Number(((d.successCount / d.totalCount) * 100).toFixed(1)) : 0,
   );
+  const { points: anomalyPoints, threshold: anomalyThreshold } = trendAnomalyStats.value;
 
-  const detectTimeGranularity = (times: string[]): 'day' | 'hour' | 'minute' | 'unknown' => {
-    if (times.length === 0) return 'unknown';
-    const sample = times[0]!;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(sample)) return 'day';
-    if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/.test(sample) || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(sample)) {
-      if (times.length >= 2) {
-        const t1 = new Date(times[0]!).getTime();
-        const t2 = new Date(times[1]!).getTime();
-        const diffMs = Math.abs(t2 - t1);
-        if (diffMs <= 60 * 60 * 1000) return 'hour';
-        if (diffMs <= 24 * 60 * 60 * 1000) return 'day';
-      }
-      return 'hour';
-    }
-    return 'unknown';
-  };
-
-  const granularity = detectTimeGranularity(dates);
-  const periodLabel = granularity === 'day'
-    ? $t('page.quartz.analyticsPage.dayOverDay')
-    : granularity === 'hour'
-      ? $t('page.quartz.analyticsPage.hourOverHour')
-      : $t('page.quartz.analyticsPage.periodOverPeriod');
+  // 已按自然日聚合，环比口径固定为“日环比”
+  const periodLabel = $t('page.quartz.analyticsPage.dayOverDay');
 
   const n = totalValues.length;
   const avgTotal = n > 0 ? Number((totalValues.reduce((a, b) => a + b, 0) / n).toFixed(1)) : 0;
-
-  const movingAvg = (arr: number[], window: number): number[] =>
-    arr.map((_, i) => {
-      const start = Math.max(0, i - window + 1);
-      const slice = arr.slice(start, i + 1);
-      return Number((slice.reduce((a, b) => a + b, 0) / slice.length).toFixed(1));
-    });
-
-  const ma7Values = movingAvg(totalValues, 7);
-
-  const failedMean = n > 0 ? failedValues.reduce((a, b) => a + b, 0) / n : 0;
-  const failedStd = n > 0
-    ? Math.sqrt(failedValues.reduce((sum, v) => sum + (v - failedMean) ** 2, 0) / n)
-    : 0;
-  const anomalyThreshold = failedMean + 2 * failedStd;
-
-  const anomalyPoints: { coord: [number, number]; value: number }[] = [];
-  for (let i = 0; i < n; i++) {
-    if (failedValues[i]! > anomalyThreshold && failedValues[i]! > 0) {
-      anomalyPoints.push({ coord: [i, totalValues[i]!], value: failedValues[i]! });
-    }
-  }
-
-  const dailyTotalValues = dailyTrendData.value.map((d) => d.totalCount);
-  const recent7 = dailyTotalValues.slice(-7);
-  const prev7 = dailyTotalValues.slice(-14, -7);
-  const recent7Avg = recent7.length > 0 ? recent7.reduce((a, b) => a + b, 0) / recent7.length : 0;
-  const prev7Avg = prev7.length > 0 ? prev7.reduce((a, b) => a + b, 0) / prev7.length : 0;
-  const changePercent = prev7Avg > 0 ? Number((((recent7Avg - prev7Avg) / prev7Avg) * 100).toFixed(1)) : 0;
-
-  trendSummary.value = {
-    recent7Avg: Number(recent7Avg.toFixed(1)),
-    prev7Avg: Number(prev7Avg.toFixed(1)),
-    changePercent,
-    anomalyCount: anomalyPoints.length,
-  };
 
   return {
     backgroundColor: 'transparent',
@@ -325,8 +348,6 @@ const getTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
         for (const p of params) {
           if (p.seriesName === $t('page.quartz.analyticsPage.successRate')) {
             html += `<div style="font-size:12px;line-height:20px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:6px;"></span>${p.seriesName}: <b style="color:#262626;">${p.value}%</b></div>`;
-          } else if (p.seriesName === $t('page.quartz.analyticsPage.ma7')) {
-            html += `<div style="font-size:12px;line-height:20px;"><span style="display:inline-block;width:8px;height:3px;border-radius:1px;background:${p.color};margin-right:6px;"></span>${p.seriesName}: <b style="color:#262626;">${p.value}</b></div>`;
           } else {
             html += `<div style="font-size:12px;line-height:20px;"><span style="display:inline-block;width:8px;height:3px;border-radius:1px;background:${p.color};margin-right:6px;"></span>${p.seriesName}: <b style="color:#262626;">${p.value}</b></div>`;
           }
@@ -347,7 +368,6 @@ const getTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
     legend: {
       data: [
         $t('page.quartz.analyticsPage.total'),
-        $t('page.quartz.analyticsPage.ma7'),
         $t('page.quartz.analyticsPage.success'),
         $t('page.quartz.analyticsPage.failed'),
         $t('page.quartz.analyticsPage.successRate'),
@@ -441,16 +461,6 @@ const getTrendOption = (data: JobExecutionTrend[]): EChartsOption => {
             },
           },
         } : undefined,
-      },
-      {
-        name: $t('page.quartz.analyticsPage.ma7'),
-        type: 'line',
-        data: ma7Values,
-        smooth: true,
-        symbol: 'none',
-        showSymbol: false,
-        lineStyle: { width: 1.5, color: '#1890ff', type: 'dashed', opacity: 0.5 },
-        itemStyle: { color: '#1890ff' },
       },
       {
         name: $t('page.quartz.analyticsPage.success'),
@@ -1147,36 +1157,42 @@ const fetchData = async () => {
   const query: StatsQueryDto = {};
 
   try {
-    const [overviewRes, perfRes, schedulerRes] = await Promise.all([
+    // allSettled：任一统计接口失败时，其余图表仍按已有数据渲染，避免整页空白
+    const [overviewResult, perfResult] = await Promise.allSettled([
       getAnalyticsOverview(query),
       getAnalyticsJobPerformance({ ...query, topCount: 10 }),
-      getSchedulerStatus().catch(() => null),
     ]);
 
-    if (overviewRes.success && overviewRes.data) {
+    if (overviewResult.status === 'rejected') {
+      console.error('Overview Fetch Error:', overviewResult.reason);
+    }
+    if (perfResult.status === 'rejected') {
+      console.error('Performance Fetch Error:', perfResult.reason);
+    }
+
+    const overviewRes = overviewResult.status === 'fulfilled' ? overviewResult.value : null;
+    const perfRes = perfResult.status === 'fulfilled' ? perfResult.value : null;
+
+    if (overviewRes?.success && overviewRes.data) {
       statsOverview.value = overviewRes.data.stats;
       jobStatusDistribution.value = overviewRes.data.statusDistribution;
       trendData.value = overviewRes.data.executionTrend;
       heatmapData.value = overviewRes.data.executionHeatmap;
     }
 
-    if (perfRes.success && perfRes.data) {
+    if (perfRes?.success && perfRes.data) {
       jobHealthData.value = perfRes.data.jobHealthOverview;
       topSlowData.value = perfRes.data.topSlowJobs;
     }
 
-    if (schedulerRes?.success && schedulerRes.data) {
-      schedulerStatus.value = schedulerRes.data;
-    }
-
-    renderTrend(getTrendOption(trendData.value));
+    renderTrend(getTrendOption());
     renderHealth(getHealthOption(jobHealthData.value)).then(disableHealthBubbleZLift);
     renderHeatmap(getHeatmapOption(heatmapData.value));
     renderOverview(getOverviewOption());
     renderQuality(getQualityOption());
     renderRisk(getRiskOption());
   } catch (error) {
-    console.error('Data Fetch Error:', error);
+    console.error('Analytics Render Error:', error);
   } finally {
     loading.value = false;
   }
@@ -1199,6 +1215,8 @@ const hasServiceName = computed(() => !!systemConfig.value.serviceName);
 
 // 调度运行态为实时指标，单独轻量轮询（不影响统计数据）
 let runtimePollTimer: ReturnType<typeof setInterval> | null = null;
+let schedulerRequestPending = false;
+let schedulerRequestSeq = 0;
 
 const stopRuntimePolling = () => {
   if (runtimePollTimer) {
@@ -1208,13 +1226,22 @@ const stopRuntimePolling = () => {
 };
 
 const refreshSchedulerStatus = async () => {
+  // 接口慢于轮询间隔时跳过本轮，避免请求堆积
+  if (schedulerRequestPending) {
+    return;
+  }
+  schedulerRequestPending = true;
+  const seq = ++schedulerRequestSeq;
   try {
     const res = await getSchedulerStatus();
-    if (res.success && res.data) {
+    // 只接受最后一次请求的结果，避免慢响应覆盖新数据
+    if (seq === schedulerRequestSeq && res.success && res.data) {
       schedulerStatus.value = res.data;
     }
   } catch {
     // 轮询失败静默处理，避免打扰
+  } finally {
+    schedulerRequestPending = false;
   }
 };
 
@@ -1231,6 +1258,7 @@ const startRuntimePolling = () => {
 onMounted(() => {
   loadSystemConfig();
   fetchData();
+  void refreshSchedulerStatus();
   startRuntimePolling();
 });
 
@@ -1429,13 +1457,15 @@ watch(isDark, () => {
                 <span class="trend-summary__value">{{ trendSummary.recent7Avg }}</span>
               </span>
               <span class="trend-summary__item">
-                <span class="trend-summary__label">{{ $t('page.quartz.analyticsPage.weekOverWeek') }}</span>
+                <span class="trend-summary__label">{{ $t('page.quartz.analyticsPage.dayOverDay') }}</span>
                 <span
+                  v-if="trendSummary.changePercent !== null"
                   class="trend-summary__value"
                   :class="trendSummary.changePercent >= 0 ? 'trend-summary__up' : 'trend-summary__down'"
                 >
                   {{ trendSummary.changePercent >= 0 ? '↑' : '↓' }}{{ Math.abs(trendSummary.changePercent) }}%
                 </span>
+                <span v-else class="trend-summary__value">—</span>
               </span>
               <span v-if="trendSummary.anomalyCount > 0" class="trend-summary__item trend-summary__item--warn">
                 <span class="trend-summary__label">{{ $t('page.quartz.analyticsPage.anomalyCount') }}</span>
