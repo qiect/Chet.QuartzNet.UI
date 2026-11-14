@@ -226,6 +226,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<RecoveryOptionsProvider>();
         services.TryAddSingleton<RecoverySummaryStore>();
         services.TryAddSingleton<RecoveryCoordinator>();
+        services.TryAddSingleton<SchedulerInstance>();
         services.TryAddSingleton<DrainCoordinator>();
 
         // 添加HTTP客户端支持
@@ -249,7 +250,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IScheduler>(provider =>
         {
             var schedulerFactory = provider.GetRequiredService<ISchedulerFactory>();
-            return schedulerFactory.GetScheduler().Result;
+            // 统一由 SchedulerInstance 持有当前实例：调度器关闭后工厂会创建新实例，
+            // 若各处直接向工厂索取，会把「已停止」的调度器显示成「待机」
+            var schedulerInstance = provider.GetRequiredService<SchedulerInstance>();
+            return schedulerInstance.Current
+                ?? schedulerInstance.GetSchedulerAsync(schedulerFactory).GetAwaiter().GetResult();
         });
 
         services.AddQuartzHostedService(options =>

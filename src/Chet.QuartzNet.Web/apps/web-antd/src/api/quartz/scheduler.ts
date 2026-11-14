@@ -18,8 +18,12 @@ export interface SchedulerStatusDto {
   version: string;
   startTime?: string;
   runningTime: number;
-  /** 是否正在排水 */
+  /** 是否正在排水（含收尾关闭调度器阶段） */
   isDraining?: boolean;
+  /** 是否处于排水收尾（正在关闭调度器，不可取消） */
+  isStopping?: boolean;
+  /** 当前生效的停机策略（启动期配置，重启后生效） */
+  shutdownMode?: 'Drain' | 'Immediate' | 'Wait';
   /** 排水开始时间 */
   drainStartedAt?: string;
   /** 排水截止时间 */

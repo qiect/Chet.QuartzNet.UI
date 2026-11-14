@@ -20,9 +20,9 @@ export interface SystemConfigDto {
   // 停机策略（启动期配置）
   /** 停机模式 */
   shutdownMode?: ShutdownMode;
-  /** Wait 模式等待超时（秒） */
+  /** 兼容保留：「等待完成」已并入「排水后停止」，该值不再参与策略（秒） */
   shutdownWaitTimeoutSeconds?: number;
-  /** 排水模式等待超时（秒） */
+  /** 排水后停止模式的等待超时（秒） */
   drainTimeoutSeconds?: number;
 
   // 中断恢复（启动期配置）
@@ -46,6 +46,7 @@ export interface SystemConfigDto {
   interruptedLogRetentionDays?: number;
 }
 
+/** Wait 为历史值，行为等同 Drain（仅兼容读取旧配置，不再写入） */
 export type ShutdownMode = 'Immediate' | 'Drain' | 'Wait';
 export type CatchUpStrategy = 'None' | 'Latest' | 'All';
 

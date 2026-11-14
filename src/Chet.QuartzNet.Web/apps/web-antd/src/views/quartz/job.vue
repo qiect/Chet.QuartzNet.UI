@@ -124,22 +124,33 @@ const schedulerStatus = ref<SchedulerStatusDto>({
   startTime: undefined,
   runningTime: 0,
   isDraining: false,
+  isStopping: false,
   remainingExecutingCount: 0,
+  shutdownMode: 'Drain',
 });
 
 // 排水期间轮询
 let drainPollTimer: ReturnType<typeof setInterval> | null = null;
+let drainPollPending = false;
 const stopDrainPolling = () => {
   if (drainPollTimer) {
     clearInterval(drainPollTimer);
     drainPollTimer = null;
   }
+  drainPollPending = false;
 };
 const startDrainPolling = () => {
   if (drainPollTimer) return;
   drainPollTimer = setInterval(async () => {
+    // 避免请求重叠，同时保证单次请求失败时继续轮询（否则界面会一直停在旧状态）
+    if (drainPollPending) return;
+    drainPollPending = true;
     const wasDraining = schedulerStatus.value.isDraining;
-    await getSchedulerStatusInfo();
+    try {
+      await getSchedulerStatusInfo(true);
+    } finally {
+      drainPollPending = false;
+    }
     if (!schedulerStatus.value.isDraining) {
       stopDrainPolling();
       if (wasDraining) {
@@ -152,7 +163,21 @@ const startDrainPolling = () => {
 onDeactivated(stopDrainPolling);
 onUnmounted(stopDrainPolling);
 
+// 停机策略为「立即停止」时，排水不再等待执行中任务
+const isImmediateStop = computed(
+  () => schedulerStatus.value.shutdownMode === 'Immediate',
+);
+
+const drainHintText = computed(() =>
+  isImmediateStop.value
+    ? $t('page.quartz.jobPage.drainHintImmediate')
+    : $t('page.quartz.jobPage.drainHint'),
+);
+
 const drainBadgeText = computed(() => {
+  if (schedulerStatus.value.isStopping) {
+    return $t('page.quartz.jobPage.drainingFinishing');
+  }
   const remaining =
     schedulerStatus.value.remainingExecutingCount ??
     schedulerStatus.value.executingJobCount ??
@@ -166,12 +191,13 @@ const drainBadgeText = computed(() => {
 const schedulerAction = ref<'drain' | 'resume' | 'start' | 'stop' | null>(null);
 const isSchedulerBusy = computed(() => schedulerAction.value !== null);
 
-const executingCount = computed(
-  () =>
-    schedulerStatus.value.remainingExecutingCount ??
-    schedulerStatus.value.executingJobCount ??
-    0,
-);
+const executingCount = computed(() => {
+  // 排水期间剩余任务数由排水协调器给出，其余时间用调度器实时执行数
+  if (schedulerStatus.value.isDraining) {
+    return schedulerStatus.value.remainingExecutingCount ?? 0;
+  }
+  return schedulerStatus.value.executingJobCount ?? 0;
+});
 
 const schedulerStateClass = computed(() =>
   schedulerStatus.value.isDraining
@@ -1154,8 +1180,8 @@ const handleBatchOperation = (
   });
 };
 
-// 获取调度器状态
-const getSchedulerStatusInfo = async () => {
+// 获取调度器状态（silent：轮询时失败不弹提示，避免刷屏且不影响后续轮询）
+const getSchedulerStatusInfo = async (silent = false) => {
   try {
     const response = await getSchedulerStatus();
     if (response.success && response.data) {
@@ -1164,11 +1190,20 @@ const getSchedulerStatusInfo = async () => {
       if (response.data.isDraining) {
         startDrainPolling();
       }
+      return true;
+    }
+    if (!silent) {
+      message.error(
+        response.message || $t('page.quartz.jobPage.schedulerStatusFailed'),
+      );
     }
   } catch (error) {
     console.error($t('page.quartz.jobPage.schedulerStatusFailed'), error);
-    message.error($t('page.quartz.jobPage.schedulerStatusFailed'));
+    if (!silent) {
+      message.error($t('page.quartz.jobPage.schedulerStatusFailed'));
+    }
   }
+  return false;
 };
 
 // 启动调度器
@@ -1234,12 +1269,15 @@ const handleStopScheduler = () => {
   });
 };
 
-// 排水：停止接收新触发，等待执行中任务收尾
+// 排水：停止接收新触发；「立即停止」策略下直接关闭调度器
 const handleDrain = () => {
   if (isSchedulerBusy.value) return;
+  const immediate = isImmediateStop.value;
   Modal.confirm({
     title: $t('page.quartz.jobPage.confirmDrain'),
-    content: $t('page.quartz.jobPage.confirmDrainContent'),
+    content: immediate
+      ? $t('page.quartz.jobPage.confirmDrainImmediateContent')
+      : $t('page.quartz.jobPage.confirmDrainContent'),
     okText: $t('page.quartz.jobPage.ok'),
     cancelText: $t('page.quartz.jobPage.cancel'),
     async onOk() {
@@ -1247,9 +1285,19 @@ const handleDrain = () => {
       try {
         const response = await drainScheduler();
         if (response.success) {
-          message.success($t('page.quartz.jobPage.drainSuccess'));
-          await getSchedulerStatusInfo();
-          startDrainPolling();
+          message.success(
+            immediate
+              ? $t('page.quartz.jobPage.drainImmediateSuccess')
+              : $t('page.quartz.jobPage.drainSuccess'),
+          );
+          await getSchedulerStatusInfo(true);
+          // 「立即停止」策略下排水是同步完成的，直接按最新状态收尾，不进入轮询
+          if (schedulerStatus.value.isDraining) {
+            startDrainPolling();
+          } else {
+            stopDrainPolling();
+            await gridApi.query();
+          }
         } else {
           message.warning(
             response.message || $t('page.quartz.jobPage.drainFailed'),
@@ -1496,7 +1544,7 @@ onMounted(async () => {
                 <template v-else>
                   <Tooltip
                     v-if="!schedulerStatus.isDraining"
-                    :title="$t('page.quartz.jobPage.drainHint')"
+                    :title="drainHintText"
                     placement="bottom"
                   >
                     <Button
@@ -1514,6 +1562,7 @@ onMounted(async () => {
                     type="primary"
                     ghost
                     :loading="schedulerAction === 'resume'"
+                    :disabled="schedulerStatus.isStopping"
                     @click="handleResumeScheduler"
                   >
                     <RotateCw class="scheduler-btn-icon" />

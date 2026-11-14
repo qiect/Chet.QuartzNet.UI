@@ -5,33 +5,36 @@ import { Page } from '@vben/common-ui';
 import { formatDateTime } from '@vben/utils';
 
 import {
-  Alert,
   Button,
   Card,
   Checkbox,
+  Drawer,
   Form,
   FormItem,
   Input,
   InputNumber,
   message,
   Modal,
+  Popover,
+  Segmented,
   Select,
+  Steps,
   Switch,
   Tag,
-  Tooltip,
 } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
+import { getLogList } from '../../api/quartz/log';
 import {
-  getSystemConfig,
-  saveSystemConfig,
-  getMigrationStatus,
-  getMigrationOptions,
-  previewMigration,
-  triggerMigration,
   cancelMigration,
+  getMigrationOptions,
+  getMigrationStatus,
+  getSystemConfig,
   MigrationStepStatus,
+  previewMigration,
+  saveSystemConfig,
+  triggerMigration,
 } from '../../api/quartz/system-config';
 import type {
   CatchUpStrategy,
@@ -47,20 +50,127 @@ import type {
   SystemConfigDto,
 } from '../../api/quartz/system-config';
 import { useSystemConfig } from '../../composables/use-system-config';
+import SettingRow from './components/SettingRow.vue';
 
 const configLoading = ref(false);
 const saveLoading = ref(false);
 
+// ============ 分区导航 ============
+const activeTab = ref<string>('general');
+const tabOptions = computed(() => [
+  { label: $t('page.quartz.systemConfigPage.generalSection'), value: 'general' },
+  {
+    label: $t('page.quartz.systemConfigPage.recoverySection'),
+    value: 'recovery',
+  },
+  {
+    label: $t('page.quartz.systemConfigPage.migrationSection'),
+    value: 'migration',
+  },
+]);
+
+// ============ 服务身份 ============
 const serviceName = ref('');
 const environment = ref('DEV');
 const serviceDescription = ref('');
 
-// 日志自动清理配置
+interface EnvVisual {
+  dotClass: string;
+  labelKey: string;
+  pillClass: string;
+}
+
+const ENV_VISUALS: Record<string, EnvVisual> = {
+  DEV: {
+    labelKey: 'envDEV',
+    dotClass: 'bg-slate-400',
+    pillClass: 'bg-slate-500/10 text-slate-600 dark:text-slate-300',
+  },
+  TEST: {
+    labelKey: 'envTEST',
+    dotClass: 'bg-blue-500',
+    pillClass: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+  },
+  UAT: {
+    labelKey: 'envUAT',
+    dotClass: 'bg-amber-500',
+    pillClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  },
+  PROD: {
+    labelKey: 'envPROD',
+    dotClass: 'bg-red-500',
+    pillClass: 'bg-red-500/10 text-red-600 dark:text-red-400',
+  },
+};
+
+const ENV_FALLBACK: EnvVisual = ENV_VISUALS.DEV!;
+
+// 环境标识：身份条与下拉选项共用同一套配色，保证两处始终一致
+function envVisual(value?: string): EnvVisual {
+  return (value && ENV_VISUALS[value]) || ENV_FALLBACK;
+}
+
+const environmentMeta = computed(() => envVisual(environment.value));
+const environmentLabel = computed(
+  () =>
+    `${$t(`page.quartz.systemConfigPage.${environmentMeta.value.labelKey}`)} (${environment.value})`,
+);
+
+const environmentOptions = computed(() =>
+  Object.keys(ENV_VISUALS).map((value) => {
+    const meta = envVisual(value);
+    return {
+      value,
+      label: h('span', { class: 'inline-flex items-center gap-2' }, [
+        h('span', {
+          class: `inline-block h-2 w-2 shrink-0 rounded-full ${meta.dotClass}`,
+        }),
+        h(
+          'span',
+          { class: meta.pillClass.replace(/bg-[^\s]+/, '') },
+          `${$t(`page.quartz.systemConfigPage.${meta.labelKey}`)} (${value})`,
+        ),
+      ]),
+    };
+  }),
+);
+
+// 身份信息走独立弹窗（草稿态），避免与表单区的未保存修改互相污染
+const identityModalOpen = ref(false);
+const identitySaving = ref(false);
+const identityDraft = ref({
+  serviceName: '',
+  environment: 'DEV',
+  serviceDescription: '',
+});
+
+// ============ 日志自动清理 ============
+const logAutoCleanup = ref(true);
 const logRetentionDays = ref(30);
 const logMaxCount = ref(0);
 const logCleanupIntervalHours = ref(6);
+const logTotal = ref<null | number>(null);
 
-// 停机与恢复（启动期配置）
+const logTotalText = computed(() =>
+  logTotal.value === null
+    ? '—'
+    : new Intl.NumberFormat().format(logTotal.value),
+);
+
+function handleLogCleanupToggle(checked: any) {
+  const enabled = checked === true;
+  logAutoCleanup.value = enabled;
+  // 重新打开时若两条限制都为 0，给一个合理默认值，避免“开着但不清理”
+  if (
+    enabled &&
+    (logRetentionDays.value ?? 0) <= 0 &&
+    (logMaxCount.value ?? 0) <= 0
+  ) {
+    logRetentionDays.value = 30;
+  }
+}
+
+// ============ 停机与恢复（启动期配置） ============
 const shutdownMode = ref<ShutdownMode>('Drain');
 const shutdownWaitTimeoutSeconds = ref(30);
 const drainTimeoutSeconds = ref(60);
@@ -76,18 +186,40 @@ const interruptedLogRetentionDays = ref(30);
 
 // 启动期配置状态
 const restartRequired = ref(false);
-const recoveryCollapsed = ref(true);
+const effectiveConfig = ref<null | SystemConfigDto>(null);
+const baseline = ref<null | SystemConfigDto>(null);
 
-// 停机模式决定只有一个超时配置真正生效，按模式隐藏另一个
-const showWaitTimeout = computed(() => shutdownMode.value === 'Wait');
-const showDrainTimeout = computed(() => shutdownMode.value === 'Drain');
-
-// 补偿关闭或「只标记不补偿」时，补跑次数、跳过阈值等配置无效
+// 补偿关闭或「只标记不补偿」时，补跑相关参数无效
 const catchUpOptionsVisible = computed(
   () => recoveryEnabled.value && catchUpStrategy.value !== 'None',
 );
 
-const shutdownModeOptions = computed(() => [
+// 租约必须不小于心跳间隔的两倍，实时提示而不是保存时才报错
+const leaseMinSeconds = computed(
+  () => (heartbeatIntervalSeconds.value || 0) * 2,
+);
+const leaseInvalid = computed(
+  () => leaseMinSeconds.value > (leaseDurationSeconds.value || 0),
+);
+const leaseRequirement = computed(() =>
+  $t('page.quartz.systemConfigPage.leaseRequirement', {
+    seconds: leaseMinSeconds.value,
+  }),
+);
+
+const advancedDisabledHint = computed(() => {
+  if (!recoveryEnabled.value) {
+    return $t('page.quartz.systemConfigPage.recoveryDisabledHint');
+  }
+  if (catchUpStrategy.value === 'None') {
+    return $t('page.quartz.systemConfigPage.advancedDisabledHint');
+  }
+  return '';
+});
+
+const shutdownModeOptions = computed<
+  Array<{ label: string; value: ShutdownMode }>
+>(() => [
   {
     label: $t('page.quartz.systemConfigPage.shutdownModeImmediate'),
     value: 'Immediate',
@@ -96,13 +228,11 @@ const shutdownModeOptions = computed(() => [
     label: $t('page.quartz.systemConfigPage.shutdownModeDrain'),
     value: 'Drain',
   },
-  {
-    label: $t('page.quartz.systemConfigPage.shutdownModeWait'),
-    value: 'Wait',
-  },
 ]);
 
-const catchUpStrategyOptions = computed(() => [
+const catchUpStrategyOptions = computed<
+  Array<{ label: string; value: CatchUpStrategy }>
+>(() => [
   {
     label: $t('page.quartz.systemConfigPage.catchUpNone'),
     value: 'None',
@@ -117,89 +247,80 @@ const catchUpStrategyOptions = computed(() => [
   },
 ]);
 
+// 停机模式与补偿策略的差异本身就是决策依据，用带说明的卡片平铺，而不是下拉 + Tooltip
+const shutdownModeCards = computed(() =>
+  shutdownModeOptions.value.map((option) => ({
+    ...option,
+    desc: $t(`page.quartz.systemConfigPage.shutdownMode${option.value}Desc`),
+  })),
+);
 
-// 环境标识：不同环境用颜色区分，颜色同时体现在下拉选项与选中值上
-const environmentOptions = computed(() => {
-  const items = [
-    {
-      value: 'DEV',
-      text: `${$t('page.quartz.systemConfigPage.envDEV')} (DEV)`,
-      dotClass: 'bg-slate-400',
-      textClass: 'text-slate-500 dark:text-slate-400',
-    },
-    {
-      value: 'TEST',
-      text: `${$t('page.quartz.systemConfigPage.envTEST')} (TEST)`,
-      dotClass: 'bg-blue-500',
-      textClass: 'text-blue-600 dark:text-blue-400',
-    },
-    {
-      value: 'UAT',
-      text: `${$t('page.quartz.systemConfigPage.envUAT')} (UAT)`,
-      dotClass: 'bg-amber-500',
-      textClass: 'text-amber-600 dark:text-amber-400',
-    },
-    {
-      value: 'PROD',
-      text: `${$t('page.quartz.systemConfigPage.envPROD')} (PROD)`,
-      dotClass: 'bg-red-500',
-      textClass: 'text-red-600 dark:text-red-400',
-    },
-  ];
+const catchUpCards = computed(() =>
+  catchUpStrategyOptions.value.map((option) => ({
+    ...option,
+    desc: $t(`page.quartz.systemConfigPage.catchUp${option.value}Desc`),
+  })),
+);
 
-  return items.map((item) => ({
-    value: item.value,
-    label: h('span', { class: 'inline-flex items-center gap-2' }, [
-      h('span', {
-        class: `inline-block h-2 w-2 shrink-0 rounded-full ${item.dotClass}`,
-      }),
-      h('span', { class: item.textClass }, item.text),
-    ]),
-  }));
+// 「排水后停止」的超时：立即停止模式不需要，非立即模式统一使用排水超时
+const shutdownTimeoutModel = computed<number | undefined>({
+  get() {
+    return drainTimeoutSeconds.value;
+  },
+  set(value) {
+    drainTimeoutSeconds.value = value ?? 0;
+  },
 });
 
-async function loadConfig() {
-  configLoading.value = true;
-  try {
-    const response = (await getSystemConfig()) as any;
-    const data = response?.data ?? response;
-    serviceName.value = data?.serviceName || '';
-    environment.value = data?.environment || 'DEV';
-    serviceDescription.value = data?.serviceDescription || '';
-    logRetentionDays.value = data?.logRetentionDays ?? 30;
-    logMaxCount.value = data?.logMaxCount ?? 0;
-    logCleanupIntervalHours.value = data?.logCleanupIntervalHours ?? 6;
+const shutdownTimeoutLabel = computed(() =>
+  $t('page.quartz.systemConfigPage.drainTimeout'),
+);
 
-    shutdownMode.value = (data?.shutdownMode as ShutdownMode) || 'Drain';
-    shutdownWaitTimeoutSeconds.value = data?.shutdownWaitTimeoutSeconds ?? 30;
-    drainTimeoutSeconds.value = data?.drainTimeoutSeconds ?? 60;
-    recoveryEnabled.value = data?.recoveryEnabled ?? true;
-    compensationDelaySeconds.value = data?.compensationDelaySeconds ?? 30;
-    heartbeatIntervalSeconds.value = data?.heartbeatIntervalSeconds ?? 15;
-    leaseDurationSeconds.value = data?.leaseDurationSeconds ?? 60;
-    skipIfNextFireWithinSeconds.value =
-      data?.skipIfNextFireWithinSeconds ?? 120;
-    catchUpStrategy.value = (data?.catchUpStrategy as CatchUpStrategy) || 'Latest';
-    maxRecoveryAttempts.value = data?.maxRecoveryAttempts ?? 3;
-    defaultRerunOnRecovery.value = data?.defaultRerunOnRecovery ?? true;
-    interruptedLogRetentionDays.value =
-      data?.interruptedLogRetentionDays ?? 30;
+const shutdownTimeoutHint = computed(() =>
+  $t('page.quartz.systemConfigPage.hintDrainTimeout'),
+);
 
-    restartRequired.value = data?.restartRequired === true;
-  } catch (error) {
-    message.error($t('page.quartz.systemConfigPage.getConfigFailed'));
-    console.error($t('page.quartz.systemConfigPage.getConfigFailed'), error);
-  } finally {
-    configLoading.value = false;
-  }
+// 启动期字段与展示名，用于「重启后生效的变化」对比
+const STARTUP_FIELD_META: Array<{
+  key: keyof SystemConfigDto;
+  labelKey: string;
+}> = [
+  { key: 'shutdownMode', labelKey: 'shutdownMode' },
+  { key: 'drainTimeoutSeconds', labelKey: 'drainTimeout' },
+  { key: 'recoveryEnabled', labelKey: 'recoveryEnabled' },
+  { key: 'catchUpStrategy', labelKey: 'catchUpStrategy' },
+  { key: 'compensationDelaySeconds', labelKey: 'compensationDelay' },
+  { key: 'heartbeatIntervalSeconds', labelKey: 'heartbeatInterval' },
+  { key: 'leaseDurationSeconds', labelKey: 'leaseDuration' },
+  { key: 'skipIfNextFireWithinSeconds', labelKey: 'skipIfNextFire' },
+  { key: 'maxRecoveryAttempts', labelKey: 'maxRecoveryAttempts' },
+  { key: 'defaultRerunOnRecovery', labelKey: 'defaultRerunOnRecovery' },
+  {
+    key: 'interruptedLogRetentionDays',
+    labelKey: 'interruptedLogRetentionDays',
+  },
+];
+
+const GENERAL_FIELDS: Array<keyof SystemConfigDto> = [
+  'logRetentionDays',
+  'logMaxCount',
+  'logCleanupIntervalHours',
+];
+
+const STARTUP_FIELD_KEYS = new Set<string>(
+  STARTUP_FIELD_META.map((item) => item.key as string),
+);
+
+function isSameValue(a: unknown, b: unknown): boolean {
+  return (a ?? null) === (b ?? null);
 }
 
 const buildConfig = (): SystemConfigDto => ({
   serviceName: serviceName.value,
   environment: environment.value,
   serviceDescription: serviceDescription.value,
-  logRetentionDays: logRetentionDays.value ?? 30,
-  logMaxCount: logMaxCount.value ?? 0,
+  logRetentionDays: logAutoCleanup.value ? (logRetentionDays.value ?? 0) : 0,
+  logMaxCount: logAutoCleanup.value ? (logMaxCount.value ?? 0) : 0,
   logCleanupIntervalHours: logCleanupIntervalHours.value ?? 6,
   shutdownMode: shutdownMode.value,
   shutdownWaitTimeoutSeconds: shutdownWaitTimeoutSeconds.value,
@@ -214,6 +335,198 @@ const buildConfig = (): SystemConfigDto => ({
   defaultRerunOnRecovery: defaultRerunOnRecovery.value,
   interruptedLogRetentionDays: interruptedLogRetentionDays.value,
 });
+
+// 未保存的字段（与上次加载/保存的持久化值比较）
+const dirtyFields = computed<Array<keyof SystemConfigDto>>(() => {
+  const base = baseline.value;
+  if (!base) return [];
+  const current = buildConfig();
+  return [...GENERAL_FIELDS, ...STARTUP_FIELD_META.map((item) => item.key)]
+    .filter((key) => !isSameValue(current[key], base[key]));
+});
+
+const dirtyCount = computed(() => dirtyFields.value.length);
+
+const startupDirty = computed(() =>
+  dirtyFields.value.some((key) => STARTUP_FIELD_KEYS.has(key as string)),
+);
+
+function formatStartupValue(
+  key: keyof SystemConfigDto,
+  value: unknown,
+): string {
+  if (value === null || value === undefined) return '-';
+  if (key === 'shutdownMode') {
+    return (
+      shutdownModeOptions.value.find((item) => item.value === value)?.label ??
+      String(value)
+    );
+  }
+  if (key === 'catchUpStrategy') {
+    return (
+      catchUpStrategyOptions.value.find((item) => item.value === value)
+        ?.label ?? String(value)
+    );
+  }
+  if (typeof value === 'boolean') {
+    return value
+      ? $t('page.quartz.systemConfigPage.rerunEnabled')
+      : $t('page.quartz.systemConfigPage.rerunDisabled');
+  }
+  if (String(key).endsWith('Seconds')) {
+    return `${value}${$t('page.quartz.systemConfigPage.unitSeconds')}`;
+  }
+  if (String(key).endsWith('Days')) {
+    return `${value}${$t('page.quartz.systemConfigPage.unitDays')}`;
+  }
+  if (key === 'maxRecoveryAttempts') {
+    return `${value}${$t('page.quartz.systemConfigPage.unitTimes')}`;
+  }
+  return String(value);
+}
+
+// 保存并重启后会发生变化的启动期字段（与当前进程生效值比较）
+const startupChanges = computed(() => {
+  const eff = effectiveConfig.value;
+  if (!eff) return [];
+  const current = buildConfig();
+  return STARTUP_FIELD_META.filter(({ key }) => {
+    const before = eff[key];
+    if (before === null || before === undefined) return false;
+    return !isSameValue(current[key], before);
+  }).map(({ key, labelKey }) => ({
+    key: key as string,
+    label: $t(`page.quartz.systemConfigPage.${labelKey}`),
+    from: formatStartupValue(key, eff[key]),
+    to: formatStartupValue(key, current[key]),
+  }));
+});
+
+function applyConfigData(data: any) {
+  serviceName.value = data?.serviceName || '';
+  environment.value = data?.environment || 'DEV';
+  serviceDescription.value = data?.serviceDescription || '';
+  logRetentionDays.value = data?.logRetentionDays ?? 30;
+  logMaxCount.value = data?.logMaxCount ?? 0;
+  logCleanupIntervalHours.value = data?.logCleanupIntervalHours ?? 6;
+  logAutoCleanup.value =
+    (logRetentionDays.value ?? 0) > 0 || (logMaxCount.value ?? 0) > 0;
+
+  // 历史「Wait（等待完成）」配置等价于「排水后停止」，加载时归一化
+  shutdownMode.value =
+    (data?.shutdownMode as ShutdownMode) === 'Immediate' ? 'Immediate' : 'Drain';
+  shutdownWaitTimeoutSeconds.value = data?.shutdownWaitTimeoutSeconds ?? 30;
+  drainTimeoutSeconds.value = data?.drainTimeoutSeconds ?? 60;
+  recoveryEnabled.value = data?.recoveryEnabled ?? true;
+  compensationDelaySeconds.value = data?.compensationDelaySeconds ?? 30;
+  heartbeatIntervalSeconds.value = data?.heartbeatIntervalSeconds ?? 15;
+  leaseDurationSeconds.value = data?.leaseDurationSeconds ?? 60;
+  skipIfNextFireWithinSeconds.value = data?.skipIfNextFireWithinSeconds ?? 120;
+  catchUpStrategy.value = (data?.catchUpStrategy as CatchUpStrategy) || 'Latest';
+  maxRecoveryAttempts.value = data?.maxRecoveryAttempts ?? 3;
+  defaultRerunOnRecovery.value = data?.defaultRerunOnRecovery ?? true;
+  interruptedLogRetentionDays.value = data?.interruptedLogRetentionDays ?? 30;
+
+  effectiveConfig.value = data?.effectiveConfig ?? null;
+  restartRequired.value = data?.restartRequired === true;
+  // 基线必须在所有字段赋值之后生成，用于未保存改动判定
+  baseline.value = buildConfig();
+}
+
+async function loadConfig() {
+  configLoading.value = true;
+  try {
+    const response = (await getSystemConfig()) as any;
+    applyConfigData(response?.data ?? response);
+  } catch (error) {
+    message.error($t('page.quartz.systemConfigPage.getConfigFailed'));
+    console.error($t('page.quartz.systemConfigPage.getConfigFailed'), error);
+  } finally {
+    configLoading.value = false;
+  }
+}
+
+async function loadLogTotal() {
+  try {
+    const response = (await getLogList({
+      pageIndex: 1,
+      pageSize: 1,
+    })) as any;
+    if (response?.success) {
+      logTotal.value = response.data?.totalCount ?? null;
+      return;
+    }
+    logTotal.value = null;
+  } catch {
+    logTotal.value = null;
+  }
+}
+
+function openIdentityModal() {
+  identityDraft.value = {
+    serviceName: serviceName.value,
+    environment: environment.value,
+    serviceDescription: serviceDescription.value,
+  };
+  identityModalOpen.value = true;
+}
+
+// 身份信息单独保存：其余字段沿用最近一次持久化值，不带上表单区的未保存修改
+async function saveIdentity() {
+  const name = identityDraft.value.serviceName.trim();
+  if (!name) {
+    message.warning($t('page.quartz.systemConfigPage.serviceNameRequired'));
+    return;
+  }
+
+  identitySaving.value = true;
+  try {
+    const payload: SystemConfigDto = {
+      ...(baseline.value ?? buildConfig()),
+      serviceName: name,
+      environment: identityDraft.value.environment,
+      serviceDescription: identityDraft.value.serviceDescription,
+    };
+    const response = await saveSystemConfig(payload);
+    if (!response.success) {
+      message.error(
+        response.message || $t('page.quartz.systemConfigPage.saveFailed'),
+      );
+      return;
+    }
+
+    serviceName.value = name;
+    environment.value = identityDraft.value.environment;
+    serviceDescription.value = identityDraft.value.serviceDescription;
+    if (baseline.value) {
+      baseline.value = {
+        ...baseline.value,
+        serviceName: name,
+        environment: identityDraft.value.environment,
+        serviceDescription: identityDraft.value.serviceDescription,
+      };
+    }
+
+    const { systemConfig } = useSystemConfig();
+    systemConfig.value = {
+      serviceName: name,
+      environment: identityDraft.value.environment,
+      serviceDescription: identityDraft.value.serviceDescription,
+    };
+
+    identityModalOpen.value = false;
+    message.success(
+      response.message || $t('page.quartz.systemConfigPage.saveSuccess'),
+    );
+  } catch (error: any) {
+    message.error(
+      error.message || $t('page.quartz.systemConfigPage.saveFailed'),
+    );
+    console.error($t('page.quartz.systemConfigPage.saveFailed'), error);
+  } finally {
+    identitySaving.value = false;
+  }
+}
 
 async function saveConfig() {
   saveLoading.value = true;
@@ -231,10 +544,14 @@ async function saveConfig() {
         serviceDescription: serviceDescription.value,
       };
     } else {
-      message.error(response.message || $t('page.quartz.systemConfigPage.saveFailed'));
+      message.error(
+        response.message || $t('page.quartz.systemConfigPage.saveFailed'),
+      );
     }
   } catch (error: any) {
-    message.error(error.message || $t('page.quartz.systemConfigPage.saveFailed'));
+    message.error(
+      error.message || $t('page.quartz.systemConfigPage.saveFailed'),
+    );
     console.error($t('page.quartz.systemConfigPage.saveFailed'), error);
   } finally {
     saveLoading.value = false;
@@ -247,7 +564,7 @@ function validateConfig() {
     return false;
   }
 
-  if (heartbeatIntervalSeconds.value * 2 > leaseDurationSeconds.value) {
+  if (leaseInvalid.value) {
     message.warning($t('page.quartz.systemConfigPage.leaseInvalid'));
     return false;
   }
@@ -255,13 +572,24 @@ function validateConfig() {
   return true;
 }
 
+// 全页只有一个保存入口：仅在涉及启动期配置或「全部补偿」时才二次确认
 async function handleSave() {
   if (!validateConfig()) return;
 
+  const contents: string[] = [];
+  if (startupDirty.value) {
+    contents.push($t('page.quartz.systemConfigPage.confirmSaveContent'));
+  }
   if (recoveryEnabled.value && catchUpStrategy.value === 'All') {
+    contents.push($t('page.quartz.systemConfigPage.catchUpAllConfirm'));
+  }
+
+  if (contents.length > 0) {
     Modal.confirm({
-      title: $t('page.quartz.systemConfigPage.catchUpStrategy'),
-      content: $t('page.quartz.systemConfigPage.catchUpAllConfirm'),
+      title: startupDirty.value
+        ? $t('page.quartz.systemConfigPage.confirmSaveTitle')
+        : $t('page.quartz.systemConfigPage.catchUpStrategy'),
+      content: contents.join(' '),
       okText: $t('page.quartz.systemConfigPage.save'),
       onOk: saveConfig,
     });
@@ -271,43 +599,34 @@ async function handleSave() {
   await saveConfig();
 }
 
-// 停机与恢复是启动期配置，保存前二次确认，避免误改后以为立即生效
-function handleRecoverySave() {
-  if (!validateConfig()) return;
-
-  const base = $t('page.quartz.systemConfigPage.confirmSaveContent');
-  const content =
-    recoveryEnabled.value && catchUpStrategy.value === 'All'
-      ? `${base} ${$t('page.quartz.systemConfigPage.catchUpAllConfirm')}`
-      : base;
-
-  Modal.confirm({
-    title: $t('page.quartz.systemConfigPage.confirmSaveTitle'),
-    content,
-    okText: $t('page.quartz.systemConfigPage.save'),
-    onOk: saveConfig,
-  });
-}
-
 async function handleReset() {
   await loadConfig();
   message.info($t('page.quartz.systemConfigPage.resetSuccess'));
 }
 
 loadConfig();
+loadLogTotal();
 
 // ============ 数据迁移 ============
 
-type MigrationState = 'idle' | 'running' | 'success' | 'failed' | 'cancelled';
+type MigrationState = 'cancelled' | 'failed' | 'idle' | 'running' | 'success';
 
 const migrationStatus = ref<DataMigrationStatusDto | null>(null);
 const migrationOptions = ref<MigrationOptionsDto | null>(null);
 const migrationPreview = ref<MigrationPreviewDto | null>(null);
 const migrationLoading = ref(false);
 const previewLoading = ref(false);
-const migrationCollapsed = ref(true);
-const previewModalOpen = ref(false);
 const summaryModalOpen = ref(false);
+
+// 迁移向导
+const wizardOpen = ref(false);
+const wizardStep = ref(0);
+const migrationWizardSteps = computed(() => [
+  { title: $t('page.quartz.systemConfigPage.migrationStepStore') },
+  { title: $t('page.quartz.systemConfigPage.migrationStepOptions') },
+  { title: $t('page.quartz.systemConfigPage.migrationStepPreview') },
+]);
+
 let migrationPollTimer: ReturnType<typeof setInterval> | null = null;
 
 const migrationSource = ref('');
@@ -398,7 +717,10 @@ const migrationSteps = computed(() => migrationStatus.value?.steps ?? []);
 // 存在迁移记录（进行中或已结束）时展示进度概览与摘要入口
 const hasMigrationSummary = computed(() => {
   const status = migrationStatus.value;
-  return !!status && (status.isRunning || status.isCompleted || status.isCancelled || false);
+  return (
+    !!status &&
+    (status.isRunning || status.isCompleted || status.isCancelled || false)
+  );
 });
 
 // 后端步骤 key → i18n 文案，未匹配时回退后端原始名称
@@ -411,16 +733,14 @@ const stepNameKeys: Record<string, string> = {
 
 function stepName(step: MigrationStepInfo): string {
   const key = stepNameKeys[step.key];
-  return key
-    ? $t(`page.quartz.systemConfigPage.${key}`)
-    : step.name;
+  return key ? $t(`page.quartz.systemConfigPage.${key}`) : step.name;
 }
 
 interface StorageOption {
-  label: string;
-  value: string;
-  title?: string;
   disabled?: boolean;
+  label: string;
+  title?: string;
+  value: string;
 }
 
 const storageOptions = computed<StorageOption[]>(() => {
@@ -473,14 +793,22 @@ const storageOptions = computed<StorageOption[]>(() => {
   return result;
 });
 
-// 至少需要两种可用存储才能组合出迁移的源和目标
-const hasAvailableStores = computed(
-  () => storageOptions.value.filter((item) => !item.disabled).length >= 2,
+const availableStoreCount = computed(
+  () => storageOptions.value.filter((item) => !item.disabled).length,
 );
 
+// 至少需要两种可用存储才能组合出迁移的源和目标
+const hasAvailableStores = computed(() => availableStoreCount.value >= 2);
+
 const entityOptions = computed(() => [
-  { label: $t('page.quartz.systemConfigPage.migrationStepJobs'), value: 'Jobs' },
-  { label: $t('page.quartz.systemConfigPage.migrationStepLogs'), value: 'Logs' },
+  {
+    label: $t('page.quartz.systemConfigPage.migrationStepJobs'),
+    value: 'Jobs',
+  },
+  {
+    label: $t('page.quartz.systemConfigPage.migrationStepLogs'),
+    value: 'Logs',
+  },
   {
     label: $t('page.quartz.systemConfigPage.migrationStepSettings'),
     value: 'Settings',
@@ -513,17 +841,27 @@ const unavailableProviders = computed(() =>
     .map((provider) => provider.packageName),
 );
 
-const canTrigger = computed(() => {
-  return (
+const storeSelectionValid = computed(
+  () =>
     !!migrationSource.value &&
     !!migrationTarget.value &&
-    migrationSource.value !== migrationTarget.value &&
+    migrationSource.value !== migrationTarget.value,
+);
+
+const canTrigger = computed(() => {
+  return (
+    storeSelectionValid.value &&
     migrationEntities.value.length > 0 &&
     !migrationStatus.value?.isRunning
   );
 });
 
 const isMigrationRunning = computed(() => !!migrationStatus.value?.isRunning);
+
+// 运行中优先展示进度；否则有预检结果就展示预检，最后回退到历史迁移结果
+const showMigrationProgress = computed(
+  () => isMigrationRunning.value || (!migrationPreview.value && hasMigrationSummary.value),
+);
 
 const migrationWarnings = computed(() => migrationStatus.value?.warnings ?? []);
 
@@ -663,15 +1001,24 @@ function stepLabelKey(status: number): string {
   return stepConfig[status]?.labelKey ?? 'migrationStepPending';
 }
 
-async function loadMigrationStatus(initial = false) {
+function swapStores() {
+  const source = migrationSource.value;
+  migrationSource.value = migrationTarget.value;
+  migrationTarget.value = source;
+}
+
+function openMigrationWizard() {
+  wizardStep.value = hasMigrationSummary.value ? 2 : 0;
+  wizardOpen.value = true;
+}
+
+async function loadMigrationStatus() {
   try {
     const response = await getMigrationStatus();
     if (response.success && response.data) {
       migrationStatus.value = response.data;
-      if (response.data.isRunning) {
-        if (!migrationPollTimer) startPolling();
-        // 页面加载时迁移进行中，自动展开面板
-        if (initial) migrationCollapsed.value = false;
+      if (response.data.isRunning && !migrationPollTimer) {
+        startPolling();
       }
     }
   } catch {
@@ -760,7 +1107,8 @@ async function handlePreviewMigration() {
     const response = await previewMigration(buildRequest(false));
     if (response.success && response.data) {
       migrationPreview.value = response.data;
-      previewModalOpen.value = true;
+      // 预检通过后直接进入向导最后一步
+      wizardStep.value = 2;
       if (!response.data.canRun) {
         message.error(
           response.data.message ||
@@ -791,9 +1139,7 @@ async function doTriggerMigration(force: boolean) {
       message.success(
         $t('page.quartz.systemConfigPage.migrationTriggerSuccess'),
       );
-      migrationCollapsed.value = false;
-      previewModalOpen.value = false;
-      summaryModalOpen.value = true;
+      migrationPreview.value = null;
       startPolling();
     } else {
       message.error(
@@ -828,10 +1174,6 @@ async function handleTriggerMigration(force: boolean = false) {
   }
 
   await doTriggerMigration(force);
-}
-
-function handleStartFromPreview() {
-  handleTriggerMigration(false);
 }
 
 async function handleCancelMigration() {
@@ -890,409 +1232,414 @@ watch(
 );
 
 loadMigrationOptions();
-loadMigrationStatus(true);
+loadMigrationStatus();
 </script>
 
 <template>
-  <Page content-class="flex flex-col gap-4">
-    <!-- 基础信息 -->
-    <Card>
-      <template #title>
-        <div class="flex flex-col">
-          <span>{{ $t('page.quartz.systemConfigPage.basicSection') }}</span>
-          <span class="text-xs font-normal leading-4 text-muted-foreground">
-            {{ $t('page.quartz.systemConfigPage.description') }}
-          </span>
-        </div>
-      </template>
-
-      <Form
-        layout="vertical"
-        class="compact-form config-form mb-2"
-        :colon="false"
-      >
-        <div class="grid grid-cols-1 gap-x-6 gap-y-0 md:grid-cols-3">
-          <FormItem
-            class="md:col-span-2"
-            :label="$t('page.quartz.systemConfigPage.serviceName')"
-          >
-            <Input
-              v-model:value="serviceName"
-              :placeholder="$t('page.quartz.systemConfigPage.serviceNamePlaceholder')"
-              allow-clear
-              size="middle"
-            />
-          </FormItem>
-
-          <FormItem :label="$t('page.quartz.systemConfigPage.environment')">
-            <Select
-              v-model:value="environment"
-              :options="environmentOptions"
-              :placeholder="$t('page.quartz.systemConfigPage.environmentPlaceholder')"
-              size="middle"
-              class="w-full"
-            />
-          </FormItem>
-
-          <FormItem
-            class="md:col-span-3"
-            :label="$t('page.quartz.systemConfigPage.serviceDescription')"
-          >
-            <Input.TextArea
-              v-model:value="serviceDescription"
-              :placeholder="$t('page.quartz.systemConfigPage.serviceDescriptionPlaceholder')"
-              :auto-size="{ minRows: 1, maxRows: 3 }"
-              :maxlength="200"
-              show-count
-              size="middle"
-            />
-          </FormItem>
-        </div>
-
-        <!-- 日志自动清理 -->
-        <div class="mt-2 border-t border-dashed border-border pt-4">
-          <div class="mb-3 flex flex-col">
-            <span class="text-sm font-medium">
-              {{ $t('page.quartz.systemConfigPage.logCleanupSection') }}
+  <!-- 内容区随视口铺满，不再限宽 -->
+  <Page content-class="flex w-full flex-col gap-4">
+    <!-- 服务身份：一眼看清当前是哪个服务、什么环境、什么存储 -->
+    <Card class="identity-card">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="truncate text-base font-semibold leading-6">
+              {{
+                serviceName || $t('page.quartz.systemConfigPage.unnamedService')
+              }}
             </span>
-            <span class="text-xs leading-4 text-muted-foreground">
-              {{ $t('page.quartz.systemConfigPage.logCleanupDescription') }}
+            <span
+              class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
+              :class="environmentMeta.pillClass"
+            >
+              <span
+                class="h-1.5 w-1.5 rounded-full"
+                :class="environmentMeta.dotClass"
+              />
+              {{ environmentLabel }}
             </span>
+            <span
+              class="inline-flex items-center gap-1.5 rounded-full border border-border/60 px-2 py-0.5 text-xs text-muted-foreground"
+            >
+              {{ $t('page.quartz.systemConfigPage.storageLabel') }}：{{
+                currentStorageDisplay
+              }}
+            </span>
+            <Tag
+              v-if="restartRequired"
+              color="warning"
+              :bordered="false"
+              class="!m-0"
+            >
+              {{ $t('page.quartz.systemConfigPage.restartRequiredShort') }}
+            </Tag>
           </div>
-          <div class="grid grid-cols-1 gap-x-6 gap-y-0 md:grid-cols-3">
-            <FormItem :label="$t('page.quartz.systemConfigPage.logRetentionDays')">
-              <InputNumber
-                v-model:value="logRetentionDays"
-                :min="0"
-                :max="3650"
-                :addon-after="$t('page.quartz.systemConfigPage.unitDays')"
-                class="w-full"
-                size="middle"
-              />
-            </FormItem>
-            <FormItem :label="$t('page.quartz.systemConfigPage.logMaxCount')">
-              <InputNumber
-                v-model:value="logMaxCount"
-                :min="0"
-                :max="10000000"
-                :addon-after="$t('page.quartz.systemConfigPage.unitCount')"
-                class="w-full"
-                size="middle"
-              />
-            </FormItem>
-            <FormItem :label="$t('page.quartz.systemConfigPage.logCleanupInterval')">
-              <InputNumber
-                v-model:value="logCleanupIntervalHours"
-                :min="1"
-                :max="168"
-                :addon-after="$t('page.quartz.systemConfigPage.unitHours')"
-                class="w-full"
-                size="middle"
-              />
-            </FormItem>
-          </div>
-          <div class="text-xs leading-5 text-muted-foreground">
-            {{ $t('page.quartz.systemConfigPage.logCleanupHint') }}
+          <div
+            class="mt-1.5 line-clamp-2 text-xs leading-5 text-muted-foreground"
+          >
+            {{
+              serviceDescription ||
+              $t('page.quartz.systemConfigPage.descriptionEmpty')
+            }}
           </div>
         </div>
-      </Form>
-
-      <div class="flex gap-2 pt-2">
-        <Button type="primary" :loading="saveLoading" @click="handleSave">
-          {{ $t('page.quartz.systemConfigPage.save') }}
-        </Button>
-        <Button @click="handleReset">
-          {{ $t('page.quartz.systemConfigPage.reset') }}
+        <Button size="small" @click="openIdentityModal">
+          {{ $t('page.quartz.systemConfigPage.identityEdit') }}
         </Button>
       </div>
     </Card>
 
-    <!-- 停机与恢复 -->
-    <Card>
+    <Segmented
+      v-model:value="activeTab"
+      :options="tabOptions"
+      class="system-config-tabs w-fit"
+    />
+
+    <!-- 常规配置：日志自动清理 -->
+    <Card v-if="activeTab === 'general'" :loading="configLoading">
       <template #title>
-        <div
-          class="flex cursor-pointer select-none flex-col"
-          @click="recoveryCollapsed = !recoveryCollapsed"
-        >
-          <span class="flex items-center gap-2">
-            <svg
-              class="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200"
-              :class="recoveryCollapsed ? '-rotate-90' : ''"
-              fill="none"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              viewBox="0 0 16 16"
-            >
-              <path d="M4 6.5 8 10.5 12 6.5" />
-            </svg>
-            {{ $t('page.quartz.systemConfigPage.recoverySection') }}
-            <Tag v-if="restartRequired" color="warning" :bordered="false" size="small" class="shrink-0">
-              {{ $t('page.quartz.systemConfigPage.restartRequiredShort') }}
-            </Tag>
+        <div class="flex flex-col">
+          <span>{{ $t('page.quartz.systemConfigPage.logCleanupSection') }}</span>
+          <span class="text-xs font-normal leading-4 text-muted-foreground">
+            {{ $t('page.quartz.systemConfigPage.logCleanupDescription') }}
           </span>
-          <span class="pl-[22px] text-xs font-normal leading-4 text-muted-foreground">
+        </div>
+      </template>
+
+      <template #extra>
+        <div class="flex items-center gap-3">
+          <span class="text-xs font-normal text-muted-foreground">
+            {{ $t('page.quartz.systemConfigPage.logCurrentTotal') }}
+            <span
+              class="ml-1 text-sm font-semibold tabular-nums text-foreground"
+            >
+              {{ logTotalText }}
+            </span>
+            <span class="ml-0.5">
+              {{ $t('page.quartz.systemConfigPage.unitCount') }}
+            </span>
+          </span>
+          <span class="h-4 w-px bg-border/60" />
+          <span class="flex items-center gap-2">
+            <span class="text-xs text-muted-foreground">
+              {{ $t('page.quartz.systemConfigPage.logCleanupEnable') }}
+            </span>
+            <Switch
+              :checked="logAutoCleanup"
+              size="small"
+              @change="handleLogCleanupToggle"
+            />
+          </span>
+        </div>
+      </template>
+
+      <!-- 主开关放到卡片层级，下面的行只描述「开关打开后」的参数 -->
+      <p
+        v-if="!logAutoCleanup"
+        class="mb-4 rounded-md bg-muted/40 px-3 py-2 text-xs leading-5 text-muted-foreground"
+      >
+        {{ $t('page.quartz.systemConfigPage.logCleanupEnableHint') }}
+      </p>
+
+      <div>
+        <SettingRow
+          :label="$t('page.quartz.systemConfigPage.logRetentionDays')"
+          :hint="$t('page.quartz.systemConfigPage.logRetentionDaysHint')"
+          :disabled="!logAutoCleanup"
+        >
+          <InputNumber
+            v-model:value="logRetentionDays"
+            :min="0"
+            :max="3650"
+            :disabled="!logAutoCleanup"
+            :addon-after="$t('page.quartz.systemConfigPage.unitDays')"
+            class="w-full"
+            size="middle"
+          />
+        </SettingRow>
+        <SettingRow
+          :label="$t('page.quartz.systemConfigPage.logMaxCount')"
+          :hint="$t('page.quartz.systemConfigPage.logMaxCountHint')"
+          :disabled="!logAutoCleanup"
+        >
+          <InputNumber
+            v-model:value="logMaxCount"
+            :min="0"
+            :max="10000000"
+            :disabled="!logAutoCleanup"
+            :addon-after="$t('page.quartz.systemConfigPage.unitCount')"
+            class="w-full"
+            size="middle"
+          />
+        </SettingRow>
+        <SettingRow
+          :label="$t('page.quartz.systemConfigPage.logCleanupInterval')"
+          :hint="$t('page.quartz.systemConfigPage.logCleanupIntervalHint')"
+          :disabled="!logAutoCleanup"
+        >
+          <InputNumber
+            v-model:value="logCleanupIntervalHours"
+            :min="1"
+            :max="168"
+            :disabled="!logAutoCleanup"
+            :addon-after="$t('page.quartz.systemConfigPage.unitHours')"
+            class="w-full"
+            size="middle"
+          />
+        </SettingRow>
+      </div>
+    </Card>
+
+    <!-- 停机与恢复 -->
+    <Card v-else-if="activeTab === 'recovery'">
+      <template #title>
+        <div class="flex flex-col">
+          <span>{{ $t('page.quartz.systemConfigPage.recoverySection') }}</span>
+          <span class="text-xs font-normal leading-4 text-muted-foreground">
             {{ $t('page.quartz.systemConfigPage.recoveryDescription') }}
           </span>
         </div>
       </template>
 
-      <Transition name="expand">
-        <div v-if="!recoveryCollapsed" class="collapse-grid">
-          <div class="collapse-inner">
-            <Form
-              layout="vertical"
-              class="compact-form config-form"
-              :colon="false"
-            >
-              <!-- 停机策略 -->
-              <div class="config-group">
-                <div class="mb-3 flex flex-col">
-                  <span class="text-sm font-medium">
-                    {{ $t('page.quartz.systemConfigPage.shutdownGroup') }}
-                  </span>
-                  <span class="text-xs leading-4 text-muted-foreground">
-                    {{ $t('page.quartz.systemConfigPage.hintShutdownMode') }}
-                  </span>
-                </div>
-                <div class="grid grid-cols-1 gap-x-6 gap-y-0 md:grid-cols-3">
-                  <FormItem :label="$t('page.quartz.systemConfigPage.shutdownMode')">
-                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintShutdownMode')">
-                      <Select
-                        v-model:value="shutdownMode"
-                        :options="shutdownModeOptions"
-                        class="w-full"
-                        size="middle"
-                      />
-                    </Tooltip>
-                  </FormItem>
-                  <!-- 只有「等待完成」模式才需要等待超时 -->
-                  <FormItem
-                    v-if="showWaitTimeout"
-                    :label="$t('page.quartz.systemConfigPage.shutdownWaitTimeout')"
-                  >
-                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintWaitTimeout')">
-                      <InputNumber
-                        v-model:value="shutdownWaitTimeoutSeconds"
-                        :min="0"
-                        :max="3600"
-                        :addon-after="$t('page.quartz.systemConfigPage.unitSeconds')"
-                        class="w-full"
-                        size="middle"
-                      />
-                    </Tooltip>
-                  </FormItem>
-                  <!-- 只有「排水」模式才需要排水超时 -->
-                  <FormItem
-                    v-if="showDrainTimeout"
-                    :label="$t('page.quartz.systemConfigPage.drainTimeout')"
-                  >
-                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintDrainTimeout')">
-                      <InputNumber
-                        v-model:value="drainTimeoutSeconds"
-                        :min="0"
-                        :max="3600"
-                        :addon-after="$t('page.quartz.systemConfigPage.unitSeconds')"
-                        class="w-full"
-                        size="middle"
-                      />
-                    </Tooltip>
-                  </FormItem>
-                </div>
-              </div>
+      <template #extra>
+        <Tag
+          v-if="restartRequired"
+          color="warning"
+          :bordered="false"
+          class="!m-0"
+        >
+          {{ $t('page.quartz.systemConfigPage.restartRequiredShort') }}
+        </Tag>
+      </template>
 
-              <!-- 中断恢复 -->
-              <div class="config-group mt-4 border-t border-dashed border-border pt-4">
-                <div class="mb-3 flex flex-col">
-                  <span class="text-sm font-medium">
-                    {{ $t('page.quartz.systemConfigPage.recoveryGroup') }}
+      <!-- 重启后生效：一条摘要 + 可展开明细，避免「旧 → 新」铺满一整行 -->
+      <div
+        v-if="startupChanges.length"
+        class="mb-5 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2 text-xs"
+      >
+        <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+        <span class="text-amber-700 dark:text-amber-300">
+          {{
+            $t('page.quartz.systemConfigPage.startupChangesCount', {
+              count: startupChanges.length,
+            })
+          }}
+        </span>
+        <Popover placement="bottomLeft" trigger="click">
+          <template #content>
+            <div class="max-h-72 min-w-[280px] space-y-1.5 overflow-y-auto">
+              <div
+                v-for="item in startupChanges"
+                :key="item.key"
+                class="flex items-baseline justify-between gap-4 text-xs"
+              >
+                <span class="text-muted-foreground">{{ item.label }}</span>
+                <span class="shrink-0 tabular-nums">
+                  <span class="text-muted-foreground line-through">
+                    {{ item.from }}
                   </span>
-                  <span class="text-xs leading-4 text-muted-foreground">
-                    {{ $t('page.quartz.systemConfigPage.hintRecoveryEnabled') }}
+                  <span class="mx-1 text-muted-foreground/60">→</span>
+                  <span class="font-medium text-amber-600 dark:text-amber-400">
+                    {{ item.to }}
                   </span>
-                </div>
-                <div class="grid grid-cols-1 gap-x-6 gap-y-0 md:grid-cols-3">
-                  <FormItem :label="$t('page.quartz.systemConfigPage.recoveryEnabled')">
-                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintRecoveryEnabled')">
-                      <div class="switch-field">
-                        <Switch v-model:checked="recoveryEnabled" />
-                        <Tag
-                          :color="recoveryEnabled ? 'success' : 'default'"
-                          :bordered="false"
-                          class="w-12 text-center"
-                        >
-                          {{ recoveryEnabled ? $t('page.quartz.systemConfigPage.rerunEnabled') : $t('page.quartz.systemConfigPage.rerunDisabled') }}
-                        </Tag>
-                      </div>
-                    </Tooltip>
-                  </FormItem>
-                  <!-- 关闭补偿后，下列补偿流程配置不再生效 -->
-                  <FormItem
-                    v-if="recoveryEnabled"
-                    :label="$t('page.quartz.systemConfigPage.catchUpStrategy')"
-                  >
-                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintCatchUp')">
-                      <Select
-                        v-model:value="catchUpStrategy"
-                        :options="catchUpStrategyOptions"
-                        class="w-full"
-                        size="middle"
-                      />
-                    </Tooltip>
-                  </FormItem>
-                  <FormItem
-                    v-if="recoveryEnabled"
-                    :label="$t('page.quartz.systemConfigPage.compensationDelay')"
-                  >
-                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintCompensationDelay')">
-                      <InputNumber
-                        v-model:value="compensationDelaySeconds"
-                        :min="0"
-                        :max="3600"
-                        :addon-after="$t('page.quartz.systemConfigPage.unitSeconds')"
-                        class="w-full"
-                        size="middle"
-                      />
-                    </Tooltip>
-                  </FormItem>
-                  <FormItem
-                    v-if="catchUpOptionsVisible"
-                    :label="$t('page.quartz.systemConfigPage.maxRecoveryAttempts')"
-                  >
-                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintMaxAttempts')">
-                      <InputNumber
-                        v-model:value="maxRecoveryAttempts"
-                        :min="1"
-                        :max="10"
-                        :addon-after="$t('page.quartz.systemConfigPage.unitTimes')"
-                        class="w-full"
-                        size="middle"
-                      />
-                    </Tooltip>
-                  </FormItem>
-                  <FormItem
-                    v-if="catchUpOptionsVisible"
-                    :label="$t('page.quartz.systemConfigPage.skipIfNextFire')"
-                  >
-                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintSkipNearFire')">
-                      <InputNumber
-                        v-model:value="skipIfNextFireWithinSeconds"
-                        :min="0"
-                        :max="86400"
-                        :addon-after="$t('page.quartz.systemConfigPage.unitSeconds')"
-                        class="w-full"
-                        size="middle"
-                      />
-                    </Tooltip>
-                  </FormItem>
-                  <FormItem
-                    v-if="catchUpOptionsVisible"
-                    :label="$t('page.quartz.systemConfigPage.defaultRerunOnRecovery')"
-                  >
-                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintDefaultRerun')">
-                      <div class="switch-field">
-                        <Switch v-model:checked="defaultRerunOnRecovery" />
-                        <Tag
-                          :color="defaultRerunOnRecovery ? 'success' : 'default'"
-                          :bordered="false"
-                          class="w-12 text-center"
-                        >
-                          {{ defaultRerunOnRecovery ? $t('page.quartz.systemConfigPage.rerunEnabled') : $t('page.quartz.systemConfigPage.rerunDisabled') }}
-                        </Tag>
-                      </div>
-                    </Tooltip>
-                  </FormItem>
-                  <!-- 心跳与租约用于判定中断，与是否自动补偿无关 -->
-                  <FormItem :label="$t('page.quartz.systemConfigPage.heartbeatInterval')">
-                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintHeartbeat')">
-                      <InputNumber
-                        v-model:value="heartbeatIntervalSeconds"
-                        :min="5"
-                        :max="300"
-                        :addon-after="$t('page.quartz.systemConfigPage.unitSeconds')"
-                        class="w-full"
-                        size="middle"
-                      />
-                    </Tooltip>
-                  </FormItem>
-                  <FormItem :label="$t('page.quartz.systemConfigPage.leaseDuration')">
-                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintLease')">
-                      <InputNumber
-                        v-model:value="leaseDurationSeconds"
-                        :min="10"
-                        :max="3600"
-                        :addon-after="$t('page.quartz.systemConfigPage.unitSeconds')"
-                        class="w-full"
-                        size="middle"
-                      />
-                    </Tooltip>
-                  </FormItem>
-                  <FormItem :label="$t('page.quartz.systemConfigPage.interruptedLogRetentionDays')">
-                    <Tooltip :title="$t('page.quartz.systemConfigPage.hintInterruptedRetention')">
-                      <InputNumber
-                        v-model:value="interruptedLogRetentionDays"
-                        :min="0"
-                        :max="3650"
-                        :addon-after="$t('page.quartz.systemConfigPage.unitDays')"
-                        class="w-full"
-                        size="middle"
-                      />
-                    </Tooltip>
-                  </FormItem>
-                </div>
-                <div class="text-xs leading-5 text-muted-foreground">
-                  {{ $t('page.quartz.systemConfigPage.leaseInvalid') }}
-                </div>
+                </span>
               </div>
-            </Form>
-
-            <Alert
-              v-if="restartRequired"
-              type="warning"
-              show-icon
-              :message="$t('page.quartz.systemConfigPage.restartRequired')"
-              class="mt-2"
-            />
-            <div class="mt-4 flex gap-2 border-t border-dashed border-border pt-4">
-              <Button type="primary" :loading="saveLoading" @click="handleRecoverySave">
-                {{ $t('page.quartz.systemConfigPage.save') }}
-              </Button>
-              <Button @click="handleReset">
-                {{ $t('page.quartz.systemConfigPage.reset') }}
-              </Button>
             </div>
-          </div>
+          </template>
+          <button
+            type="button"
+            class="ml-auto text-amber-700 underline-offset-2 hover:underline dark:text-amber-300"
+          >
+            {{ $t('page.quartz.systemConfigPage.startupChangesView') }}
+          </button>
+        </Popover>
+      </div>
+
+      <!-- 停机策略：三种模式的差异直接平铺，超时输入常驻，不因模式切换而消失 -->
+      <div class="config-block">
+        <div class="config-block__title">
+          {{ $t('page.quartz.systemConfigPage.shutdownGroup') }}
         </div>
-      </Transition>
+        <div class="option-cards">
+          <button
+            v-for="option in shutdownModeCards"
+            :key="option.value"
+            type="button"
+            class="option-card"
+            :class="{ 'is-active': shutdownMode === option.value }"
+            @click="shutdownMode = option.value"
+          >
+            <span class="option-card__title">{{ option.label }}</span>
+            <span class="option-card__desc">{{ option.desc }}</span>
+          </button>
+        </div>
+        <SettingRow
+          v-if="shutdownMode !== 'Immediate'"
+          :hint="shutdownTimeoutHint"
+          :label="shutdownTimeoutLabel"
+        >
+          <InputNumber
+            v-model:value="shutdownTimeoutModel"
+            :min="0"
+            :max="3600"
+            :addon-after="$t('page.quartz.systemConfigPage.unitSeconds')"
+            class="w-full"
+            size="middle"
+          />
+        </SettingRow>
+        <p v-else class="text-xs leading-5 text-muted-foreground">
+          {{ $t('page.quartz.systemConfigPage.shutdownImmediateNoTimeout') }}
+        </p>
+      </div>
+
+      <!-- 中断恢复：主开关提到分组标题，策略平铺，从属参数紧随其后 -->
+      <div class="config-block">
+        <div class="config-block__title">
+          {{ $t('page.quartz.systemConfigPage.recoveryGroup') }}
+          <span class="config-block__action">
+            <span class="text-xs font-normal text-muted-foreground">
+              {{ $t('page.quartz.systemConfigPage.recoveryEnabled') }}
+            </span>
+            <Switch v-model:checked="recoveryEnabled" size="small" />
+          </span>
+        </div>
+        <p
+          v-if="advancedDisabledHint"
+          class="mb-3 rounded-md bg-muted/40 px-3 py-2 text-xs leading-5 text-muted-foreground"
+        >
+          {{ advancedDisabledHint }}
+        </p>
+        <div class="option-cards" :class="{ 'is-disabled': !recoveryEnabled }">
+          <button
+            v-for="option in catchUpCards"
+            :key="option.value"
+            type="button"
+            class="option-card"
+            :class="{ 'is-active': catchUpStrategy === option.value }"
+            @click="catchUpStrategy = option.value"
+          >
+            <span class="option-card__title">{{ option.label }}</span>
+            <span class="option-card__desc">{{ option.desc }}</span>
+          </button>
+        </div>
+        <SettingRow
+          :disabled="!catchUpOptionsVisible"
+          :hint="$t('page.quartz.systemConfigPage.hintCompensationDelay')"
+          :label="$t('page.quartz.systemConfigPage.compensationDelay')"
+        >
+          <InputNumber
+            v-model:value="compensationDelaySeconds"
+            :min="0"
+            :max="3600"
+            :disabled="!catchUpOptionsVisible"
+            :addon-after="$t('page.quartz.systemConfigPage.unitSeconds')"
+            class="w-full"
+            size="middle"
+          />
+        </SettingRow>
+        <SettingRow
+          :disabled="!catchUpOptionsVisible"
+          :hint="$t('page.quartz.systemConfigPage.hintSkipNearFire')"
+          :label="$t('page.quartz.systemConfigPage.skipIfNextFire')"
+        >
+          <InputNumber
+            v-model:value="skipIfNextFireWithinSeconds"
+            :min="0"
+            :max="86400"
+            :disabled="!catchUpOptionsVisible"
+            :addon-after="$t('page.quartz.systemConfigPage.unitSeconds')"
+            class="w-full"
+            size="middle"
+          />
+        </SettingRow>
+        <SettingRow
+          :disabled="!catchUpOptionsVisible"
+          :hint="$t('page.quartz.systemConfigPage.hintMaxAttempts')"
+          :label="$t('page.quartz.systemConfigPage.maxRecoveryAttempts')"
+        >
+          <InputNumber
+            v-model:value="maxRecoveryAttempts"
+            :min="1"
+            :max="10"
+            :disabled="!catchUpOptionsVisible"
+            :addon-after="$t('page.quartz.systemConfigPage.unitTimes')"
+            class="w-full"
+            size="middle"
+          />
+        </SettingRow>
+        <SettingRow
+          :disabled="!catchUpOptionsVisible"
+          :hint="$t('page.quartz.systemConfigPage.hintDefaultRerun')"
+          :label="$t('page.quartz.systemConfigPage.defaultRerunOnRecovery')"
+        >
+          <Switch
+            v-model:checked="defaultRerunOnRecovery"
+            :disabled="!catchUpOptionsVisible"
+          />
+        </SettingRow>
+        <SettingRow
+          :hint="$t('page.quartz.systemConfigPage.hintInterruptedRetention')"
+          :label="
+            $t('page.quartz.systemConfigPage.interruptedLogRetentionDays')
+          "
+        >
+          <InputNumber
+            v-model:value="interruptedLogRetentionDays"
+            :min="0"
+            :max="3650"
+            :addon-after="$t('page.quartz.systemConfigPage.unitDays')"
+            class="w-full"
+            size="middle"
+          />
+        </SettingRow>
+      </div>
+
+      <!-- 心跳与租约：两条相互约束的参数相邻展示，非法时就地报错 -->
+      <div class="config-block">
+        <div class="config-block__title">
+          {{ $t('page.quartz.systemConfigPage.heartbeatGroup') }}
+        </div>
+        <SettingRow
+          :hint="$t('page.quartz.systemConfigPage.hintHeartbeat')"
+          :label="$t('page.quartz.systemConfigPage.heartbeatInterval')"
+        >
+          <InputNumber
+            v-model:value="heartbeatIntervalSeconds"
+            :min="5"
+            :max="300"
+            :addon-after="$t('page.quartz.systemConfigPage.unitSeconds')"
+            class="w-full"
+            size="middle"
+          />
+        </SettingRow>
+        <SettingRow
+          :error="
+            leaseInvalid
+              ? $t('page.quartz.systemConfigPage.leaseInvalid')
+              : ''
+          "
+          :hint="leaseRequirement"
+          :label="$t('page.quartz.systemConfigPage.leaseDuration')"
+        >
+          <InputNumber
+            v-model:value="leaseDurationSeconds"
+            :min="10"
+            :max="3600"
+            :status="leaseInvalid ? 'error' : ''"
+            :addon-after="$t('page.quartz.systemConfigPage.unitSeconds')"
+            class="w-full"
+            size="middle"
+          />
+        </SettingRow>
+      </div>
     </Card>
 
-    <!-- 数据迁移 -->
-    <Card>
+    <!-- 数据迁移：设置页只保留入口与状态，具体操作进向导 -->
+    <Card v-else>
       <template #title>
-        <div
-          class="flex cursor-pointer select-none flex-col"
-          @click="migrationCollapsed = !migrationCollapsed"
-        >
-          <span class="flex items-center gap-2">
-            <svg
-              class="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200"
-              :class="migrationCollapsed ? '-rotate-90' : ''"
-              fill="none"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              viewBox="0 0 16 16"
-            >
-              <path d="M4 6.5 8 10.5 12 6.5" />
-            </svg>
-            {{ $t('page.quartz.systemConfigPage.migrationSection') }}
-            <Tag :bordered="false" size="small" class="shrink-0 text-xs">
-              {{ $t('page.quartz.systemConfigPage.migrationCurrentStorage') }}：{{ currentStorageDisplay }}
-            </Tag>
-          </span>
-          <span class="pl-[22px] text-xs font-normal leading-4 text-muted-foreground">
+        <div class="flex flex-col">
+          <span>{{ $t('page.quartz.systemConfigPage.migrationSection') }}</span>
+          <span class="text-xs font-normal leading-4 text-muted-foreground">
             {{ $t('page.quartz.systemConfigPage.migrationDescription') }}
           </span>
         </div>
@@ -1301,296 +1648,633 @@ loadMigrationStatus(true);
       <template #extra>
         <span
           v-if="overallState !== 'idle'"
-          class="inline-flex cursor-pointer select-none items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
+          class="inline-flex select-none items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
           :class="stateConfig[overallState].pill"
-          @click="migrationCollapsed = !migrationCollapsed"
         >
           <span
             class="h-1.5 w-1.5 rounded-full"
-            :class="[stateConfig[overallState].dot, overallState === 'running' ? 'pulse-dot' : '']"
+            :class="[
+              stateConfig[overallState].dot,
+              overallState === 'running' ? 'pulse-dot' : '',
+            ]"
           />
           {{ overallStatusText }}
         </span>
       </template>
 
-      <Transition name="expand">
-        <div v-if="!migrationCollapsed" class="collapse-grid">
-          <div class="collapse-inner">
-            <!-- 只有一种存储时无法组合源和目标 -->
-            <div
-              v-if="!hasAvailableStores"
-              class="rounded-md bg-muted/40 px-3 py-4 text-xs leading-5 text-muted-foreground"
-            >
-              {{ $t('page.quartz.systemConfigPage.migrationNoAvailableStore') }}
+      <div class="space-y-4">
+        <!-- 存储概览：三段信息平铺，避免整页只有一行文字 -->
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div class="stat-card">
+            <div class="stat-card__label">
+              {{ $t('page.quartz.systemConfigPage.migrationCurrentStorage') }}
             </div>
-
-            <!-- 迁移配置 -->
-            <div v-else class="space-y-3">
-              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <div class="mb-1 text-xs font-medium text-muted-foreground">
-                    {{ $t('page.quartz.systemConfigPage.migrationSource') }}
-                  </div>
-                  <Select
-                    v-model:value="migrationSource"
-                    :options="storageOptions"
-                    :disabled="isMigrationRunning"
-                    class="w-full"
-                    size="middle"
-                  />
-                </div>
-                <div>
-                  <div class="mb-1 text-xs font-medium text-muted-foreground">
-                    {{ $t('page.quartz.systemConfigPage.migrationTarget') }}
-                  </div>
-                  <Select
-                    v-model:value="migrationTarget"
-                    :options="storageOptions"
-                    :disabled="isMigrationRunning"
-                    class="w-full"
-                    size="middle"
-                  />
-                </div>
-              </div>
-
-              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <div class="mb-1 text-xs font-medium text-muted-foreground">
-                    {{ $t('page.quartz.systemConfigPage.migrationMode') }}
-                  </div>
-                  <Select
-                    v-model:value="migrationMode"
-                    :options="modeOptions"
-                    :disabled="isMigrationRunning"
-                    class="w-full"
-                    size="middle"
-                  />
-                </div>
-                <div>
-                  <div class="mb-1 text-xs font-medium text-muted-foreground">
-                    {{ $t('page.quartz.systemConfigPage.migrationEntities') }}
-                  </div>
-                  <Checkbox.Group
-                    :value="migrationEntities"
-                    :options="entityOptions"
-                    :disabled="isMigrationRunning"
-                    @change="handleEntitiesChange"
-                  />
-                </div>
-              </div>
-
-              <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]">
-                <Checkbox
-                  v-model:checked="migrationContinueOnError"
-                  :disabled="isMigrationRunning"
-                >
-                  {{ $t('page.quartz.systemConfigPage.migrationContinueOnError') }}
-                </Checkbox>
-                <Checkbox
-                  v-model:checked="migrationPauseScheduler"
-                  :disabled="isMigrationRunning"
-                >
-                  {{ $t('page.quartz.systemConfigPage.migrationPauseScheduler') }}
-                </Checkbox>
-                <Checkbox
-                  v-model:checked="migrationAllowUpgradeSource"
-                  :disabled="isMigrationRunning"
-                >
-                  {{ $t('page.quartz.systemConfigPage.migrationAllowUpgradeSource') }}
-                </Checkbox>
-              </div>
-
-              <div
-                v-if="unavailableProviders.length"
-                class="rounded-md bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-600 dark:text-amber-400"
+            <div class="stat-card__value">
+              {{ currentStorageDisplay }}
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__label">
+              {{ $t('page.quartz.systemConfigPage.migrationFileStoragePath') }}
+            </div>
+            <div class="stat-card__value flex items-center gap-2">
+              <span
+                class="min-w-0 truncate font-mono text-xs"
+                :title="migrationOptions?.fileStoragePath"
               >
-                {{ $t('page.quartz.systemConfigPage.migrationMissingProvider') }}:
-                {{ unavailableProviders.join('、') }}
-              </div>
-
-              <!-- 操作 -->
-              <div class="flex flex-wrap items-center gap-2">
-                <Button
-                  :loading="previewLoading"
-                  :disabled="!canTrigger || isMigrationRunning"
-                  @click="handlePreviewMigration"
-                >
-                  {{
-                    previewLoading
-                      ? $t('page.quartz.systemConfigPage.migrationPreviewing')
-                      : $t('page.quartz.systemConfigPage.migrationPreview')
-                  }}
-                </Button>
-                <Button
-                  type="primary"
-                  :loading="migrationLoading || isMigrationRunning"
-                  :disabled="!canTrigger"
-                  @click="handleTriggerMigration(false)"
-                >
-                  {{
-                    isMigrationRunning
-                      ? $t('page.quartz.systemConfigPage.migrationTriggering')
-                      : $t('page.quartz.systemConfigPage.migrationTrigger')
-                  }}
-                </Button>
-                <Button
-                  v-if="isMigrationRunning"
-                  danger
-                  :loading="migrationLoading"
-                  @click="handleCancelMigration"
-                >
-                  {{ $t('page.quartz.systemConfigPage.migrationCancel') }}
-                </Button>
-                <Tooltip
-                  v-if="migrationStatus?.isCompleted && migrationStatus?.isSuccess"
-                  :title="$t('page.quartz.systemConfigPage.migrationAlreadyCompleted')"
-                >
-                  <span>
-                    <Button
-                      :loading="migrationLoading"
-                      :disabled="isMigrationRunning"
-                      @click="handleTriggerMigration(true)"
-                    >
-                      {{ $t('page.quartz.systemConfigPage.migrationTriggerForce') }}
-                    </Button>
-                  </span>
-                </Tooltip>
-              </div>
-            </div>
-
-            <!-- 迁移进度概览：详细摘要放入弹窗 -->
-            <div
-              v-if="hasMigrationSummary"
-              class="mt-4 flex items-center gap-3 rounded-lg border border-border/60 px-3 py-2.5"
-            >
-              <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                  <span class="font-medium">
-                    {{ $t('page.quartz.systemConfigPage.migrationSummary') }}
-                  </span>
-                  <span class="tabular-nums text-muted-foreground">
-                    {{ migrationStatus?.progressPercent ?? 0 }}% ·
-                    {{ migrationStatus?.processed ?? 0 }}/{{ migrationStatus?.total ?? 0 }}
-                  </span>
-                </div>
-                <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    class="h-full rounded-full bg-blue-500 transition-all duration-300"
-                    :style="{ width: `${migrationStatus?.progressPercent ?? 0}%` }"
-                  />
-                </div>
-              </div>
-              <Button
-                type="link"
-                size="small"
-                class="!h-auto shrink-0 !px-0 text-xs"
-                @click="summaryModalOpen = true"
+                {{ migrationOptions?.fileStoragePath || '-' }}
+              </span>
+              <Tag
+                v-if="migrationOptions"
+                :color="
+                  migrationOptions.fileStoragePathExists ? 'success' : 'error'
+                "
+                :bordered="false"
+                class="!m-0 shrink-0 !text-[11px]"
               >
-                {{ $t('page.quartz.systemConfigPage.migrationViewSummary') }}
-              </Button>
+                {{
+                  migrationOptions.fileStoragePathExists
+                    ? $t(
+                        'page.quartz.systemConfigPage.migrationFileStorageExists',
+                      )
+                    : $t(
+                        'page.quartz.systemConfigPage.migrationFileStorageNotExists',
+                      )
+                }}
+              </Tag>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__label">
+              {{ $t('page.quartz.systemConfigPage.migrationAvailableStores') }}
+            </div>
+            <div class="stat-card__value">
+              {{
+                $t('page.quartz.systemConfigPage.migrationAvailableStoresValue', {
+                  count: availableStoreCount,
+                })
+              }}
             </div>
           </div>
         </div>
-      </Transition>
-    </Card>
 
-    <!-- 预检结果弹窗 -->
-    <Modal
-      v-model:open="previewModalOpen"
-      :title="$t('page.quartz.systemConfigPage.migrationPreviewSummary')"
-      :width="640"
-      centered
-      :footer="null"
-    >
-      <div v-if="migrationPreview" class="space-y-3">
-        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
-          <span class="text-muted-foreground">
-            {{ $t('page.quartz.systemConfigPage.migrationSource') }}
+        <!-- 阻塞项：只有一种存储时无法组合源和目标 -->
+        <div
+          v-if="!hasAvailableStores"
+          class="flex gap-2 rounded-lg bg-amber-500/10 px-3 py-2.5 text-xs leading-5 text-amber-600 dark:text-amber-400"
+        >
+          <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+          <span>
+            {{ $t('page.quartz.systemConfigPage.migrationNoAvailableStore') }}
           </span>
-          <span class="font-medium">{{ migrationPreview.source }}</span>
-          <span class="text-muted-foreground">→</span>
-          <span class="text-muted-foreground">
-            {{ $t('page.quartz.systemConfigPage.migrationTarget') }}
-          </span>
-          <span class="font-medium">{{ migrationPreview.target }}</span>
-        </div>
-
-        <div class="overflow-hidden rounded-lg border border-border/60">
-          <div
-            class="grid grid-cols-[minmax(0,1.4fr)_repeat(5,minmax(0,1fr))] gap-x-3 border-b border-border/60 bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground"
-          >
-            <span>{{ $t('page.quartz.systemConfigPage.migrationEntities') }}</span>
-            <span class="text-right">
-              {{ $t('page.quartz.systemConfigPage.migrationPreviewSource') }}
-            </span>
-            <span class="text-right">
-              {{ $t('page.quartz.systemConfigPage.migrationPreviewTarget') }}
-            </span>
-            <span class="text-right">
-              {{ $t('page.quartz.systemConfigPage.migrationPreviewInsert') }}
-            </span>
-            <span class="text-right">
-              {{ $t('page.quartz.systemConfigPage.migrationPreviewUpdate') }}
-            </span>
-            <span class="text-right">
-              {{ $t('page.quartz.systemConfigPage.migrationPreviewSkip') }}
-            </span>
-          </div>
-          <div
-            v-for="item in migrationPreview.entities"
-            :key="item.entity"
-            class="grid grid-cols-[minmax(0,1.4fr)_repeat(5,minmax(0,1fr))] gap-x-3 border-b border-border/40 px-3 py-2 text-[13px] last:border-b-0"
-          >
-            <span class="truncate font-medium">{{ item.name }}</span>
-            <span class="text-right tabular-nums">{{ item.sourceCount }}</span>
-            <span class="text-right tabular-nums">{{ item.targetCount }}</span>
-            <span class="text-right tabular-nums text-emerald-600 dark:text-emerald-400">
-              {{ item.willInsert }}
-            </span>
-            <span class="text-right tabular-nums text-blue-600 dark:text-blue-400">
-              {{ item.willUpdate }}
-            </span>
-            <span
-              class="text-right tabular-nums"
-              :class="item.willSkip > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'"
-            >
-              {{ item.willSkip }}
-            </span>
-          </div>
-        </div>
-
-        <div v-if="migrationPreview.warnings.length" class="space-y-1">
-          <div
-            v-for="(warning, index) in migrationPreview.warnings"
-            :key="index"
-            class="break-all text-xs leading-5 text-amber-600 dark:text-amber-400"
-          >
-            • {{ warning }}
-          </div>
         </div>
 
         <div
-          v-if="!migrationPreview.canRun && migrationPreview.message"
-          class="break-all rounded-md bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-600 dark:text-red-400"
+          v-if="unavailableProviders.length"
+          class="flex gap-2 rounded-lg bg-amber-500/10 px-3 py-2.5 text-xs leading-5 text-amber-600 dark:text-amber-400"
         >
-          {{ migrationPreview.message }}
+          <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+          <span>
+            {{ $t('page.quartz.systemConfigPage.migrationMissingProvider') }}:
+            {{ unavailableProviders.join('、') }}
+          </span>
+        </div>
+
+        <!-- 迁移进度/上次结果：概览进卡片，明细进弹窗 -->
+        <div
+          v-if="hasMigrationSummary"
+          class="rounded-lg border border-border/60 bg-muted/20 px-4 py-3"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <span class="flex items-center gap-2 text-xs">
+              <span class="font-medium">
+                {{ $t('page.quartz.systemConfigPage.migrationSummary') }}
+              </span>
+              <span class="tabular-nums text-muted-foreground">
+                {{ migrationStatus?.progressPercent ?? 0 }}% ·
+                {{ migrationStatus?.processed ?? 0 }}/{{
+                  migrationStatus?.total ?? 0
+                }}
+              </span>
+            </span>
+            <span
+              v-if="
+                isMigrationRunning &&
+                (migrationStatus?.stage || migrationStatus?.currentEntity)
+              "
+              class="text-xs text-muted-foreground"
+            >
+              {{ migrationStatus?.stage }}
+              <template v-if="migrationStatus?.currentEntity">
+                · {{ migrationStatus?.currentEntity }}
+              </template>
+            </span>
+          </div>
+          <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              class="h-full rounded-full bg-blue-500 transition-all duration-300"
+              :style="{ width: `${migrationStatus?.progressPercent ?? 0}%` }"
+            />
+          </div>
+          <div
+            v-if="migrationStatus?.isCompleted"
+            class="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground"
+          >
+            <span>
+              {{ $t('page.quartz.systemConfigPage.migrationStartTime') }}
+              {{ formatTime(migrationStatus.startTime) }}
+            </span>
+            <span>
+              {{ $t('page.quartz.systemConfigPage.migrationDuration') }}
+              {{ formatDuration(migrationStatus.durationMs) }}
+            </span>
+          </div>
+        </div>
+
+        <!-- 操作：说明在左，按钮在右 -->
+        <div
+          class="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4"
+        >
+          <span class="text-xs leading-5 text-muted-foreground">
+            {{ $t('page.quartz.systemConfigPage.migrationCardHint') }}
+          </span>
+          <div class="flex flex-wrap items-center gap-2">
+            <Button
+              v-if="isMigrationRunning"
+              danger
+              :loading="migrationLoading"
+              @click="handleCancelMigration"
+            >
+              {{ $t('page.quartz.systemConfigPage.migrationCancel') }}
+            </Button>
+            <Button
+              v-if="hasMigrationSummary"
+              @click="summaryModalOpen = true"
+            >
+              {{ $t('page.quartz.systemConfigPage.migrationViewSummary') }}
+            </Button>
+            <Button
+              type="primary"
+              :disabled="!hasAvailableStores"
+              @click="openMigrationWizard"
+            >
+              {{ $t('page.quartz.systemConfigPage.migrationOpenWizard') }}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Card>
+
+    <!-- 有未保存修改时才浮出操作条：居中悬浮，避开右下角固定按钮 -->
+    <Transition name="save-bar">
+      <div
+        v-if="activeTab !== 'migration' && dirtyCount > 0"
+        class="pointer-events-none sticky bottom-5 z-10 mt-1 flex justify-center"
+      >
+        <div
+          class="pointer-events-auto flex items-center gap-2 rounded-full border border-border/60 bg-card/95 py-1.5 pl-4 pr-1.5 shadow-lg backdrop-blur"
+        >
+          <span class="flex items-center gap-2 text-xs">
+            <span class="h-1.5 w-1.5 rounded-full bg-amber-500" />
+            <span class="font-medium text-amber-600 dark:text-amber-400">
+              {{
+                $t('page.quartz.systemConfigPage.unsavedCount', {
+                  count: dirtyCount,
+                })
+              }}
+            </span>
+          </span>
+          <span class="mx-1.5 h-4 w-px bg-border" />
+          <Button
+            class="w-[72px]"
+            shape="round"
+            :disabled="saveLoading"
+            @click="handleReset"
+          >
+            {{ $t('page.quartz.systemConfigPage.reset') }}
+          </Button>
+          <!-- 固定宽度 + 延迟出现 spinner：快速保存时按钮不发生尺寸/图标突变 -->
+          <Button
+            class="w-[84px]"
+            shape="round"
+            type="primary"
+            :loading="saveLoading ? { delay: 200 } : false"
+            @click="handleSave"
+          >
+            {{ $t('page.quartz.systemConfigPage.save') }}
+          </Button>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- 身份信息编辑 -->
+    <Modal
+      v-model:open="identityModalOpen"
+      :title="$t('page.quartz.systemConfigPage.identityEditTitle')"
+      :width="560"
+      centered
+      :confirm-loading="identitySaving"
+      :ok-text="$t('page.quartz.systemConfigPage.save')"
+      :cancel-text="$t('page.quartz.systemConfigPage.cancel')"
+      @ok="saveIdentity"
+    >
+      <Form layout="vertical" class="config-form" :colon="false">
+        <FormItem
+          :label="$t('page.quartz.systemConfigPage.serviceName')"
+          :extra="$t('page.quartz.systemConfigPage.description')"
+        >
+          <Input
+            v-model:value="identityDraft.serviceName"
+            :placeholder="
+              $t('page.quartz.systemConfigPage.serviceNamePlaceholder')
+            "
+            allow-clear
+            size="middle"
+          />
+        </FormItem>
+        <FormItem :label="$t('page.quartz.systemConfigPage.environment')">
+          <Select
+            v-model:value="identityDraft.environment"
+            :options="environmentOptions"
+            :placeholder="
+              $t('page.quartz.systemConfigPage.environmentPlaceholder')
+            "
+            size="middle"
+            class="w-full"
+          />
+        </FormItem>
+        <FormItem :label="$t('page.quartz.systemConfigPage.serviceDescription')">
+          <Input.TextArea
+            v-model:value="identityDraft.serviceDescription"
+            :placeholder="
+              $t('page.quartz.systemConfigPage.serviceDescriptionPlaceholder')
+            "
+            :auto-size="{ minRows: 2, maxRows: 4 }"
+            :maxlength="200"
+            show-count
+            size="middle"
+          />
+        </FormItem>
+      </Form>
+    </Modal>
+
+    <!-- 迁移向导 -->
+    <Drawer
+      v-model:open="wizardOpen"
+      :title="$t('page.quartz.systemConfigPage.migrationTool')"
+      :width="760"
+      placement="right"
+      :body-style="{ padding: '20px 24px' }"
+      :footer-style="{ padding: '12px 24px' }"
+    >
+      <Steps
+        :current="wizardStep"
+        size="small"
+        :items="migrationWizardSteps"
+        class="mb-6"
+      />
+
+      <!-- 第一步：选择存储，交换按钮放在源与目标之间 -->
+      <div v-if="wizardStep === 0" class="space-y-4">
+        <div
+          class="grid grid-cols-1 items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"
+        >
+          <div>
+            <div class="mb-1 text-xs font-medium text-muted-foreground">
+              {{ $t('page.quartz.systemConfigPage.migrationSource') }}
+            </div>
+            <Select
+              v-model:value="migrationSource"
+              :options="storageOptions"
+              :disabled="isMigrationRunning"
+              class="w-full"
+              size="middle"
+            />
+          </div>
+          <Button
+            shape="circle"
+            :disabled="isMigrationRunning"
+            :title="$t('page.quartz.systemConfigPage.migrationSwap')"
+            @click="swapStores"
+          >
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.6"
+              viewBox="0 0 16 16"
+            >
+              <path d="M2.5 6h9M11.5 6 9 3.5M11.5 6 9 8.5" />
+              <path d="M13.5 10h-9M4.5 10 7 7.5M4.5 10 7 12.5" />
+            </svg>
+          </Button>
+          <div>
+            <div class="mb-1 text-xs font-medium text-muted-foreground">
+              {{ $t('page.quartz.systemConfigPage.migrationTarget') }}
+            </div>
+            <Select
+              v-model:value="migrationTarget"
+              :options="storageOptions"
+              :disabled="isMigrationRunning"
+              class="w-full"
+              size="middle"
+            />
+          </div>
+        </div>
+        <div class="text-xs leading-5 text-muted-foreground">
+          {{ $t('page.quartz.systemConfigPage.migrationStoreHint') }}
         </div>
       </div>
 
-      <div class="mt-5 flex justify-end gap-2">
-        <Button @click="previewModalOpen = false">
-          {{ $t('page.quartz.systemConfigPage.migrationClose') }}
-        </Button>
-        <Button
-          type="primary"
-          :loading="migrationLoading"
-          :disabled="!migrationPreview?.canRun"
-          @click="handleStartFromPreview"
+      <!-- 第二步：迁移选项 -->
+      <div v-else-if="wizardStep === 1" class="space-y-4">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <div class="mb-1 text-xs font-medium text-muted-foreground">
+              {{ $t('page.quartz.systemConfigPage.migrationMode') }}
+            </div>
+            <Select
+              v-model:value="migrationMode"
+              :options="modeOptions"
+              :disabled="isMigrationRunning"
+              class="w-full"
+              size="middle"
+            />
+          </div>
+          <div>
+            <div class="mb-1 text-xs font-medium text-muted-foreground">
+              {{ $t('page.quartz.systemConfigPage.migrationEntities') }}
+            </div>
+            <Checkbox.Group
+              :value="migrationEntities"
+              :options="entityOptions"
+              :disabled="isMigrationRunning"
+              @change="handleEntitiesChange"
+            />
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]">
+          <Checkbox
+            v-model:checked="migrationContinueOnError"
+            :disabled="isMigrationRunning"
+          >
+            {{ $t('page.quartz.systemConfigPage.migrationContinueOnError') }}
+          </Checkbox>
+          <Checkbox
+            v-model:checked="migrationPauseScheduler"
+            :disabled="isMigrationRunning"
+          >
+            {{ $t('page.quartz.systemConfigPage.migrationPauseScheduler') }}
+          </Checkbox>
+          <Checkbox
+            v-model:checked="migrationAllowUpgradeSource"
+            :disabled="isMigrationRunning"
+          >
+            {{
+              $t('page.quartz.systemConfigPage.migrationAllowUpgradeSource')
+            }}
+          </Checkbox>
+        </div>
+
+        <div
+          v-if="unavailableProviders.length"
+          class="rounded-md bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-600 dark:text-amber-400"
         >
-          {{ $t('page.quartz.systemConfigPage.migrationTrigger') }}
-        </Button>
+          {{ $t('page.quartz.systemConfigPage.migrationMissingProvider') }}:
+          {{ unavailableProviders.join('、') }}
+        </div>
       </div>
-    </Modal>
+
+      <!-- 第三步：预检与执行 -->
+      <div v-else class="space-y-3">
+        <!-- 运行中或已有迁移记录：展示进度 -->
+        <template v-if="showMigrationProgress">
+          <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <span
+              class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
+              :class="stateConfig[overallState].pill"
+            >
+              <span
+                class="h-1.5 w-1.5 rounded-full"
+                :class="[
+                  stateConfig[overallState].dot,
+                  overallState === 'running' ? 'pulse-dot' : '',
+                ]"
+              />
+              {{ overallStatusText }}
+            </span>
+            <span
+              v-if="migrationStatus?.total"
+              class="text-xs tabular-nums text-muted-foreground"
+            >
+              {{ migrationStatus?.progressPercent ?? 0 }}% ·
+              {{ migrationStatus?.processed ?? 0 }}/{{
+                migrationStatus?.total ?? 0
+              }}
+            </span>
+          </div>
+
+          <div class="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              class="h-full rounded-full bg-blue-500 transition-all duration-300"
+              :style="{ width: `${migrationStatus?.progressPercent ?? 0}%` }"
+            />
+          </div>
+
+          <div
+            v-if="
+              migrationStatus?.isRunning &&
+              (migrationStatus.stage || migrationStatus.currentEntity)
+            "
+            class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"
+          >
+            <span v-if="migrationStatus.stage">
+              {{ $t('page.quartz.systemConfigPage.migrationStage') }}:
+              <span class="font-mono text-foreground">
+                {{ migrationStatus.stage }}
+              </span>
+            </span>
+            <span v-if="migrationStatus.currentEntity">
+              {{ $t('page.quartz.systemConfigPage.migrationCurrentEntity') }}:
+              <span class="font-mono text-foreground">
+                {{ migrationStatus.currentEntity }}
+              </span>
+            </span>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <Button size="small" @click="summaryModalOpen = true">
+              {{ $t('page.quartz.systemConfigPage.migrationViewSummary') }}
+            </Button>
+            <span class="text-xs text-muted-foreground">
+              {{ $t('page.quartz.systemConfigPage.migrationRunHint') }}
+            </span>
+          </div>
+        </template>
+
+        <!-- 预检结果 -->
+        <template v-else-if="migrationPreview">
+          <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
+            <span class="text-muted-foreground">
+              {{ $t('page.quartz.systemConfigPage.migrationSource') }}
+            </span>
+            <span class="font-medium">{{ migrationPreview.source }}</span>
+            <span class="text-muted-foreground">→</span>
+            <span class="text-muted-foreground">
+              {{ $t('page.quartz.systemConfigPage.migrationTarget') }}
+            </span>
+            <span class="font-medium">{{ migrationPreview.target }}</span>
+          </div>
+
+          <div class="overflow-hidden rounded-lg border border-border/60">
+            <div
+              class="grid grid-cols-[minmax(0,1.4fr)_repeat(5,minmax(0,1fr))] gap-x-3 border-b border-border/60 bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground"
+            >
+              <span>
+                {{ $t('page.quartz.systemConfigPage.migrationEntities') }}
+              </span>
+              <span class="text-right">
+                {{ $t('page.quartz.systemConfigPage.migrationPreviewSource') }}
+              </span>
+              <span class="text-right">
+                {{ $t('page.quartz.systemConfigPage.migrationPreviewTarget') }}
+              </span>
+              <span class="text-right">
+                {{ $t('page.quartz.systemConfigPage.migrationPreviewInsert') }}
+              </span>
+              <span class="text-right">
+                {{ $t('page.quartz.systemConfigPage.migrationPreviewUpdate') }}
+              </span>
+              <span class="text-right">
+                {{ $t('page.quartz.systemConfigPage.migrationPreviewSkip') }}
+              </span>
+            </div>
+            <div
+              v-for="item in migrationPreview.entities"
+              :key="item.entity"
+              class="grid grid-cols-[minmax(0,1.4fr)_repeat(5,minmax(0,1fr))] gap-x-3 border-b border-border/40 px-3 py-2 text-[13px] last:border-b-0"
+            >
+              <span class="truncate font-medium">{{ item.name }}</span>
+              <span class="text-right tabular-nums">{{ item.sourceCount }}</span>
+              <span class="text-right tabular-nums">{{ item.targetCount }}</span>
+              <span
+                class="text-right tabular-nums text-emerald-600 dark:text-emerald-400"
+              >
+                {{ item.willInsert }}
+              </span>
+              <span
+                class="text-right tabular-nums text-blue-600 dark:text-blue-400"
+              >
+                {{ item.willUpdate }}
+              </span>
+              <span
+                class="text-right tabular-nums"
+                :class="
+                  item.willSkip > 0
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-muted-foreground'
+                "
+              >
+                {{ item.willSkip }}
+              </span>
+            </div>
+          </div>
+
+          <div v-if="migrationPreview.warnings.length" class="space-y-1">
+            <div
+              v-for="(warning, index) in migrationPreview.warnings"
+              :key="index"
+              class="break-all text-xs leading-5 text-amber-600 dark:text-amber-400"
+            >
+              • {{ warning }}
+            </div>
+          </div>
+
+          <div
+            v-if="!migrationPreview.canRun && migrationPreview.message"
+            class="break-all rounded-md bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-600 dark:text-red-400"
+          >
+            {{ migrationPreview.message }}
+          </div>
+        </template>
+
+        <div v-else class="text-xs text-muted-foreground">
+          {{ $t('page.quartz.systemConfigPage.migrationPreviewEmpty') }}
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="text-xs text-muted-foreground">
+            {{ $t('page.quartz.systemConfigPage.migrationCurrentStorage') }}：{{
+              currentStorageDisplay
+            }}
+          </span>
+          <div class="flex items-center gap-2">
+            <Button
+              v-if="wizardStep > 0"
+              :disabled="isMigrationRunning"
+              @click="wizardStep -= 1"
+            >
+              {{ $t('page.quartz.systemConfigPage.migrationPrev') }}
+            </Button>
+            <Button
+              v-if="wizardStep === 0"
+              type="primary"
+              :disabled="!storeSelectionValid"
+              @click="wizardStep = 1"
+            >
+              {{ $t('page.quartz.systemConfigPage.migrationNext') }}
+            </Button>
+            <Button
+              v-else-if="wizardStep === 1"
+              type="primary"
+              :loading="previewLoading"
+              :disabled="!storeSelectionValid || !migrationEntities.length"
+              @click="handlePreviewMigration"
+            >
+              {{
+                previewLoading
+                  ? $t('page.quartz.systemConfigPage.migrationPreviewing')
+                  : $t('page.quartz.systemConfigPage.migrationPreview')
+              }}
+            </Button>
+            <template v-else>
+              <Button
+                v-if="isMigrationRunning"
+                danger
+                :loading="migrationLoading"
+                @click="handleCancelMigration"
+              >
+                {{ $t('page.quartz.systemConfigPage.migrationCancel') }}
+              </Button>
+              <Button
+                v-else-if="migrationStatus?.isCompleted && migrationStatus?.isSuccess"
+                :loading="migrationLoading"
+                @click="handleTriggerMigration(true)"
+              >
+                {{ $t('page.quartz.systemConfigPage.migrationTriggerForce') }}
+              </Button>
+              <Button
+                v-else
+                type="primary"
+                :loading="migrationLoading"
+                :disabled="!canTrigger"
+                @click="handleTriggerMigration(false)"
+              >
+                {{ $t('page.quartz.systemConfigPage.migrationTrigger') }}
+              </Button>
+            </template>
+            <Button @click="wizardOpen = false">
+              {{ $t('page.quartz.systemConfigPage.migrationClose') }}
+            </Button>
+          </div>
+        </div>
+      </template>
+    </Drawer>
 
     <!-- 迁移摘要弹窗 -->
     <Modal
@@ -1608,7 +2292,10 @@ loadMigrationStatus(true);
           >
             <span
               class="h-1.5 w-1.5 rounded-full"
-              :class="[stateConfig[overallState].dot, overallState === 'running' ? 'pulse-dot' : '']"
+              :class="[
+                stateConfig[overallState].dot,
+                overallState === 'running' ? 'pulse-dot' : '',
+              ]"
             />
             {{ overallStatusText }}
           </span>
@@ -1617,7 +2304,9 @@ loadMigrationStatus(true);
             class="text-xs tabular-nums text-muted-foreground"
           >
             {{ migrationStatus?.progressPercent ?? 0 }}% ·
-            {{ migrationStatus?.processed ?? 0 }}/{{ migrationStatus?.total ?? 0 }}
+            {{ migrationStatus?.processed ?? 0 }}/{{
+              migrationStatus?.total ?? 0
+            }}
           </span>
         </div>
 
@@ -1629,16 +2318,23 @@ loadMigrationStatus(true);
         </div>
 
         <div
-          v-if="migrationStatus?.isRunning && (migrationStatus.stage || migrationStatus.currentEntity)"
+          v-if="
+            migrationStatus?.isRunning &&
+            (migrationStatus.stage || migrationStatus.currentEntity)
+          "
           class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"
         >
           <span v-if="migrationStatus.stage">
             {{ $t('page.quartz.systemConfigPage.migrationStage') }}:
-            <span class="font-mono text-foreground">{{ migrationStatus.stage }}</span>
+            <span class="font-mono text-foreground">
+              {{ migrationStatus.stage }}
+            </span>
           </span>
           <span v-if="migrationStatus.currentEntity">
             {{ $t('page.quartz.systemConfigPage.migrationCurrentEntity') }}:
-            <span class="font-mono text-foreground">{{ migrationStatus.currentEntity }}</span>
+            <span class="font-mono text-foreground">
+              {{ migrationStatus.currentEntity }}
+            </span>
           </span>
         </div>
 
@@ -1656,7 +2352,10 @@ loadMigrationStatus(true);
                 v-if="step.status === MigrationStepStatus.Pending"
                 class="h-2.5 w-2.5 rounded-full border-2 border-border"
               />
-              <span v-else-if="step.status === MigrationStepStatus.Running" class="spin" />
+              <span
+                v-else-if="step.status === MigrationStepStatus.Running"
+                class="spin"
+              />
               <span
                 v-else-if="step.status === MigrationStepStatus.Completed"
                 class="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-white"
@@ -1696,13 +2395,21 @@ loadMigrationStatus(true);
             </span>
 
             <div class="min-w-0 flex-1">
-              <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
+              <div
+                class="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5"
+              >
                 <span class="truncate text-[13px] font-medium text-foreground">
                   {{ stepName(step) }}
                 </span>
-                <span class="flex shrink-0 items-center gap-2 text-xs tabular-nums">
+                <span
+                  class="flex shrink-0 items-center gap-2 text-xs tabular-nums"
+                >
                   <span class="font-medium" :class="stepLabelClass(step.status)">
-                    {{ $t(`page.quartz.systemConfigPage.${stepLabelKey(step.status)}`) }}
+                    {{
+                      $t(
+                        `page.quartz.systemConfigPage.${stepLabelKey(step.status)}`,
+                      )
+                    }}
                   </span>
                   <span
                     v-if="step.status !== MigrationStepStatus.Pending"
@@ -1733,7 +2440,10 @@ loadMigrationStatus(true);
                 </span>
               </div>
               <div
-                v-if="step.status === MigrationStepStatus.Failed && step.errorMessage"
+                v-if="
+                  step.status === MigrationStepStatus.Failed &&
+                  step.errorMessage
+                "
                 class="mt-1 break-all text-xs leading-5 text-red-600 dark:text-red-400"
               >
                 {{ step.errorMessage }}
@@ -1744,14 +2454,20 @@ loadMigrationStatus(true);
 
         <!-- 失败原因 -->
         <div
-          v-if="(overallState === 'failed' || overallState === 'cancelled') && migrationStatus?.errorMessage"
+          v-if="
+            (overallState === 'failed' || overallState === 'cancelled') &&
+            migrationStatus?.errorMessage
+          "
           class="break-all rounded-md bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-600 dark:text-red-400"
         >
           {{ migrationStatus.errorMessage }}
         </div>
 
         <!-- 告警 -->
-        <div v-if="migrationWarnings.length" class="rounded-md bg-amber-500/10 px-3 py-2">
+        <div
+          v-if="migrationWarnings.length"
+          class="rounded-md bg-amber-500/10 px-3 py-2"
+        >
           <div class="text-xs font-medium text-amber-600 dark:text-amber-400">
             {{ $t('page.quartz.systemConfigPage.migrationWarnings') }}
           </div>
@@ -1778,7 +2494,8 @@ loadMigrationStatus(true);
             class="mt-1 flex flex-wrap gap-x-2 text-xs leading-5 text-red-600 dark:text-red-400"
           >
             <span class="font-mono">
-              {{ sample.entity }}<template v-if="sample.field">.{{ sample.field }}</template>
+              {{ sample.entity
+              }}<template v-if="sample.field">.{{ sample.field }}</template>
               · {{ sample.key }}
             </span>
             <span class="break-all">{{ sample.message }}</span>
@@ -1793,7 +2510,9 @@ loadMigrationStatus(true);
           <div class="text-xs font-medium text-muted-foreground">
             {{ $t('page.quartz.systemConfigPage.migrationSuggestedConfig') }}
           </div>
-          <pre class="mt-1 overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs leading-5 text-foreground">{{ migrationStatus.suggestedConfig }}</pre>
+          <pre
+            class="mt-1 overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs leading-5 text-foreground"
+>{{ migrationStatus.suggestedConfig }}</pre>
         </div>
 
         <!-- 完成信息 -->
@@ -1834,39 +2553,133 @@ loadMigrationStatus(true);
 </template>
 
 <style scoped>
-/* ============ 基础信息紧凑布局 ============ */
-.compact-form :deep(.ant-form-item) {
-  margin-bottom: 12px;
+/* ============ 分区导航 ============ */
+.system-config-tabs :deep(.ant-segmented-item-label) {
+  min-height: 30px;
+  padding: 0 20px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 30px;
 }
 
-/* ============ 配置表单：分组内响应式多列，标签位于控件上方 ============ */
+/* ============ 分组 ============ */
+.config-block + .config-block {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid hsl(var(--border) / 0.6);
+}
+
+.config-block__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: hsl(var(--foreground));
+}
+
+.config-block__action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+}
+
+/* ============ 选项卡片：把模式/策略的差异平铺出来 ============ */
+.option-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.option-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.option-card:hover {
+  border-color: hsl(var(--primary) / 0.55);
+}
+
+.option-card.is-active {
+  background: hsl(var(--primary) / 0.06);
+  border-color: hsl(var(--primary));
+}
+
+.option-card__title {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  color: hsl(var(--foreground));
+}
+
+.option-card.is-active .option-card__title {
+  color: hsl(var(--primary));
+}
+
+.option-card__desc {
+  font-size: 12px;
+  line-height: 18px;
+  color: hsl(var(--muted-foreground));
+}
+
+.option-cards.is-disabled {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+@media (max-width: 900px) {
+  .option-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============ 表单（仅身份信息弹窗使用） ============ */
+.config-form :deep(.ant-form-item) {
+  margin-bottom: 18px;
+}
+
 .config-form :deep(.ant-form-item-label) {
-  padding-bottom: 6px;
   text-align: left;
 }
 
 .config-form :deep(.ant-form-item-label > label) {
   height: auto;
-  line-height: 1.4;
   font-size: 13px;
-  white-space: normal;
+  line-height: 1.4;
   text-align: left;
+  white-space: normal;
 }
 
-/* 列内控件占满列宽，同一列宽度一致 */
+.config-form :deep(.ant-form-item-extra) {
+  min-height: 0;
+  padding-top: 0;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
 .config-form :deep(.ant-form-item-control) {
   width: 100%;
 }
 
-/* Tooltip 或组合控件包裹时仍占满控件区 */
 .config-form :deep(.ant-form-item-control-input-content) {
   width: 100%;
-}
-
-/* 数值多为两位量级，控件收窄但仍保留单位后缀 */
-.config-form :deep(.ant-input-number),
-.config-form :deep(.ant-input-number-group-wrapper) {
-  max-width: 200px;
 }
 
 /* 单位后缀不换行，与数值输入保持同一视觉层级 */
@@ -1876,16 +2689,27 @@ loadMigrationStatus(true);
   color: hsl(var(--muted-foreground));
 }
 
-/* ============ 停机与恢复 ============ */
-/* 开关字段与输入控件等高，并附带状态标签 */
-.switch-field {
-  display: flex;
-  min-height: 32px;
-  align-items: center;
-  gap: 8px;
+/* ============ 数据迁移 ============ */
+.stat-card {
+  padding: 12px 16px;
+  background: hsl(var(--muted) / 0.25);
+  border: 1px solid hsl(var(--border) / 0.6);
+  border-radius: 10px;
 }
 
-/* ============ 数据迁移 ============ */
+.stat-card__label {
+  font-size: 12px;
+  line-height: 18px;
+  color: hsl(var(--muted-foreground));
+}
+
+.stat-card__value {
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+  color: hsl(var(--foreground));
+}
 
 /* 运行中状态点脉冲 */
 .pulse-dot {
@@ -1944,28 +2768,18 @@ loadMigrationStatus(true);
   margin-top: 3px;
 }
 
-/* 折叠动画（grid-rows，高度自适应） */
-.collapse-grid {
-  display: grid;
-  grid-template-rows: 1fr;
-}
-
-.collapse-inner {
-  min-height: 0;
-  overflow: hidden;
-}
-
-.expand-enter-active,
-.expand-leave-active {
+/* ============ 浮动保存条 ============ */
+.save-bar-enter-active,
+.save-bar-leave-active {
   transition:
-    grid-template-rows 0.3s ease,
-    opacity 0.25s ease;
+    opacity 0.18s ease,
+    transform 0.18s ease;
 }
 
-.expand-enter-from,
-.expand-leave-to {
-  grid-template-rows: 0fr;
+.save-bar-enter-from,
+.save-bar-leave-to {
   opacity: 0;
+  transform: translateY(8px);
 }
 
 @keyframes pulse {

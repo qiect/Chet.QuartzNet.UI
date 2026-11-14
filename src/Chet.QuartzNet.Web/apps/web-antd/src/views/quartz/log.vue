@@ -580,10 +580,25 @@ const canRerun = (row: LogResponseDto) =>
   row.status === LogStatusEnum.INTERRUPTED &&
   row.compensationStatus !== 'Triggered';
 
+const canClickRerun = (row: LogResponseDto) =>
+  canRerun(row) && !isRerunning(row.logId);
+
+// 不可重跑的原因：补偿重跑/手动重跑都走同一条补偿认领，触发后不再允许重复执行
+const rerunDisabledReason = (row: LogResponseDto) => {
+  if (isRerunning(row.logId)) {
+    return $t('page.quartz.logPage.rerunSubmitting');
+  }
+  if (row.compensationStatus === 'Triggered') {
+    return $t('page.quartz.logPage.rerunTriggered');
+  }
+  return '';
+};
+
+// 提示文案始终可读：不可点击时说明原因，避免出现"灰掉但没有解释"的按钮
 const rerunTip = (row: LogResponseDto) =>
-  canRerun(row)
+  canClickRerun(row)
     ? $t('page.quartz.logPage.rerun')
-    : $t('page.quartz.logPage.rerunTriggered');
+    : rerunDisabledReason(row);
 
 const refreshDetailIfNeeded = async (logId: string) => {
   if (!detailModalVisible.value || logDetail.value?.logId !== logId) return;
@@ -606,7 +621,9 @@ const refreshDetailIfNeeded = async (logId: string) => {
 
 const handleRerun = (row: LogResponseDto) => {
   if (!canRerun(row)) {
-    message.warning($t('page.quartz.logPage.rerunTriggered'));
+    message.warning(
+      rerunDisabledReason(row) || $t('page.quartz.logPage.rerunTriggered'),
+    );
     return;
   }
   Modal.confirm({
@@ -909,14 +926,22 @@ onMounted(async () => {
             <Tooltip :title="$t('page.quartz.logPage.detail')">
               <i class="vxe-icon-info-circle-fill text-primary cursor-pointer hover:opacity-80 px-1" @click="handleDetail(row)"></i>
             </Tooltip>
+            <!-- 操作列紧贴表格右边界，用 topRight 让气泡向左展开：
+                 居中对齐会被 antd 向左挤以避开右边界，导致箭头不再指向图标 -->
             <Tooltip
               v-if="row.status === LogStatusEnum.INTERRUPTED"
               :title="rerunTip(row)"
+              placement="topRight"
             >
+              <!-- 不可重跑时保留 hover 事件，否则灰掉的图标没有任何提示 -->
               <i
-                class="vxe-icon-refresh text-warning cursor-pointer hover:opacity-80 px-1"
-                :class="{ 'pointer-events-none opacity-50': isRerunning(row.logId) || !canRerun(row) }"
-                @click="canRerun(row) && !isRerunning(row.logId) && handleRerun(row)"
+                class="vxe-icon-refresh text-warning px-1"
+                :class="
+                  canClickRerun(row)
+                    ? 'cursor-pointer hover:opacity-80'
+                    : 'cursor-not-allowed opacity-50'
+                "
+                @click="canClickRerun(row) && handleRerun(row)"
               ></i>
             </Tooltip>
           </div>
@@ -1057,16 +1082,20 @@ onMounted(async () => {
 
           <!-- 底部按钮 -->
           <div class="detail-footer">
-            <Button
+            <Tooltip
               v-if="logDetail.status === LogStatusEnum.INTERRUPTED"
-              class="mr-2"
-              :loading="isRerunning(logDetail.logId)"
-              :disabled="!canRerun(logDetail)"
-              :title="canRerun(logDetail) ? '' : $t('page.quartz.logPage.rerunTriggered')"
-              @click="handleRerun(logDetail)"
+              :title="rerunDisabledReason(logDetail)"
             >
-              {{ canRerun(logDetail) ? $t('page.quartz.logPage.rerun') : $t('page.quartz.logPage.rerunTriggered') }}
-            </Button>
+              <span class="mr-2 inline-flex">
+                <Button
+                  :loading="isRerunning(logDetail.logId)"
+                  :disabled="!canClickRerun(logDetail)"
+                  @click="handleRerun(logDetail)"
+                >
+                  {{ $t('page.quartz.logPage.rerun') }}
+                </Button>
+              </span>
+            </Tooltip>
             <Button @click="detailModalVisible = false" type="primary">
               {{ $t('page.quartz.logPage.close') }}
             </Button>

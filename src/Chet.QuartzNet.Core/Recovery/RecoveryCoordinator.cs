@@ -1,4 +1,5 @@
 using Chet.QuartzNet.Core.Interfaces;
+using Chet.QuartzNet.Core.Scheduling;
 using Chet.QuartzNet.Models.DTOs;
 using Chet.QuartzNet.Models.Entities;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +15,7 @@ public sealed class RecoveryCoordinator
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ISchedulerFactory _schedulerFactory;
+    private readonly SchedulerInstance _schedulerInstance;
     private readonly RecoveryOptionsProvider _options;
     private readonly RuntimeInstance _instance;
     private readonly RecoverySummaryStore _summary;
@@ -25,6 +27,7 @@ public sealed class RecoveryCoordinator
     public RecoveryCoordinator(
         IServiceScopeFactory scopeFactory,
         ISchedulerFactory schedulerFactory,
+        SchedulerInstance schedulerInstance,
         RecoveryOptionsProvider options,
         RuntimeInstance instance,
         RecoverySummaryStore summary,
@@ -33,10 +36,20 @@ public sealed class RecoveryCoordinator
     {
         _scopeFactory = scopeFactory;
         _schedulerFactory = schedulerFactory;
+        _schedulerInstance = schedulerInstance;
         _options = options;
         _instance = instance;
         _summary = summary;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// 取当前调度器实例（优先复用进程内缓存，避免隐式创建未启动的新实例）
+    /// </summary>
+    private async Task<IScheduler> GetSchedulerAsync(CancellationToken cancellationToken)
+    {
+        return _schedulerInstance.Current
+            ?? await _schedulerFactory.GetScheduler(cancellationToken);
     }
 
     /// <summary>
@@ -116,7 +129,7 @@ public sealed class RecoveryCoordinator
         // 必须在认领补偿权、创建 Running 预建日志之前校验：
         // 调度器未运行/待机时 TriggerJob 会「成功」却不执行，会留下永不收尾的运行中记录，
         // 且原中断记录已被标记为已补偿，补偿资格白白丢失。
-        var scheduler = await _schedulerFactory.GetScheduler(cancellationToken);
+        var scheduler = await GetSchedulerAsync(cancellationToken);
         if (scheduler.IsShutdown || !scheduler.IsStarted || scheduler.InStandbyMode)
         {
             return ApiResponseDto<bool>.ErrorResponse(
@@ -209,7 +222,7 @@ public sealed class RecoveryCoordinator
         using var scope = _scopeFactory.CreateScope();
         var storage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
         var jobService = scope.ServiceProvider.GetRequiredService<IQuartzJobService>();
-        var scheduler = await _schedulerFactory.GetScheduler(cancellationToken);
+        var scheduler = await GetSchedulerAsync(cancellationToken);
 
         var staleBefore = DateTime.Now.AddSeconds(-options.LeaseDurationSeconds);
         var candidates = await storage.GetRecoverableLogsAsync(

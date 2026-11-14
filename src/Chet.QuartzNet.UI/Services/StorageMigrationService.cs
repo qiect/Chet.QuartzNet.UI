@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Chet.QuartzNet.Core.Configuration;
 using Chet.QuartzNet.Core.Interfaces;
 using Chet.QuartzNet.Core.Migration;
+using Chet.QuartzNet.Core.Scheduling;
 using Chet.QuartzNet.EFCore.MigrationSupport;
 using Chet.QuartzNet.Models.DTOs;
 using Chet.QuartzNet.Models.Entities;
@@ -57,6 +58,7 @@ public class StorageMigrationService
     private readonly ILogger<StorageMigrationService> _logger;
     private readonly MigrationStoreFactory _storeFactory;
     private readonly ISchedulerFactory _schedulerFactory;
+    private readonly SchedulerInstance _schedulerInstance;
     private readonly object _lock = new();
 
     private DataMigrationStatusDto _status = new();
@@ -71,7 +73,8 @@ public class StorageMigrationService
         IConfiguration configuration,
         ILogger<StorageMigrationService> logger,
         MigrationStoreFactory storeFactory,
-        ISchedulerFactory schedulerFactory
+        ISchedulerFactory schedulerFactory,
+        SchedulerInstance schedulerInstance
     )
     {
         _options = options;
@@ -79,6 +82,7 @@ public class StorageMigrationService
         _logger = logger;
         _storeFactory = storeFactory;
         _schedulerFactory = schedulerFactory;
+        _schedulerInstance = schedulerInstance;
         _status = CreateStatus();
     }
 
@@ -492,7 +496,8 @@ public class StorageMigrationService
             {
                 try
                 {
-                    scheduler = await _schedulerFactory.GetScheduler(cts.Token);
+                    scheduler = _schedulerInstance.Current
+                        ?? await _schedulerFactory.GetScheduler(cts.Token);
                     await scheduler.Standby(cts.Token);
                     _logger.LogInformation("迁移期间已暂停调度器");
                 }

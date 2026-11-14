@@ -494,6 +494,16 @@ public class SchedulerStatusDto
     public bool IsDraining { get; set; }
 
     /// <summary>
+    /// 是否处于排水收尾（正在关闭调度器）
+    /// </summary>
+    public bool IsStopping { get; set; }
+
+    /// <summary>
+    /// 当前生效的停机策略（启动期配置，重启后生效）
+    /// </summary>
+    public ShutdownMode ShutdownMode { get; set; } = ShutdownMode.Drain;
+
+    /// <summary>
     /// 排水开始时间
     /// </summary>
     public DateTime? DrainStartedAt { get; set; }

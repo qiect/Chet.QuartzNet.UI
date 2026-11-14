@@ -49,12 +49,13 @@ public class SystemConfigDto
     public ShutdownMode ShutdownMode { get; set; } = ShutdownMode.Drain;
 
     /// <summary>
-    /// Wait 模式下等待执行中任务完成的最长秒数
+    /// 兼容保留：「等待完成」已并入「排水后停止」，不再单独使用该超时。
+    /// 仅用于兼容历史配置，停机等待统一使用 <see cref="DrainTimeoutSeconds"/>。
     /// </summary>
     public int ShutdownWaitTimeoutSeconds { get; set; } = 30;
 
     /// <summary>
-    /// Drain 模式下等待执行中任务完成的最长秒数
+    /// 排水后停止模式下等待执行中任务完成的最长秒数
     /// </summary>
     public int DrainTimeoutSeconds { get; set; } = 60;
 
@@ -143,12 +144,13 @@ public enum ShutdownMode
     Immediate = 0,
 
     /// <summary>
-    /// 停止接收新触发，等待执行中任务收尾（有超时）
+    /// 停止接收新触发，等待执行中任务收尾；超时后强制关闭并把未完成的执行标记为中断
     /// </summary>
     Drain = 1,
 
     /// <summary>
-    /// 等待全部任务完成（有超时）
+    /// 兼容别名：与 <see cref="Drain"/> 行为完全一致（超时也使用排水超时），
+    /// 仅为兼容历史配置保留，新配置不应再使用。
     /// </summary>
     Wait = 2,
 }
