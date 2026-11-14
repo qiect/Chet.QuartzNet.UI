@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue';
+import {
+  ref,
+  computed,
+  onActivated,
+  onDeactivated,
+  onMounted,
+  onUnmounted,
+  watch,
+} from 'vue';
+import { useRoute } from 'vue-router';
 // 导入日期格式化工具
 import { formatDateTime } from '@vben/utils';
 import dayjs from 'dayjs';
@@ -11,7 +20,10 @@ import {
   Button,
   Descriptions,
   DescriptionsItem,
+  InputNumber,
   Modal,
+  Popover,
+  Switch,
   Tag,
   Tooltip,
   message,
@@ -25,20 +37,95 @@ import { useI18n } from '@vben/locales';
 import {
   LogStatusEnum,
   getLogList,
+  getJobLog,
   clearLogs,
+  rerunInterruptedLog,
 } from '../../api/quartz/log';
-import type { LogQueryParams, LogResponseDto } from '../../api/quartz/log';
+import type {
+  CompensationStatus,
+  LogQueryParams,
+  LogResponseDto,
+  TriggerType,
+} from '../../api/quartz/log';
+// 日志自动清理配置沿用系统配置接口
+import {
+  getSystemConfig,
+  saveSystemConfig,
+} from '../../api/quartz/system-config';
+import type { SystemConfigDto } from '../../api/quartz/system-config';
 // 导入可拖动 Modal 组合式函数
 import { useDraggableModal } from './composables/use-draggable-modal';
+// 导入表头排序标识恢复逻辑
+import { applyGridSortIndicator } from './composables/grid-sort-indicator';
 
 const { locale } = useI18n();
+const route = useRoute();
 
-// 日志状态映射
+// 与 RecoveryNotice.vue 约定的一次性筛选标记
+const LOG_PENDING_FILTER_KEY = 'quartz-log-pending-filter';
+
+// 日志状态映射（列表/筛选/详情共用）
 const logStatusMap = {
   [LogStatusEnum.SUCCESS]: { text: () => $t('page.quartz.logPage.statusSuccess'), status: 'success' },
   [LogStatusEnum.ERROR]: { text: () => $t('page.quartz.logPage.statusError'), status: 'error' },
   [LogStatusEnum.RUNNING]: { text: () => $t('page.quartz.logPage.statusRunning'), status: 'processing' },
   [LogStatusEnum.SKIPPED]: { text: () => $t('page.quartz.logPage.statusSkipped'), status: 'warning' },
+  [LogStatusEnum.INTERRUPTED]: { text: () => $t('page.quartz.logPage.statusInterrupted'), status: 'magenta' },
+};
+
+const statusOptions = computed(() => [
+  { label: $t('page.quartz.logPage.statusSuccess'), value: LogStatusEnum.SUCCESS },
+  { label: $t('page.quartz.logPage.statusError'), value: LogStatusEnum.ERROR },
+  { label: $t('page.quartz.logPage.statusRunning'), value: LogStatusEnum.RUNNING },
+  { label: $t('page.quartz.logPage.statusSkipped'), value: LogStatusEnum.SKIPPED },
+  { label: $t('page.quartz.logPage.statusInterrupted'), value: LogStatusEnum.INTERRUPTED },
+]);
+
+const triggerTypeMap: Record<TriggerType, { text: () => string; color: string }> = {
+  Cron: { text: () => $t('page.quartz.logPage.triggerCron'), color: 'default' },
+  Manual: { text: () => $t('page.quartz.logPage.triggerManual'), color: 'blue' },
+  Recovery: { text: () => $t('page.quartz.logPage.triggerRecovery'), color: 'cyan' },
+  Unknown: { text: () => $t('page.quartz.logPage.triggerUnknown'), color: 'default' },
+};
+
+const compensationStatusText = (status?: CompensationStatus) => {
+  switch (status) {
+    case 'Pending':
+      return $t('page.quartz.logPage.compensationPending');
+    case 'Triggered':
+      return $t('page.quartz.logPage.compensationTriggered');
+    case 'Skipped':
+      return $t('page.quartz.logPage.compensationSkipped');
+    case 'Failed':
+      return $t('page.quartz.logPage.compensationFailed');
+    default:
+      return $t('page.quartz.logPage.compensationNone');
+  }
+};
+
+// 行级重跑 loading / 补偿来源 / 运行中计时
+const rerunningIds = ref<Set<string>>(new Set());
+const sourceLoading = ref(false);
+const sourceDetail = ref<LogResponseDto | null>(null);
+const nowTick = ref(Date.now());
+const hasRunningRows = ref(false);
+// 当前页数据快照，用于只探测运行中行的最终状态，不做整表反复刷新
+const currentRows = ref<LogResponseDto[]>([]);
+let tickerTimer: ReturnType<typeof setInterval> | null = null;
+let statusTimer: ReturnType<typeof setInterval> | null = null;
+
+// 「仅看需要处理」= 同时筛选失败 + 中断两类日志，放在工具栏即时生效
+const needsAttentionOnly = ref(false);
+const handleNeedsAttentionChange = async () => {
+  if (needsAttentionOnly.value) {
+    await gridApi.formApi.setValues({ status: undefined });
+  }
+  await gridApi.query();
+};
+
+const toggleNeedsAttention = async () => {
+  needsAttentionOnly.value = !needsAttentionOnly.value;
+  await handleNeedsAttentionChange();
 };
 
 // 响应式数据
@@ -54,6 +141,15 @@ const formatDuration = (ms?: number | null) => {
   if (ms < 60_000) return `${parseFloat((ms / 1000).toFixed(2))} s`;
   if (ms < 3_600_000) return `${parseFloat((ms / 60_000).toFixed(2))} min`;
   return `${parseFloat((ms / 3_600_000).toFixed(2))} h`;
+};
+
+// 列表耗时展示：运行中按当前时间动态计算
+const displayDuration = (row: LogResponseDto) => {
+  if (row.status === LogStatusEnum.RUNNING) {
+    const start = dayjs(row.startTime).valueOf();
+    return formatDuration(Math.max(0, nowTick.value - start));
+  }
+  return formatDuration(row.duration);
 };
 
 // JSON 字段格式化：字符串可能是被转义过的 JSON 字符串，先 parse 一次解层转义，再美化输出
@@ -89,14 +185,7 @@ const formatJsonField = (value: any): string => {
 
 // 搜索条件由 VbenForm 自动注入到 query 的 formValues
 
-// 详情顶部状态条颜色：成功绿 / 错误红 / 运行中蓝
-const logStatusColor = computed(() => {
-  const status = logDetail.value?.status;
-  if (status === LogStatusEnum.SUCCESS) return '#52c41a';
-  if (status === LogStatusEnum.ERROR) return '#ff4d4f';
-  if (status === LogStatusEnum.SKIPPED) return '#faad14';
-  return '#1890ff';
-});
+
 
 // 列配置
 const columns = computed(() => [
@@ -119,6 +208,13 @@ const columns = computed(() => [
     width: 100,
     align: 'center' as const,
     slots: { default: 'status' },
+  },
+  {
+    field: 'triggerType',
+    title: $t('page.quartz.logPage.triggerSource'),
+    width: 130,
+    align: 'center' as const,
+    slots: { default: 'triggerType' },
   },
   {
     field: 'startTime',
@@ -147,7 +243,7 @@ const columns = computed(() => [
   {
     field: 'action',
     title: $t('page.quartz.logPage.action'),
-    width: 70,
+    width: 110,
     align: 'center' as const,
     fixed: 'right',
     slots: { default: 'action' },
@@ -166,6 +262,11 @@ const savedSort = (() => {
     return undefined;
   }
 })();
+// 默认排序：日志按开始时间倒序，保证首次进入也有排序标识
+const DEFAULT_SORT = { field: 'startTime', order: 'desc' as const };
+const initialSort = savedSort ?? DEFAULT_SORT;
+// 当前生效的排序：点击表头后会同步更新，搜索/刷新后据此恢复列头标识与查询参数
+const currentSort = { field: initialSort.field, order: initialSort.order };
 const savedSearch = (() => {
   try {
     const raw = localStorage.getItem(SEARCH_KEY);
@@ -185,7 +286,7 @@ const gridOptions: VxeTableGridOptions<LogResponseDto> = {
   sortConfig: {
     trigger: 'cell',
     remote: true,
-    defaultSort: savedSort,
+    defaultSort: initialSort,
   },
   customConfig: { storage: true },
   columnConfig: { resizable: true },
@@ -195,18 +296,9 @@ const gridOptions: VxeTableGridOptions<LogResponseDto> = {
     autoLoad: false,
     ajax: {
       query: async ({ page, sort }: any, formValues: any) => {
-        // autoLoad 首次 query 时 defaultSort 可能未注入，从 localStorage 兜底
-        let sortField = sort?.field;
-        let sortOrderRaw = sort?.order;
-        if (!sortField) {
-          try {
-            const saved = JSON.parse(localStorage.getItem(SORT_KEY) || 'null');
-            if (saved) {
-              sortField = saved.field;
-              sortOrderRaw = saved.order;
-            }
-          } catch {}
-        }
+        // 代理 reload（搜索/刷新）会清空列头排序，回退到当前生效的排序
+        const sortField = sort?.field ?? currentSort.field;
+        const sortOrderRaw = sort?.order ?? currentSort.order;
         // 保持原有行为：sortOrder 使用 asc/desc 形式
         const sortOrder =
           sortOrderRaw === 'asc' ? 'asc' : sortOrderRaw === 'desc' ? 'desc' : '';
@@ -244,10 +336,14 @@ const gridOptions: VxeTableGridOptions<LogResponseDto> = {
           }
           localStorage.setItem(SEARCH_KEY, JSON.stringify(persisted));
         } catch {}
+        const needsAttention = needsAttentionOnly.value;
         const params = {
           jobName: currentValues?.jobName,
           jobGroup: currentValues?.jobGroup,
-          status: currentValues?.status,
+          status: needsAttention ? undefined : currentValues?.status,
+          statuses: needsAttention
+            ? [LogStatusEnum.ERROR, LogStatusEnum.INTERRUPTED]
+            : undefined,
           startStartTime: startTimeRange?.[0]?.format('YYYY-MM-DDTHH:mm:ss'),
           endStartTime: startTimeRange?.[1]?.format('YYYY-MM-DDTHH:mm:ss'),
           startEndTime: endTimeRange?.[0]?.format('YYYY-MM-DDTHH:mm:ss'),
@@ -267,6 +363,10 @@ const gridOptions: VxeTableGridOptions<LogResponseDto> = {
               response.data.items &&
               Array.isArray(response.data.items)
             ) {
+              currentRows.value = response.data.items;
+              hasRunningRows.value = response.data.items.some(
+                (item) => item.status === LogStatusEnum.RUNNING,
+              );
               return {
                 result: response.data.items,
                 page: {
@@ -274,6 +374,8 @@ const gridOptions: VxeTableGridOptions<LogResponseDto> = {
                 },
               };
             }
+            currentRows.value = [];
+            hasRunningRows.value = false;
             return { result: [], page: { total: 0 } };
           }
           // 处理错误情况，包括可能的errorCode
@@ -291,6 +393,11 @@ const gridOptions: VxeTableGridOptions<LogResponseDto> = {
           );
           return { result: [], page: { total: 0 } };
         }
+      },
+      // 搜索/刷新走的是代理 reload，vxe 在 reload 前会 clearSort 清空列头排序状态，
+      // 数据仍按 initialSort 排序，这里把列头标识补回来，避免标识与数据不一致
+      querySuccess: () => {
+        restoreSortIndicator();
       },
     },
     sort: true,
@@ -323,12 +430,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
         componentProps: {
           allowClear: true,
           placeholder: $t('page.quartz.logPage.placeholderStatus'),
-          options: [
-            { label: $t('page.quartz.logPage.statusSuccess'), value: LogStatusEnum.SUCCESS },
-            { label: $t('page.quartz.logPage.statusError'), value: LogStatusEnum.ERROR },
-            { label: $t('page.quartz.logPage.statusRunning'), value: LogStatusEnum.RUNNING },
-            { label: $t('page.quartz.logPage.statusSkipped'), value: LogStatusEnum.SKIPPED },
-          ],
+          options: statusOptions.value,
         },
         fieldName: 'status',
         label: $t('page.quartz.logPage.executionStatus'),
@@ -346,6 +448,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
         label: $t('page.quartz.logPage.endTime'),
       },
     ],
+    commonConfig: {
+      // 关闭浏览器对搜索框的自动填充/历史建议
+      componentProps: { autocomplete: 'off' },
+    },
     showCollapseButton: true,
     collapsed: true,
     submitOnChange: false,
@@ -355,11 +461,16 @@ const [Grid, gridApi] = useVbenVxeGrid({
     sortChange: ({ property, field, order }: any) => {
       const sortField = property || field;
       if (sortField && order) {
+        currentSort.field = sortField;
+        currentSort.order = order;
         localStorage.setItem(
           SORT_KEY,
           JSON.stringify({ field: sortField, order }),
         );
       } else {
+        // 取消排序后回退到默认排序，保证列头标识与查询参数始终一致
+        currentSort.field = DEFAULT_SORT.field;
+        currentSort.order = DEFAULT_SORT.order;
         localStorage.removeItem(SORT_KEY);
       }
     },
@@ -389,12 +500,7 @@ watch(locale, () => {
       componentProps: {
         allowClear: true,
         placeholder: $t('page.quartz.logPage.placeholderStatus'),
-        options: [
-          { label: $t('page.quartz.logPage.statusSuccess'), value: LogStatusEnum.SUCCESS },
-          { label: $t('page.quartz.logPage.statusError'), value: LogStatusEnum.ERROR },
-          { label: $t('page.quartz.logPage.statusRunning'), value: LogStatusEnum.RUNNING },
-          { label: $t('page.quartz.logPage.statusSkipped'), value: LogStatusEnum.SKIPPED },
-        ],
+        options: statusOptions.value,
       },
     },
     {
@@ -408,13 +514,118 @@ watch(locale, () => {
   ]);
 });
 
+// 恢复表头排序标识：仅在当前排序与期望不一致时设置，避免触发多余查询
+const restoreSortIndicator = () => applyGridSortIndicator(gridApi, currentSort);
+
 // 搜索/重置由 VbenForm 内置提交按钮触发，无需手动处理
+
+// ============ 日志自动清理配置（自系统设置页迁移） ============
+const cleanupModalVisible = ref(false);
+const cleanupLoading = ref(false);
+const cleanupSaving = ref(false);
+const cleanupEnabled = ref(true);
+const cleanupRetentionDays = ref(30);
+const cleanupMaxCount = ref(0);
+const cleanupIntervalHours = ref(6);
+// 完整配置快照：保存时需连带其它配置一起提交，避免覆盖系统设置
+const cleanupBaseConfig = ref<null | Record<string, any>>(null);
+const logTotal = ref<null | number>(null);
+
+const logTotalText = computed(() =>
+  logTotal.value === null
+    ? '—'
+    : new Intl.NumberFormat().format(logTotal.value),
+);
+
+const loadLogTotal = async () => {
+  try {
+    const response: any = await getLogList({ pageIndex: 1, pageSize: 1 });
+    logTotal.value = response?.success
+      ? (response.data?.totalCount ?? null)
+      : null;
+  } catch {
+    logTotal.value = null;
+  }
+};
+
+const handleCleanupToggle = (checked: any) => {
+  const enabled = checked === true;
+  cleanupEnabled.value = enabled;
+  // 重新打开时若两条限制都为 0，给一个合理默认值，避免「开着但不清理」
+  if (
+    enabled &&
+    (cleanupRetentionDays.value ?? 0) <= 0 &&
+    (cleanupMaxCount.value ?? 0) <= 0
+  ) {
+    cleanupRetentionDays.value = 30;
+  }
+};
+
+const handleOpenCleanupModal = async () => {
+  cleanupLoading.value = true;
+  try {
+    const response: any = await getSystemConfig();
+    const data = response?.data ?? response;
+    cleanupBaseConfig.value = data ?? null;
+    cleanupRetentionDays.value = data?.logRetentionDays ?? 0;
+    cleanupMaxCount.value = data?.logMaxCount ?? 0;
+    cleanupIntervalHours.value = data?.logCleanupIntervalHours ?? 6;
+    cleanupEnabled.value =
+      (cleanupRetentionDays.value ?? 0) > 0 || (cleanupMaxCount.value ?? 0) > 0;
+    cleanupModalVisible.value = true;
+    loadLogTotal();
+  } catch (error) {
+    message.error($t('page.quartz.logPage.cleanupGetConfigFailed'));
+    console.error($t('page.quartz.logPage.cleanupGetConfigFailed'), error);
+  } finally {
+    cleanupLoading.value = false;
+  }
+};
+
+const handleSaveCleanup = async () => {
+  cleanupSaving.value = true;
+  try {
+    // 只保留可写字段，避免把生效快照等只读信息回传给后端
+    const payload: any = { ...(cleanupBaseConfig.value ?? {}) };
+    delete payload.effectiveConfig;
+    delete payload.restartRequired;
+    delete payload.bootTime;
+    payload.serviceName = payload.serviceName ?? '';
+    payload.environment = payload.environment ?? 'DEV';
+    payload.serviceDescription = payload.serviceDescription ?? '';
+    payload.logRetentionDays = cleanupEnabled.value
+      ? (cleanupRetentionDays.value ?? 0)
+      : 0;
+    payload.logMaxCount = cleanupEnabled.value
+      ? (cleanupMaxCount.value ?? 0)
+      : 0;
+    payload.logCleanupIntervalHours = cleanupIntervalHours.value ?? 6;
+
+    const response = await saveSystemConfig(payload as SystemConfigDto);
+    if (response.success) {
+      message.success(
+        response.message || $t('page.quartz.logPage.cleanupSaveSuccess'),
+      );
+      cleanupModalVisible.value = false;
+      await loadLogTotal();
+    } else {
+      message.error(
+        response.message || $t('page.quartz.logPage.cleanupSaveFailed'),
+      );
+    }
+  } catch (error: any) {
+    message.error(error?.message || $t('page.quartz.logPage.cleanupSaveFailed'));
+    console.error($t('page.quartz.logPage.cleanupSaveFailed'), error);
+  } finally {
+    cleanupSaving.value = false;
+  }
+};
 
 // 清空日志
 const handleClear = () => {
   Modal.confirm({
     title: $t('page.quartz.logPage.confirmClear'),
-    content: $t('page.quartz.logPage.confirmClearContent'),
+    content: `${$t('page.quartz.logPage.confirmClearContent')} ${$t('page.quartz.logPage.clearInterruptHint')}`,
     onOk: async () => {
       try {
         // 传递空的查询参数，清空所有日志，而不是使用当前搜索条件
@@ -441,20 +652,265 @@ const handleClear = () => {
 };
 
 // 查看详情
-const handleDetail = (log: LogResponseDto) => {
+const handleDetail = async (log: LogResponseDto) => {
   try {
     logDetail.value = log;
     detailModalVisible.value = true;
+
+    // 补偿记录：按需拉取源记录的开始时间，用于「补偿自 ...」说明
+    if (log.triggerType === 'Recovery' && log.recoverySourceLogId) {
+      try {
+        const response = await getJobLog(log.recoverySourceLogId);
+        if (
+          response.success &&
+          response.data &&
+          logDetail.value?.logId === log.logId
+        ) {
+          logDetail.value = {
+            ...log,
+            recoverySourceStartTime: response.data.startTime,
+          };
+        }
+      } catch {
+        // 源记录不可用时保留原样
+      }
+    }
   } catch (error) {
     message.error($t('page.quartz.logPage.showDetailFailed'));
     console.log($t('page.quartz.logPage.showDetailFailed'), error);
   }
 };
 
+// 重新执行
+const isRerunning = (logId: string) => rerunningIds.value.has(logId);
+
+// 已认领过补偿（Triggered）的中断记录不允许再次重试，与后端补偿认领口径保持一致
+const canRerun = (row: LogResponseDto) =>
+  row.status === LogStatusEnum.INTERRUPTED &&
+  row.compensationStatus !== 'Triggered';
+
+const canClickRerun = (row: LogResponseDto) =>
+  canRerun(row) && !isRerunning(row.logId);
+
+// 不可重跑的原因：补偿重跑/手动重跑都走同一条补偿认领，触发后不再允许重复执行
+const rerunDisabledReason = (row: LogResponseDto) => {
+  if (isRerunning(row.logId)) {
+    return $t('page.quartz.logPage.rerunSubmitting');
+  }
+  if (row.compensationStatus === 'Triggered') {
+    return $t('page.quartz.logPage.rerunTriggered');
+  }
+  return '';
+};
+
+// 提示文案始终可读：不可点击时说明原因，避免出现"灰掉但没有解释"的按钮
+const rerunTip = (row: LogResponseDto) =>
+  canClickRerun(row)
+    ? $t('page.quartz.logPage.rerun')
+    : rerunDisabledReason(row);
+
+const refreshDetailIfNeeded = async (logId: string) => {
+  if (!detailModalVisible.value || logDetail.value?.logId !== logId) return;
+  try {
+    const response = await getJobLog(logId);
+    if (
+      response.success &&
+      response.data &&
+      logDetail.value?.logId === logId
+    ) {
+      logDetail.value = {
+        ...response.data,
+        recoverySourceStartTime: logDetail.value.recoverySourceStartTime,
+      };
+    }
+  } catch {
+    // 详情刷新失败时保留原样，按钮状态由下次列表刷新兜底
+  }
+};
+
+const handleRerun = (row: LogResponseDto) => {
+  if (!canRerun(row)) {
+    message.warning(
+      rerunDisabledReason(row) || $t('page.quartz.logPage.rerunTriggered'),
+    );
+    return;
+  }
+  Modal.confirm({
+    title: $t('page.quartz.logPage.confirmRerun'),
+    content: `${row.jobName} · ${row.jobGroup}\n${$t('page.quartz.logPage.rerunStartTime')}: ${formatDateTime(row.startTime)}\n${$t('page.quartz.logPage.rerunWarning')}`,
+    okText: $t('page.quartz.logPage.rerunOk'),
+    cancelText: $t('page.quartz.logPage.cancel'),
+    onOk: async () => {
+      const next = new Set(rerunningIds.value);
+      next.add(row.logId);
+      rerunningIds.value = next;
+      try {
+        const response = await rerunInterruptedLog(row.logId);
+        if (response.success) {
+          message.success($t('page.quartz.logPage.rerunSubmitted'));
+        } else {
+          message.warning(
+            response.message || $t('page.quartz.logPage.rerunFailed'),
+          );
+        }
+        await gridApi.query();
+        await refreshDetailIfNeeded(row.logId);
+      } catch (error: any) {
+        message.error(error?.message || $t('page.quartz.logPage.rerunFailed'));
+      } finally {
+        const current = new Set(rerunningIds.value);
+        current.delete(row.logId);
+        rerunningIds.value = current;
+      }
+    },
+  });
+};
+
+// 补偿来源详情：点击角标时按需加载
+const loadSourceDetail = async (row: LogResponseDto) => {
+  const sourceLogId = row.recoverySourceLogId;
+  if (!sourceLogId) return;
+  sourceLoading.value = true;
+  sourceDetail.value = null;
+  try {
+    const response = await getJobLog(sourceLogId);
+    if (response.success && response.data) {
+      sourceDetail.value = response.data;
+    }
+  } catch {
+    sourceDetail.value = null;
+  } finally {
+    sourceLoading.value = false;
+  }
+};
+
+// 运行中耗时：本地每秒计算，不请求后端
+const startTicker = () => {
+  if (tickerTimer) return;
+  tickerTimer = setInterval(() => {
+    nowTick.value = Date.now();
+  }, 1000);
+};
+const stopTicker = () => {
+  if (tickerTimer) {
+    clearInterval(tickerTimer);
+    tickerTimer = null;
+  }
+};
+
+// 只探测当前页运行中行的最终状态；有行结束/失败时才整表刷新一次，
+// 避免运行中期间反复重新加载列表，也避免完成后一直停留在「运行中」。
+let checkingRunning = false;
+async function checkRunningRows() {
+  if (checkingRunning || document.visibilityState !== 'visible') return;
+  const running = currentRows.value.filter(
+    (item) => item.status === LogStatusEnum.RUNNING,
+  );
+  if (running.length === 0) {
+    stopStatusPolling();
+    return;
+  }
+
+  checkingRunning = true;
+  try {
+    const results = await Promise.all(
+      running.map((row) => getJobLog(row.logId).catch(() => null)),
+    );
+    const changed = results.some(
+      (res) =>
+        res?.success &&
+        res.data &&
+        res.data.status !== LogStatusEnum.RUNNING,
+    );
+    if (changed) {
+      await gridApi.query();
+    }
+  } catch {
+    // 单次探测失败不影响下一轮
+  } finally {
+    checkingRunning = false;
+  }
+}
+
+const startStatusPolling = () => {
+  if (statusTimer) return;
+  statusTimer = setInterval(checkRunningRows, 5000);
+};
+const stopStatusPolling = () => {
+  if (statusTimer) {
+    clearInterval(statusTimer);
+    statusTimer = null;
+  }
+};
+const stopLiveUpdates = () => {
+  stopTicker();
+  stopStatusPolling();
+};
+
+watch(hasRunningRows, (hasRunning) => {
+  if (hasRunning) {
+    startTicker();
+    startStatusPolling();
+  } else {
+    stopLiveUpdates();
+  }
+});
+
+onDeactivated(stopLiveUpdates);
+onUnmounted(stopLiveUpdates);
+
+// 启动提示 / 深链筛选：优先消费一次性标记，兼容旧的 URL query
+const applyRouteFilter = async (): Promise<boolean> => {
+  const pending = sessionStorage.getItem(LOG_PENDING_FILTER_KEY);
+  const query = route.query;
+  const hasStatus = typeof query.status === 'string' && query.status !== '';
+  const needsAttention =
+    pending === 'needsAttention' ||
+    query.needsAttention === '1' ||
+    query.needsAttention === 'true';
+  if (!hasStatus && !needsAttention) {
+    return false;
+  }
+
+  if (pending) {
+    sessionStorage.removeItem(LOG_PENDING_FILTER_KEY);
+  }
+
+  const values: Record<string, any> = {};
+  if (needsAttention) {
+    needsAttentionOnly.value = true;
+    values.status = undefined;
+  } else {
+    values.status = Number(query.status);
+    needsAttentionOnly.value = false;
+  }
+
+  await gridApi.formApi.setValues(values);
+  await gridApi.query();
+  return true;
+};
+
+let pageMounted = false;
+
+onActivated(async () => {
+  if (!pageMounted) return;
+  const applied = await applyRouteFilter();
+  if (!applied) {
+    // 切回页面时只刷新一次
+    await gridApi.query();
+  }
+  await restoreSortIndicator();
+  if (hasRunningRows.value) {
+    startTicker();
+    startStatusPolling();
+  }
+});
+
 // 恢复表格排序视觉状态（列头箭头）
 onMounted(async () => {
+  const routeFilterApplied = await applyRouteFilter();
   // 恢复搜索条件到表单（日期范围从 ISO 字符串反序列化为 Day.js 对象）
-  if (savedSearch) {
+  if (!routeFilterApplied && savedSearch) {
     try {
       const restored: Record<string, any> = { ...savedSearch };
       if (Array.isArray(savedSearch.startTimeRange)) {
@@ -471,15 +927,12 @@ onMounted(async () => {
     } catch {}
   }
   // 手动触发首次查询（autoLoad: false，此时 formApi 已回填搜索条件）
-  await gridApi.query();
-  // 数据加载后恢复排序视觉状态
-  await nextTick();
-  try {
-    const saved = JSON.parse(localStorage.getItem(SORT_KEY) || 'null');
-    if (saved) {
-      gridApi.grid?.setSort({ field: saved.field, order: saved.order });
-    }
-  } catch {}
+  if (!routeFilterApplied) {
+    await gridApi.query();
+  }
+  // defaultSort 未生效时兜底恢复排序标识
+  await restoreSortIndicator();
+  pageMounted = true;
 });
 </script>
 
@@ -488,10 +941,36 @@ onMounted(async () => {
     <template #default>
       <!-- 日志列表 -->
       <Grid>
-        <!-- 工具栏：清空日志按钮 -->
+        <!-- 工具栏：清理配置 + 快捷筛选 + 清空日志 -->
         <template #toolbar-actions>
-          <div class="flex w-full items-center justify-end">
-            <Button danger @click="handleClear">{{ $t('page.quartz.logPage.clearLogs') }}</Button>
+          <div class="log-toolbar">
+            <Button
+              type="primary"
+              :loading="cleanupLoading"
+              @click="handleOpenCleanupModal"
+            >
+              {{ $t('page.quartz.logPage.cleanupConfig') }}
+            </Button>
+            <div class="flex items-center gap-2">
+              <Tooltip
+                :title="$t('page.quartz.logPage.needsAttentionHint')"
+                placement="bottomLeft"
+                :mouse-enter-delay="0.35"
+              >
+                <button
+                  type="button"
+                  class="log-attention-btn"
+                  :class="{ 'is-active': needsAttentionOnly }"
+                  :aria-pressed="needsAttentionOnly"
+                  @click="toggleNeedsAttention"
+                >
+                  {{ $t('page.quartz.logPage.needsAttention') }}
+                </button>
+              </Tooltip>
+              <Button danger @click="handleClear">
+                {{ $t('page.quartz.logPage.clearLogs') }}
+              </Button>
+            </div>
           </div>
         </template>
 
@@ -502,6 +981,49 @@ onMounted(async () => {
           </Tag>
         </template>
 
+        <!-- 触发来源 -->
+        <template #triggerType="{ row }">
+          <template v-if="row.triggerType === 'Recovery'">
+            <Popover trigger="click" @openChange="(open) => open && loadSourceDetail(row)">
+              <template #content>
+                <div v-if="sourceLoading" class="text-xs">
+                  {{ $t('page.quartz.logPage.sourceLoading') }}
+                </div>
+                <div v-else-if="sourceDetail" class="text-xs leading-6">
+                  <div>
+                    {{ $t('page.quartz.logPage.sourceOriginalTime') }}:
+                    {{ formatDateTime(sourceDetail.startTime) }}
+                  </div>
+                  <div>
+                    {{ $t('page.quartz.logPage.sourceAttempt') }}:
+                    {{ row.recoveryAttempt ?? 2 }}
+                  </div>
+                  <div v-if="sourceDetail.triggeredBy">
+                    {{ $t('page.quartz.logPage.sourceOperator') }}:
+                    {{ sourceDetail.triggeredBy }}
+                  </div>
+                </div>
+                <div v-else class="text-xs text-muted-foreground">
+                  {{ $t('page.quartz.logPage.sourceUnavailable') }}
+                </div>
+              </template>
+              <Tag color="cyan" class="cursor-pointer">
+                {{ $t('page.quartz.logPage.triggerRecovery') }}
+              </Tag>
+            </Popover>
+          </template>
+          <Tag v-else-if="row.triggerType === 'Manual'" color="blue">
+            {{ $t('page.quartz.logPage.triggerManual') }}
+          </Tag>
+          <span
+            v-else-if="!row.triggerType || row.triggerType === 'Cron'"
+            class="text-xs text-muted-foreground"
+          >
+            {{ $t('page.quartz.logPage.triggerCron') }}
+          </span>
+          <span v-else class="text-xs text-muted-foreground">—</span>
+        </template>
+
         <!-- 通用日期时间渲染 -->
         <template #datetime="{ row, column }">
           {{ (row as any)[column.field] ? formatDateTime((row as any)[column.field]) : '-' }}
@@ -509,7 +1031,7 @@ onMounted(async () => {
 
         <!-- 执行时长 -->
         <template #duration="{ row }">
-          {{ formatDuration(row.duration) }}
+          {{ displayDuration(row) }}
         </template>
 
         <!-- 操作列 -->
@@ -518,9 +1040,136 @@ onMounted(async () => {
             <Tooltip :title="$t('page.quartz.logPage.detail')">
               <i class="vxe-icon-info-circle-fill text-primary cursor-pointer hover:opacity-80 px-1" @click="handleDetail(row)"></i>
             </Tooltip>
+            <!-- 操作列紧贴表格右边界，用 topRight 让气泡向左展开：
+                 居中对齐会被 antd 向左挤以避开右边界，导致箭头不再指向图标 -->
+            <Tooltip
+              v-if="row.status === LogStatusEnum.INTERRUPTED"
+              :title="rerunTip(row)"
+              placement="topRight"
+            >
+              <!-- 不可重跑时保留 hover 事件，否则灰掉的图标没有任何提示 -->
+              <i
+                class="vxe-icon-refresh text-warning px-1"
+                :class="
+                  canClickRerun(row)
+                    ? 'cursor-pointer hover:opacity-80'
+                    : 'cursor-not-allowed opacity-50'
+                "
+                @click="canClickRerun(row) && handleRerun(row)"
+              ></i>
+            </Tooltip>
           </div>
         </template>
       </Grid>
+
+      <!-- 日志清理配置对话框 -->
+      <Modal
+        v-model:open="cleanupModalVisible"
+        :title="$t('page.quartz.logPage.cleanupConfigTitle')"
+        :width="640"
+        centered
+        destroyOnClose
+        :confirm-loading="cleanupSaving"
+        :ok-text="$t('page.quartz.logPage.cleanupSave')"
+        :cancel-text="$t('page.quartz.logPage.cancel')"
+        wrapClassName="quartz-log-cleanup-modal"
+        @ok="handleSaveCleanup"
+      >
+        <div class="space-y-4">
+          <!-- 概览：当前日志总量 + 自动清理主开关 -->
+          <div
+            class="flex items-center justify-between gap-3 rounded-lg bg-muted/40 px-3 py-2.5"
+          >
+            <span class="text-xs text-muted-foreground">
+              {{ $t('page.quartz.logPage.cleanupCurrentTotal') }}
+              <span class="ml-1 text-sm font-semibold tabular-nums text-foreground">
+                {{ logTotalText }}
+              </span>
+              <span class="ml-0.5">
+                {{ $t('page.quartz.logPage.unitCount') }}
+              </span>
+            </span>
+            <span class="flex items-center gap-2">
+              <span class="text-xs text-muted-foreground">
+                {{ $t('page.quartz.logPage.cleanupEnable') }}
+              </span>
+              <Switch
+                :checked="cleanupEnabled"
+                size="small"
+                @change="handleCleanupToggle"
+              />
+            </span>
+          </div>
+
+          <!-- 开关关闭时说明「不做任何自动清理」，行内参数同步置灰 -->
+          <p
+            v-if="!cleanupEnabled"
+            class="rounded-md bg-muted/40 px-3 py-2 text-xs leading-5 text-muted-foreground"
+          >
+            {{ $t('page.quartz.logPage.cleanupEnableHint') }}
+          </p>
+
+          <div class="overflow-hidden rounded-lg border border-border/60">
+            <div
+              class="grid grid-cols-[88px_140px_minmax(0,1fr)] items-center gap-x-4 px-3 py-2.5"
+            >
+              <span class="text-[13px]">
+                {{ $t('page.quartz.logPage.cleanupRetentionDays') }}
+              </span>
+              <InputNumber
+                v-model:value="cleanupRetentionDays"
+                :min="0"
+                :max="3650"
+                :disabled="!cleanupEnabled"
+                :addon-after="$t('page.quartz.logPage.unitDays')"
+                class="w-full"
+                size="middle"
+              />
+              <span class="text-xs leading-5 text-muted-foreground">
+                {{ $t('page.quartz.logPage.cleanupRetentionDaysHint') }}
+              </span>
+            </div>
+            <div
+              class="grid grid-cols-[88px_140px_minmax(0,1fr)] items-center gap-x-4 border-t border-border/60 px-3 py-2.5"
+            >
+              <span class="text-[13px]">
+                {{ $t('page.quartz.logPage.cleanupMaxCount') }}
+              </span>
+              <InputNumber
+                v-model:value="cleanupMaxCount"
+                :min="0"
+                :max="10000000"
+                :disabled="!cleanupEnabled"
+                :addon-after="$t('page.quartz.logPage.unitCount')"
+                class="w-full"
+                size="middle"
+              />
+              <span class="text-xs leading-5 text-muted-foreground">
+                {{ $t('page.quartz.logPage.cleanupMaxCountHint') }}
+              </span>
+            </div>
+            <div
+              class="grid grid-cols-[88px_140px_minmax(0,1fr)] items-center gap-x-4 border-t border-border/60 px-3 py-2.5"
+            >
+              <span class="text-[13px]">
+                {{ $t('page.quartz.logPage.cleanupInterval') }}
+              </span>
+              <InputNumber
+                v-model:value="cleanupIntervalHours"
+                :min="1"
+                :max="168"
+                :disabled="!cleanupEnabled"
+                :addon-after="$t('page.quartz.logPage.unitHours')"
+                class="w-full"
+                size="middle"
+              />
+              <span class="text-xs leading-5 text-muted-foreground">
+                {{ $t('page.quartz.logPage.cleanupIntervalHint') }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       <!-- 详情对话框 -->
       <Modal v-model:open="detailModalVisible" :title="$t('page.quartz.logPage.logDetail')" width="800px"
@@ -530,12 +1179,17 @@ onMounted(async () => {
           <!-- 顶部：标题 + 状态标签 -->
           <div class="detail-header">
             <span class="header-title">{{ logDetail.jobName }} · {{ logDetail.jobGroup }}</span>
-            <Tag :color="logStatusMap[logDetail.status].status">
-              {{ logStatusMap[logDetail.status].text() }}
-            </Tag>
+            <div class="flex items-center gap-2">
+              <Tag v-if="logDetail.triggerType === 'Recovery'" color="cyan">
+                {{ $t('page.quartz.logPage.triggerRecovery') }}
+              </Tag>
+              <Tag :color="logStatusMap[logDetail.status]?.status || 'default'">
+                {{ logStatusMap[logDetail.status]?.text?.() || $t('page.quartz.logPage.unknown') }}
+              </Tag>
+            </div>
           </div>
 
-          <!-- 元数据：Descriptions 组件统一展示 -->
+          <!-- 基础元数据 -->
           <Descriptions :column="3" size="small" bordered class="detail-desc">
             <DescriptionsItem :label="$t('page.quartz.logPage.executionDuration')" :span="1">
               {{ formatDuration(logDetail.duration) }}
@@ -547,6 +1201,70 @@ onMounted(async () => {
               {{ logDetail.endTime ? formatDateTime(logDetail.endTime) : '—' }}
             </DescriptionsItem>
           </Descriptions>
+
+          <!-- 恢复信息：仅中断记录或补偿记录展示 -->
+          <div
+            v-if="logDetail.status === LogStatusEnum.INTERRUPTED || logDetail.triggerType === 'Recovery'"
+            class="recovery-panel"
+          >
+            <div class="recovery-panel__header">
+              <span>{{ $t('page.quartz.logPage.recoveryInfo') }}</span>
+              <Tag v-if="logDetail.triggerType === 'Recovery'" color="cyan">
+                {{ $t('page.quartz.logPage.triggerRecovery') }}
+              </Tag>
+            </div>
+            <div class="recovery-panel__grid">
+              <div class="recovery-item">
+                <span class="recovery-item__label">
+                  {{ $t('page.quartz.logPage.triggerSource') }}
+                </span>
+                <span class="recovery-item__value">
+                  {{ triggerTypeMap[(logDetail.triggerType || 'Unknown') as TriggerType]?.text?.() || $t('page.quartz.logPage.triggerUnknown') }}
+                </span>
+              </div>
+              <div v-if="logDetail.triggerType === 'Recovery'" class="recovery-item">
+                <span class="recovery-item__label">
+                  {{ $t('page.quartz.logPage.sourceOriginalTime') }}
+                </span>
+                <span class="recovery-item__value">
+                  {{ formatDateTime(logDetail.recoverySourceStartTime || logDetail.startTime) }}
+                </span>
+              </div>
+              <div v-if="logDetail.triggerType === 'Recovery'" class="recovery-item">
+                <span class="recovery-item__label">
+                  {{ $t('page.quartz.logPage.sourceAttempt') }}
+                </span>
+                <span class="recovery-item__value">
+                  {{ logDetail.recoveryAttempt ?? 2 }}
+                </span>
+              </div>
+              <div v-if="logDetail.heartbeatTime" class="recovery-item">
+                <span class="recovery-item__label">
+                  {{ $t('page.quartz.logPage.lastHeartbeat') }}
+                </span>
+                <span class="recovery-item__value">
+                  {{ formatDateTime(logDetail.heartbeatTime) }}
+                </span>
+              </div>
+              <div
+                v-if="logDetail.status === LogStatusEnum.INTERRUPTED"
+                class="recovery-item"
+              >
+                <span class="recovery-item__label">
+                  {{ $t('page.quartz.logPage.compensationStatus') }}
+                </span>
+                <span class="recovery-item__value">
+                  {{ compensationStatusText(logDetail.compensationStatus) }}
+                </span>
+              </div>
+              <div v-if="logDetail.skipReason" class="recovery-item recovery-item--wide">
+                <span class="recovery-item__label">
+                  {{ $t('page.quartz.logPage.skipReason') }}
+                </span>
+                <span class="recovery-item__value">{{ logDetail.skipReason }}</span>
+              </div>
+            </div>
+          </div>
 
           <!-- 内容区 -->
           <div class="detail-body">
@@ -587,6 +1305,20 @@ onMounted(async () => {
 
           <!-- 底部按钮 -->
           <div class="detail-footer">
+            <Tooltip
+              v-if="logDetail.status === LogStatusEnum.INTERRUPTED"
+              :title="rerunDisabledReason(logDetail)"
+            >
+              <span class="mr-2 inline-flex">
+                <Button
+                  :loading="isRerunning(logDetail.logId)"
+                  :disabled="!canClickRerun(logDetail)"
+                  @click="handleRerun(logDetail)"
+                >
+                  {{ $t('page.quartz.logPage.rerun') }}
+                </Button>
+              </span>
+            </Tooltip>
             <Button @click="detailModalVisible = false" type="primary">
               {{ $t('page.quartz.logPage.close') }}
             </Button>
@@ -598,6 +1330,73 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* 工具栏：左侧配置入口，右侧快捷筛选与清空 */
+.log-toolbar {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* 「仅看异常」是开关型按钮：hover 只做轻提示，选中态常驻高亮，点击有下沉反馈 */
+.log-attention-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 15px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+  cursor: pointer;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  transition:
+    color 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.1s ease;
+}
+
+.log-attention-btn:hover {
+  color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 0.06);
+  border-color: hsl(var(--destructive) / 0.45);
+}
+
+/* 按下瞬间轻微下沉，松开立即回弹，避免「点了没反应」的错觉 */
+.log-attention-btn:active {
+  background: hsl(var(--destructive) / 0.12);
+  transform: scale(0.97);
+}
+
+.log-attention-btn:focus-visible {
+  outline: 2px solid hsl(var(--destructive) / 0.35);
+  outline-offset: 2px;
+}
+
+/* 选中态：浅红底 + 红色描边常驻，hover 再加深一档 */
+.log-attention-btn.is-active {
+  font-weight: 500;
+  color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 0.1);
+  border-color: hsl(var(--destructive) / 0.55);
+  box-shadow: inset 0 0 0 1px hsl(var(--destructive) / 0.12);
+}
+
+.log-attention-btn.is-active:hover {
+  background: hsl(var(--destructive) / 0.16);
+}
+
+.log-attention-btn.is-active:active {
+  background: hsl(var(--destructive) / 0.22);
+}
+
 /* ============ 详情对话框 ============ */
 .log-detail {
   --space-lg: 20px;
@@ -620,13 +1419,85 @@ onMounted(async () => {
   word-break: break-word;
 }
 
+/* 恢复信息面板 */
+.recovery-panel {
+  margin-bottom: var(--space-lg);
+  overflow: hidden;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+}
+
+.recovery-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--muted) / 0.4);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.recovery-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 20px;
+  padding: 12px;
+}
+
+.recovery-item {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.recovery-item--wide {
+  grid-column: 1 / -1;
+}
+
+.recovery-item__label {
+  flex-shrink: 0;
+  color: hsl(var(--muted-foreground));
+}
+
+.recovery-item__value {
+  color: hsl(var(--foreground));
+  word-break: break-all;
+}
+
+@media (max-width: 640px) {
+  .recovery-panel__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Descriptions 元数据 */
 .detail-desc {
   margin-bottom: var(--space-lg);
 }
 
+/* 列宽按内容自适应，避免「执行时长」「时间」等短值被固定列宽挤到换行 */
+.detail-desc :deep(.ant-descriptions-view table) {
+  table-layout: auto;
+}
+
 .detail-desc :deep(.ant-descriptions-item-label) {
-  min-width: 100px;
+  min-width: 84px;
+  white-space: nowrap;
+}
+
+.detail-desc :deep(.ant-descriptions-item-content) {
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .detail-desc :deep(.ant-descriptions-item-content) {
+    white-space: normal;
+  }
 }
 
 /* 内容区 */

@@ -61,6 +61,46 @@ public class QuartzJobLogDto
     /// 创建时间
     /// </summary>
     public DateTime CreateTime { get; set; }
+
+    /// <summary>
+    /// 触发来源
+    /// </summary>
+    public TriggerType TriggerType { get; set; }
+
+    /// <summary>
+    /// 操作人
+    /// </summary>
+    public string? TriggeredBy { get; set; }
+
+    /// <summary>
+    /// 补偿来源日志ID
+    /// </summary>
+    public Guid? RecoverySourceLogId { get; set; }
+
+    /// <summary>
+    /// 第几次尝试
+    /// </summary>
+    public int RecoveryAttempt { get; set; }
+
+    /// <summary>
+    /// 最后心跳时间
+    /// </summary>
+    public DateTime? HeartbeatTime { get; set; }
+
+    /// <summary>
+    /// 判定中断的时间
+    /// </summary>
+    public DateTime? InterruptedAt { get; set; }
+
+    /// <summary>
+    /// 补偿状态
+    /// </summary>
+    public CompensationStatus CompensationStatus { get; set; }
+
+    /// <summary>
+    /// 跳过补偿的原因
+    /// </summary>
+    public string? SkipReason { get; set; }
 }
 
 /// <summary>
@@ -79,9 +119,14 @@ public class QuartzJobLogQueryDto
     public string? JobGroup { get; set; }
 
     /// <summary>
-    /// 执行状态
+    /// 执行状态（单状态筛选）
     /// </summary>
     public LogStatus? Status { get; set; }
+
+    /// <summary>
+    /// 执行状态集合（多状态筛选，如中断 + 失败）
+    /// </summary>
+    public List<LogStatus>? Statuses { get; set; }
 
     /// <summary>
     /// 开始时间

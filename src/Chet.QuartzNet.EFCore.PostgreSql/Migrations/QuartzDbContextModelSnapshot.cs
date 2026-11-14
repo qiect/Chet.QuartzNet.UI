@@ -124,6 +124,10 @@ namespace Chet.QuartzNet.EFCore.PostgreSQL.Migrations
                         .HasColumnType("character varying(500)")
                         .HasComment("备注");
 
+                    b.Property<bool?>("RerunOnRecovery")
+                        .HasColumnType("boolean")
+                        .HasComment("中断后是否自动重跑(null=跟随全局)");
+
                     b.Property<int>("RetryCount")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
@@ -199,6 +203,20 @@ namespace Chet.QuartzNet.EFCore.PostgreSQL.Migrations
                         .HasColumnType("uuid")
                         .HasComment("日志ID");
 
+                    b.Property<Guid?>("BootId")
+                        .HasColumnType("uuid")
+                        .HasComment("进程启动标识");
+
+                    b.Property<Guid?>("CompensationLogId")
+                        .HasColumnType("uuid")
+                        .HasComment("补偿产生的日志ID");
+
+                    b.Property<int>("CompensationStatus")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasComment("补偿状态");
+
                     b.Property<DateTime>("CreateTime")
                         .HasColumnType("timestamp without time zone")
                         .HasComment("创建时间");
@@ -223,6 +241,20 @@ namespace Chet.QuartzNet.EFCore.PostgreSQL.Migrations
                         .HasColumnType("text")
                         .HasComment("异常信息");
 
+                    b.Property<DateTime?>("HeartbeatTime")
+                        .HasColumnType("timestamp without time zone")
+                        .HasComment("最后心跳时间");
+
+                    b.Property<string>("InstanceId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasComment("执行实例标识");
+
+                    b.Property<DateTime?>("InterruptedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasComment("判定中断时间");
+
                     b.Property<string>("JobData")
                         .HasColumnType("text")
                         .HasComment("执行参数");
@@ -245,9 +277,24 @@ namespace Chet.QuartzNet.EFCore.PostgreSQL.Migrations
                         .HasColumnType("text")
                         .HasComment("执行结果消息");
 
+                    b.Property<int>("RecoveryAttempt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasComment("第几次尝试");
+
+                    b.Property<Guid?>("RecoverySourceLogId")
+                        .HasColumnType("uuid")
+                        .HasComment("补偿来源日志ID");
+
                     b.Property<string>("Result")
                         .HasColumnType("text")
                         .HasComment("执行结果");
+
+                    b.Property<string>("SkipReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasComment("跳过补偿原因");
 
                     b.Property<DateTime>("StartTime")
                         .HasColumnType("timestamp without time zone")
@@ -273,10 +320,24 @@ namespace Chet.QuartzNet.EFCore.PostgreSQL.Migrations
                         .HasColumnType("character varying(100)")
                         .HasComment("触发器名称");
 
+                    b.Property<int>("TriggerType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasComment("触发来源");
+
+                    b.Property<string>("TriggeredBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasComment("操作人");
+
                     b.HasKey("LogId");
 
                     b.HasIndex("CreateTime")
                         .HasDatabaseName("idx_log_create_time");
+
+                    b.HasIndex("RecoverySourceLogId")
+                        .HasDatabaseName("idx_log_recovery_source");
 
                     b.HasIndex("StartTime")
                         .HasDatabaseName("idx_log_start_time");
@@ -286,6 +347,12 @@ namespace Chet.QuartzNet.EFCore.PostgreSQL.Migrations
 
                     b.HasIndex("JobName", "JobGroup")
                         .HasDatabaseName("idx_log_job");
+
+                    b.HasIndex("Status", "CompensationStatus")
+                        .HasDatabaseName("idx_log_compensation");
+
+                    b.HasIndex("Status", "HeartbeatTime")
+                        .HasDatabaseName("idx_log_recovery");
 
                     b.ToTable("quartz_job_logs", (string)null);
                 });

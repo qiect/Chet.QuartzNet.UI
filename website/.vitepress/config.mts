@@ -75,6 +75,7 @@ export default withMermaid(
             items: [
               { text: 'ClassJob 代码作业', link: '/guide/class-job' },
               { text: '作业依赖', link: '/guide/dependency' },
+              { text: '中断恢复与排水', link: '/guide/recovery' },
               { text: '通知配置', link: '/guide/notification' },
             ],
           },
@@ -123,6 +124,7 @@ export default withMermaid(
               { text: '13 · v2.3.0 表格重构', link: '/articles/13-v2.3.0' },
               { text: '14 · v2.4 ~ v2.5.1 连更', link: '/articles/14-v2.5.1' },
               { text: '15 · v2.6.0 作业依赖', link: '/articles/15-v2.6.0' },
+              { text: '16 · v2.7.0 中断恢复', link: '/articles/16-v2.7.0' },
             ],
           },
         ],

@@ -30,7 +30,7 @@ description: 基于 PushPlus 配置多渠道通知：微信、企业微信、钉
 | 启用通知 | 通知功能总开关 | 开启 |
 | Token | PushPlus 个人 Token | `abcdef123456...` |
 | 推送渠道 | 消息推送渠道 | `wechat` |
-| 消息模板 | HTML / Markdown / 纯文本 | `markdown` |
+| 消息模板 | HTML / Markdown / 纯文本 / JSON | `markdown` |
 | 主题 | 通知主题（可选） | `Quartz 通知` |
 
 ### 通知策略

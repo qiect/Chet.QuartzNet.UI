@@ -121,6 +121,10 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasColumnType("varchar(500)")
                         .HasComment("备注");
 
+                    b.Property<bool?>("RerunOnRecovery")
+                        .HasColumnType("tinyint(1)")
+                        .HasComment("中断后是否自动重跑(null=跟随全局)");
+
                     b.Property<int>("RetryCount")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
@@ -196,6 +200,20 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasColumnType("char(36)")
                         .HasComment("日志ID");
 
+                    b.Property<Guid?>("BootId")
+                        .HasColumnType("char(36)")
+                        .HasComment("进程启动标识");
+
+                    b.Property<Guid?>("CompensationLogId")
+                        .HasColumnType("char(36)")
+                        .HasComment("补偿产生的日志ID");
+
+                    b.Property<int>("CompensationStatus")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasComment("补偿状态");
+
                     b.Property<DateTime>("CreateTime")
                         .HasColumnType("datetime(6)")
                         .HasComment("创建时间");
@@ -220,6 +238,20 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasColumnType("text")
                         .HasComment("异常信息");
 
+                    b.Property<DateTime?>("HeartbeatTime")
+                        .HasColumnType("datetime(6)")
+                        .HasComment("最后心跳时间");
+
+                    b.Property<string>("InstanceId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)")
+                        .HasComment("执行实例标识");
+
+                    b.Property<DateTime?>("InterruptedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasComment("判定中断时间");
+
                     b.Property<string>("JobData")
                         .HasColumnType("text")
                         .HasComment("执行参数");
@@ -242,9 +274,24 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasColumnType("text")
                         .HasComment("执行结果消息");
 
+                    b.Property<int>("RecoveryAttempt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1)
+                        .HasComment("第几次尝试");
+
+                    b.Property<Guid?>("RecoverySourceLogId")
+                        .HasColumnType("char(36)")
+                        .HasComment("补偿来源日志ID");
+
                     b.Property<string>("Result")
                         .HasColumnType("text")
                         .HasComment("执行结果");
+
+                    b.Property<string>("SkipReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasComment("跳过补偿原因");
 
                     b.Property<DateTime>("StartTime")
                         .HasColumnType("datetime(6)")
@@ -270,10 +317,24 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
                         .HasColumnType("varchar(100)")
                         .HasComment("触发器名称");
 
+                    b.Property<int>("TriggerType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasComment("触发来源");
+
+                    b.Property<string>("TriggeredBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasComment("操作人");
+
                     b.HasKey("LogId");
 
                     b.HasIndex("CreateTime")
                         .HasDatabaseName("idx_log_create_time");
+
+                    b.HasIndex("RecoverySourceLogId")
+                        .HasDatabaseName("idx_log_recovery_source");
 
                     b.HasIndex("StartTime")
                         .HasDatabaseName("idx_log_start_time");
@@ -283,6 +344,12 @@ namespace Chet.QuartzNet.EFCore.MySQL.Migrations
 
                     b.HasIndex("JobName", "JobGroup")
                         .HasDatabaseName("idx_log_job");
+
+                    b.HasIndex("Status", "CompensationStatus")
+                        .HasDatabaseName("idx_log_compensation");
+
+                    b.HasIndex("Status", "HeartbeatTime")
+                        .HasDatabaseName("idx_log_recovery");
 
                     b.ToTable("quartz_job_logs", (string)null);
                 });

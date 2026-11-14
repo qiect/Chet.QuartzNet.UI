@@ -2,10 +2,13 @@ using System.Reflection;
 using Chet.QuartzNet.Core.Configuration;
 using Chet.QuartzNet.Core.Helpers;
 using Chet.QuartzNet.Core.Interfaces;
+using Chet.QuartzNet.Core.Recovery;
+using Chet.QuartzNet.Core.Scheduling;
 using Chet.QuartzNet.Core.Services;
 using Chet.QuartzNet.EFCore.MigrationSupport;
 using Chet.QuartzNet.Models.DTOs;
 using Chet.QuartzNet.Models.Entities;
+using Chet.QuartzNet.UI.HostedServices;
 using Chet.QuartzNet.UI.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -217,6 +220,15 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<QuartzJobListener>();
         services.TryAddSingleton<JobClassScanner>();
 
+        // 中断恢复与排水调度
+        services.TryAddSingleton<RuntimeInstance>();
+        services.TryAddSingleton<JobExecutionRegistry>();
+        services.TryAddSingleton<RecoveryOptionsProvider>();
+        services.TryAddSingleton<RecoverySummaryStore>();
+        services.TryAddSingleton<RecoveryCoordinator>();
+        services.TryAddSingleton<SchedulerInstance>();
+        services.TryAddSingleton<DrainCoordinator>();
+
         // 添加HTTP客户端支持
         services.AddHttpClient();
 
@@ -238,7 +250,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IScheduler>(provider =>
         {
             var schedulerFactory = provider.GetRequiredService<ISchedulerFactory>();
-            return schedulerFactory.GetScheduler().Result;
+            // 统一由 SchedulerInstance 持有当前实例：调度器关闭后工厂会创建新实例，
+            // 若各处直接向工厂索取，会把「已停止」的调度器显示成「待机」
+            var schedulerInstance = provider.GetRequiredService<SchedulerInstance>();
+            return schedulerInstance.Current
+                ?? schedulerInstance.GetSchedulerAsync(schedulerFactory).GetAwaiter().GetResult();
         });
 
         services.AddQuartzHostedService(options =>
@@ -247,7 +263,11 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddHostedService<JobSchedulerInitializer>();
+        services.AddHostedService<JobHeartbeatHostedService>();
+        services.AddHostedService<RecoveryHostedService>();
         services.AddHostedService<LogCleanupHostedService>();
+        // 必须最后注册：停止时最先执行，赶在 Quartz 关闭前完成排水等待
+        services.AddHostedService<GracefulShutdownHostedService>();
     }
 
     /// <summary>
@@ -779,7 +799,8 @@ public static class ServiceCollectionExtensions
                         var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
 
                         var configResult = await jobService.GetSystemConfigAsync(cancellationToken);
-                        var config = configResult.Data ?? new SystemConfigDto();
+                        SystemConfigDto config =
+                            configResult.Data ?? new SystemConfigDto();
                         intervalHours = config.LogCleanupIntervalHours > 0
                             ? config.LogCleanupIntervalHours
                             : 6;
@@ -789,6 +810,7 @@ public static class ServiceCollectionExtensions
                         {
                             clearedCount += await jobStorage.ClearExpiredLogsAsync(
                                 config.LogRetentionDays,
+                                config.InterruptedLogRetentionDays,
                                 cancellationToken
                             );
                         }
@@ -797,6 +819,7 @@ public static class ServiceCollectionExtensions
                         {
                             clearedCount += await jobStorage.ClearOverflowLogsAsync(
                                 config.LogMaxCount,
+                                true,
                                 cancellationToken
                             );
                         }

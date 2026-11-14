@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Chet.QuartzNet.Core.Helpers;
 using Chet.QuartzNet.Core.Interfaces;
 using Chet.QuartzNet.Models.DTOs;
@@ -15,6 +16,16 @@ public class PushPlusNotificationService : INotificationService
 {
     private const string PushPlusApiUrl = "https://www.pushplus.plus/send";
     private const string PushPlusConfigKey = "PushPlusConfig";
+
+    /// <summary>
+    /// JSON 模板序列化选项：缩进输出、中文不转义、忽略空字段
+    /// </summary>
+    private static readonly JsonSerializerOptions NotificationJsonOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
 
     private readonly IJobStorage _jobStorage;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -183,15 +194,76 @@ public class PushPlusNotificationService : INotificationService
                 return false;
             }
 
-            // 发送测试通知
+            // 发送测试通知（按当前模板格式生成, 便于直接验证模板效果）
             var title = "测试通知";
-            var content = "这是一条测试通知, 用于验证PushPlus配置是否正确。";
+            var content = GenerateTestNotificationContent(config.Template, title);
             return await SendPushPlusNotificationAsync(config, title, content, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogFailure("PushPlus通知", "发送测试通知", ex);
             return false;
+        }
+    }
+
+    /// <summary>
+    /// 生成测试通知内容（按所选模板格式）
+    /// </summary>
+    private string GenerateTestNotificationContent(string template, string title)
+    {
+        var sendTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        const string description = "这是一条测试通知, 用于验证PushPlus配置是否正确。";
+        const string footer = "此消息由 Chet.QuartzNET.UI 调度系统自动发送, 请勿回复。";
+
+        switch ((template ?? "html").ToLower())
+        {
+            case "txt":
+                return $@"{title}
+
+{description}
+
+发送时间: {sendTime}
+
+---
+{footer}";
+            case "markdown":
+                return $@"# {title}
+
+{description}
+
+| 项目 | 内容 |
+|------|------|
+| 通知类型 | 测试通知 |
+| 发送时间 | {sendTime} |
+
+---
+{footer}";
+            case "json":
+                var payload = new Dictionary<string, object?>
+                {
+                    ["eventType"] = "test",
+                    ["title"] = title,
+                    ["message"] = description,
+                    ["sendTime"] = sendTime,
+                    ["source"] = "Chet.QuartzNET.UI",
+                };
+                return JsonSerializer.Serialize(payload, NotificationJsonOptions);
+            case "html":
+            default:
+                return $"<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #24292f; max-width: 720px; margin: 0 auto; padding: 20px;\">"
+                    + $"<div style=\"background-color: #ffffff; border: 1px solid #e1e4e8; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;\">"
+                    + $"<div style=\"background-color: #f0fff4; border-bottom: 1px solid #e1e4e8; padding: 16px 20px;\">"
+                    + $"<h1 style=\"margin: 0; font-size: 20px; font-weight: 600; color: #2da44e;\">🔔 {title}</h1>"
+                    + $"</div>"
+                    + $"<div style=\"padding: 20px;\">"
+                    + $"<p style=\"margin: 0 0 12px 0;\">{description}</p>"
+                    + $"<p style=\"margin: 0; color: #656d76; font-size: 13px;\">发送时间: {sendTime}</p>"
+                    + $"</div>"
+                    + $"<div style=\"background-color: #f6f8fa; border-top: 1px solid #e1e4e8; padding: 16px 20px; font-size: 12px; color: #656d76;\">"
+                    + $"<p style=\"margin: 0;\">{footer}</p>"
+                    + $"</div>"
+                    + $"</div>"
+                    + $"</div>";
         }
     }
 
@@ -438,6 +510,16 @@ public class PushPlusNotificationService : INotificationService
                     errorMessage,
                     executionTime
                 );
+            case "json":
+                return GenerateJobExecutionJsonContent(
+                    jobName,
+                    jobGroup,
+                    success,
+                    message,
+                    duration,
+                    errorMessage,
+                    executionTime
+                );
             case "html":
             default:
                 return GenerateJobExecutionHtmlContent(
@@ -612,6 +694,37 @@ public class PushPlusNotificationService : INotificationService
     }
 
     /// <summary>
+    /// 生成作业执行JSON通知内容
+    /// </summary>
+    private string GenerateJobExecutionJsonContent(
+        string jobName,
+        string jobGroup,
+        bool success,
+        string message,
+        long duration,
+        string? errorMessage,
+        string executionTime
+    )
+    {
+        var payload = new Dictionary<string, object?>
+        {
+            ["eventType"] = "jobExecution",
+            ["title"] = $"作业执行{(success ? "成功" : "失败")}: {jobName}",
+            ["jobName"] = jobName,
+            ["jobGroup"] = jobGroup,
+            ["status"] = success ? "success" : "failed",
+            ["statusText"] = success ? "成功" : "失败",
+            ["message"] = message,
+            ["executionTime"] = executionTime,
+            ["duration"] = duration,
+            ["errorMessage"] = string.IsNullOrWhiteSpace(errorMessage) ? null : errorMessage,
+            ["source"] = "Chet.QuartzNET.UI",
+        };
+
+        return JsonSerializer.Serialize(payload, NotificationJsonOptions);
+    }
+
+    /// <summary>
     /// 生成调度器异常通知内容
     /// </summary>
     private string GenerateSchedulerErrorContent(string template, Exception exception)
@@ -624,6 +737,8 @@ public class PushPlusNotificationService : INotificationService
                 return GenerateSchedulerErrorTextContent(exception, executionTime);
             case "markdown":
                 return GenerateSchedulerErrorMarkdownContent(exception, executionTime);
+            case "json":
+                return GenerateSchedulerErrorJsonContent(exception, executionTime);
             case "html":
             default:
                 return GenerateSchedulerErrorHtmlContent(exception, executionTime);
@@ -714,5 +829,24 @@ public class PushPlusNotificationService : INotificationService
 
 ---
 此消息由 Chet.QuartzNET.UI 调度系统自动发送, 请勿回复。";
+    }
+
+    /// <summary>
+    /// 生成调度器异常JSON通知内容
+    /// </summary>
+    private string GenerateSchedulerErrorJsonContent(Exception exception, string executionTime)
+    {
+        var payload = new Dictionary<string, object?>
+        {
+            ["eventType"] = "schedulerError",
+            ["title"] = "调度器异常",
+            ["exceptionType"] = exception.GetType().Name,
+            ["message"] = exception.Message,
+            ["stackTrace"] = exception.StackTrace,
+            ["executionTime"] = executionTime,
+            ["source"] = "Chet.QuartzNET.UI",
+        };
+
+        return JsonSerializer.Serialize(payload, NotificationJsonOptions);
     }
 }

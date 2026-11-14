@@ -1,5 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive, nextTick, watch } from 'vue';
+import {
+  ref,
+  computed,
+  onActivated,
+  onDeactivated,
+  onMounted,
+  onUnmounted,
+  reactive,
+  nextTick,
+  watch,
+} from 'vue';
 // 导入日期格式化工具
 import { formatDateTime } from '@vben/utils';
 import { Page } from '@vben/common-ui';
@@ -31,8 +41,11 @@ import type { FormInstance } from 'ant-design-vue';
 import CronHelperModal from './components/cron-helper.vue';
 // 导入可拖动 Modal 组合式函数
 import { useDraggableModal } from './composables/use-draggable-modal';
+// 导入表头排序标识恢复逻辑
+import { applyGridSortIndicator } from './composables/grid-sort-indicator';
 
 // 导入i18n
+import { CircleHelp, CircleX, RotateCw, Zap } from '@vben/icons';
 import { $t } from '#/locales';
 import { useI18n } from '@vben/locales';
 
@@ -63,7 +76,10 @@ import {
   getSchedulerStatus,
   startScheduler,
   stopScheduler,
+  drainScheduler,
+  resumeScheduler,
 } from '../../api/quartz/scheduler';
+import type { SchedulerStatusDto } from '../../api/quartz/scheduler';
 import { getJobClasses } from '../../api/quartz/extension';
 
 const { locale } = useI18n();
@@ -93,9 +109,10 @@ const toggleLoadingKeys = ref<Set<string>>(new Set());
 const selectedRows = ref<QuartzJobResponseDto[]>([]);
 
 // 调度器状态
-const schedulerStatus = ref({
+const schedulerStatus = ref<SchedulerStatusDto>({
   schedulerName: '',
   schedulerInstanceId: '',
+  runtimeInstanceId: '',
   isStarted: false,
   isShutdown: true,
   inStandbyMode: false,
@@ -106,7 +123,89 @@ const schedulerStatus = ref({
   version: '',
   startTime: undefined,
   runningTime: 0,
+  isDraining: false,
+  isStopping: false,
+  remainingExecutingCount: 0,
+  shutdownMode: 'Drain',
 });
+
+// 排水期间轮询
+let drainPollTimer: ReturnType<typeof setInterval> | null = null;
+let drainPollPending = false;
+const stopDrainPolling = () => {
+  if (drainPollTimer) {
+    clearInterval(drainPollTimer);
+    drainPollTimer = null;
+  }
+  drainPollPending = false;
+};
+const startDrainPolling = () => {
+  if (drainPollTimer) return;
+  drainPollTimer = setInterval(async () => {
+    // 避免请求重叠，同时保证单次请求失败时继续轮询（否则界面会一直停在旧状态）
+    if (drainPollPending) return;
+    drainPollPending = true;
+    const wasDraining = schedulerStatus.value.isDraining;
+    try {
+      await getSchedulerStatusInfo(true);
+    } finally {
+      drainPollPending = false;
+    }
+    if (!schedulerStatus.value.isDraining) {
+      stopDrainPolling();
+      if (wasDraining) {
+        message.info($t('page.quartz.jobPage.drainCompleted'));
+      }
+      await gridApi.query();
+    }
+  }, 3000);
+};
+onDeactivated(stopDrainPolling);
+onUnmounted(stopDrainPolling);
+
+// 停机策略为「立即停止」时，排水不再等待执行中任务
+const isImmediateStop = computed(
+  () => schedulerStatus.value.shutdownMode === 'Immediate',
+);
+
+const drainHintText = computed(() =>
+  isImmediateStop.value
+    ? $t('page.quartz.jobPage.drainHintImmediate')
+    : $t('page.quartz.jobPage.drainHint'),
+);
+
+const drainBadgeText = computed(() => {
+  if (schedulerStatus.value.isStopping) {
+    return $t('page.quartz.jobPage.drainingFinishing');
+  }
+  const remaining =
+    schedulerStatus.value.remainingExecutingCount ??
+    schedulerStatus.value.executingJobCount ??
+    0;
+  return remaining > 0
+    ? $t('page.quartz.jobPage.draining', { count: remaining })
+    : $t('page.quartz.jobPage.drainingFinishing');
+});
+
+// 调度器操作态：按钮 loading，同时避免重复提交
+const schedulerAction = ref<'drain' | 'resume' | 'start' | 'stop' | null>(null);
+const isSchedulerBusy = computed(() => schedulerAction.value !== null);
+
+const executingCount = computed(() => {
+  // 排水期间剩余任务数由排水协调器给出，其余时间用调度器实时执行数
+  if (schedulerStatus.value.isDraining) {
+    return schedulerStatus.value.remainingExecutingCount ?? 0;
+  }
+  return schedulerStatus.value.executingJobCount ?? 0;
+});
+
+const schedulerStateClass = computed(() =>
+  schedulerStatus.value.isDraining
+    ? 'is-draining'
+    : schedulerStatus.value.isStarted
+      ? 'is-running'
+      : 'is-stopped',
+);
 
 // 编辑对话框
 const editModalVisible = ref(false);
@@ -130,6 +229,7 @@ const editForm = reactive<QuartzJobDto & { apiUrl: string; jobClassName: string 
   retryIntervalSeconds: 30,
   skipSslValidation: false,
   disallowConcurrentExecution: false,
+  rerunOnRecovery: null,
   dependencies: [],
   startTime: undefined,
   endTime: undefined,
@@ -234,6 +334,50 @@ const editModalDisplayTitle = computed(() => {
 // 判断是否为编辑模式
 const isEditMode = computed(() => editModalTitle.value === 'edit');
 
+// 三态开关：Select 用字符串值承载 null，避免 null 被当成未选择
+const rerunOnRecoveryValue = computed<string>({
+  get: () => {
+    if (editForm.rerunOnRecovery === null || editForm.rerunOnRecovery === undefined) {
+      return 'global';
+    }
+    return editForm.rerunOnRecovery ? 'on' : 'off';
+  },
+  set: (value) => {
+    editForm.rerunOnRecovery =
+      value === 'global' ? null : value === 'on';
+  },
+});
+
+// 列表「自动重跑」图标三态
+const rerunIconInfo = (row: QuartzJobResponseDto) => {
+  const effective = row.effectiveRerunOnRecovery;
+  if (effective === undefined || effective === null) {
+    return {
+      icon: CircleHelp,
+      cls: 'text-muted-foreground',
+      tip: $t('page.quartz.jobPage.rerunUnknown'),
+    };
+  }
+  if (effective) {
+    return {
+      icon: Zap,
+      cls: 'text-success',
+      tip:
+        row.rerunOnRecovery == null
+          ? $t('page.quartz.jobPage.rerunAllowedGlobal')
+          : $t('page.quartz.jobPage.rerunAllowedJob'),
+    };
+  }
+  return {
+    icon: CircleX,
+    cls: 'text-muted-foreground',
+    tip:
+      row.rerunOnRecovery == null
+        ? $t('page.quartz.jobPage.rerunDeniedGlobal')
+        : $t('page.quartz.jobPage.rerunDeniedJob'),
+  };
+};
+
 // 列配置
 const columns = computed(() => [
   { type: 'checkbox', width: 50, fixed: 'left' },
@@ -295,6 +439,13 @@ const columns = computed(() => [
     slots: { default: 'status' },
   },
   {
+    field: 'rerunOnRecovery',
+    title: $t('page.quartz.jobPage.colRerun'),
+    width: 80,
+    align: 'center' as const,
+    slots: { default: 'rerunOnRecovery' },
+  },
+  {
     field: 'dependencies',
     title: $t('page.quartz.jobPage.dependencies'),
     minWidth: 160,
@@ -338,6 +489,11 @@ const savedSort = (() => {
     return undefined;
   }
 })();
+// 默认排序：与后端缺省排序（创建时间倒序）保持一致，保证首次进入也有排序标识
+const DEFAULT_SORT = { field: 'createTime', order: 'desc' as const };
+const initialSort = savedSort ?? DEFAULT_SORT;
+// 当前生效的排序：点击表头后会同步更新，搜索/刷新后据此恢复列头标识与查询参数
+const currentSort = { field: initialSort.field, order: initialSort.order };
 const savedSearch = (() => {
   try {
     const raw = localStorage.getItem(SEARCH_KEY);
@@ -357,7 +513,7 @@ const gridOptions: VxeTableGridOptions<QuartzJobResponseDto> = {
   sortConfig: {
     trigger: 'cell',
     remote: true,
-    defaultSort: savedSort,
+    defaultSort: initialSort,
   },
   customConfig: { storage: true },
   checkboxConfig: { highlight: true, range: false },
@@ -368,18 +524,9 @@ const gridOptions: VxeTableGridOptions<QuartzJobResponseDto> = {
     autoLoad: false,
     ajax: {
       query: async ({ page, sort }: any, formValues: any) => {
-        // autoLoad 首次 query 时 defaultSort 可能未注入，从 localStorage 兜底
-        let sortField = sort?.field;
-        let sortOrderRaw = sort?.order;
-        if (!sortField) {
-          try {
-            const saved = JSON.parse(localStorage.getItem(SORT_KEY) || 'null');
-            if (saved) {
-              sortField = saved.field;
-              sortOrderRaw = saved.order;
-            }
-          } catch { }
-        }
+        // 代理 reload（搜索/刷新）会清空列头排序，回退到当前生效的排序
+        const sortField = sort?.field ?? currentSort.field;
+        const sortOrderRaw = sort?.order ?? currentSort.order;
         // 保持原有行为：sortOrder 使用 ascend/descend 形式
         const sortOrder =
           sortOrderRaw === 'asc' ? 'ascend' : sortOrderRaw === 'desc' ? 'descend' : '';
@@ -429,6 +576,11 @@ const gridOptions: VxeTableGridOptions<QuartzJobResponseDto> = {
           console.error($t('page.quartz.jobPage.jobListFailed'), error);
           return { result: [], page: { total: 0 } };
         }
+      },
+      // 搜索/刷新走的是代理 reload，vxe 在 reload 前会 clearSort 清空列头排序状态，
+      // 数据仍按 initialSort 排序，这里把列头标识补回来，避免标识与数据不一致
+      querySuccess: () => {
+        restoreSortIndicator();
       },
     },
     sort: true,
@@ -489,6 +641,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
         label: $t('page.quartz.jobPage.isEnabled'),
       },
     ],
+    commonConfig: {
+      // 关闭浏览器对搜索框的自动填充/历史建议
+      componentProps: { autocomplete: 'off' },
+    },
     showCollapseButton: false,
     submitOnChange: false,
     submitOnEnter: true,
@@ -503,11 +659,16 @@ const [Grid, gridApi] = useVbenVxeGrid({
     sortChange: ({ property, field, order }: any) => {
       const sortField = property || field;
       if (sortField && order) {
+        currentSort.field = sortField;
+        currentSort.order = order;
         localStorage.setItem(
           SORT_KEY,
           JSON.stringify({ field: sortField, order }),
         );
       } else {
+        // 取消排序后回退到默认排序，保证列头标识与查询参数始终一致
+        currentSort.field = DEFAULT_SORT.field;
+        currentSort.order = DEFAULT_SORT.order;
         localStorage.removeItem(SORT_KEY);
       }
     },
@@ -516,6 +677,21 @@ const [Grid, gridApi] = useVbenVxeGrid({
 
 // 编辑对话框支持拖动
 useDraggableModal(editModalVisible, 'quartz-job-edit-modal');
+
+// 恢复表头排序标识：仅在当前排序与期望不一致时设置，避免触发多余查询
+const restoreSortIndicator = () => applyGridSortIndicator(gridApi, currentSort);
+
+// 页面被 keep-alive 缓存后重新激活时，表头排序标识会丢失，需要重新同步
+let sortIndicatorActivated = false;
+onActivated(async () => {
+  if (!sortIndicatorActivated) {
+    // 首次激活与 onMounted 中的恢复重叠，跳过
+    sortIndicatorActivated = true;
+    return;
+  }
+  await nextTick();
+  await restoreSortIndicator();
+});
 
 // 搜索/重置由 VbenForm 内置提交按钮触发，无需手动处理
 
@@ -586,6 +762,7 @@ const handleAdd = async () => {
     retryIntervalSeconds: 30,
     skipSslValidation: false,
     disallowConcurrentExecution: false,
+    rerunOnRecovery: null,
     dependencies: [],
     startTime: undefined,
     endTime: undefined,
@@ -632,6 +809,7 @@ const handleCopyJob = async (job: QuartzJobResponseDto) => {
       retryIntervalSeconds: response.data?.retryIntervalSeconds ?? 30,
       skipSslValidation: response.data?.skipSslValidation || false,
       disallowConcurrentExecution: response.data?.disallowConcurrentExecution || false,
+      rerunOnRecovery: response.data?.rerunOnRecovery ?? null,
       dependencies: response.data?.dependencies || [],
       startTime: response.data?.startTime || undefined,
       endTime: response.data?.endTime || undefined,
@@ -689,6 +867,7 @@ const handleEdit = async (job: QuartzJobResponseDto) => {
       retryIntervalSeconds: response.data?.retryIntervalSeconds ?? 30,
       skipSslValidation: response.data?.skipSslValidation || false,
       disallowConcurrentExecution: response.data?.disallowConcurrentExecution || false,
+      rerunOnRecovery: response.data?.rerunOnRecovery ?? null,
       dependencies: response.data?.dependencies || [],
       startTime: response.data?.startTime || undefined,
       endTime: response.data?.endTime || undefined,
@@ -740,6 +919,7 @@ const handleSave = async () => {
       retryIntervalSeconds: editForm.retryIntervalSeconds ?? 30,
       skipSslValidation: editForm.skipSslValidation,
       disallowConcurrentExecution: editForm.disallowConcurrentExecution,
+      rerunOnRecovery: editForm.rerunOnRecovery ?? null,
       dependencies: editForm.dependencies,
       startTime: editForm.startTime,
       endTime: editForm.endTime,
@@ -1000,57 +1180,170 @@ const handleBatchOperation = (
   });
 };
 
-// 获取调度器状态
-const getSchedulerStatusInfo = async () => {
+// 获取调度器状态（silent：轮询时失败不弹提示，避免刷屏且不影响后续轮询）
+const getSchedulerStatusInfo = async (silent = false) => {
   try {
     const response = await getSchedulerStatus();
     if (response.success && response.data) {
       // 直接使用后端返回的数据，不进行命名转换
       schedulerStatus.value = response.data;
+      if (response.data.isDraining) {
+        startDrainPolling();
+      }
+      return true;
+    }
+    if (!silent) {
+      message.error(
+        response.message || $t('page.quartz.jobPage.schedulerStatusFailed'),
+      );
     }
   } catch (error) {
     console.error($t('page.quartz.jobPage.schedulerStatusFailed'), error);
-    message.error($t('page.quartz.jobPage.schedulerStatusFailed'));
+    if (!silent) {
+      message.error($t('page.quartz.jobPage.schedulerStatusFailed'));
+    }
   }
+  return false;
 };
 
 // 启动调度器
 const handleStartScheduler = async () => {
+  if (isSchedulerBusy.value) return;
+  schedulerAction.value = 'start';
   try {
     const response = await startScheduler();
     if (response.success) {
       message.success($t('page.quartz.jobPage.schedulerStartedSuccess'));
       await getSchedulerStatusInfo();
       gridApi.query();
+    } else {
+      message.warning(
+        response.message || $t('page.quartz.jobPage.schedulerStartFailed'),
+      );
     }
   } catch (error) {
     console.error($t('page.quartz.jobPage.schedulerStartFailed'), error);
     message.error($t('page.quartz.jobPage.schedulerStartFailed'));
+  } finally {
+    schedulerAction.value = null;
   }
 };
 
 // 停止调度器
 const handleStopScheduler = () => {
+  if (isSchedulerBusy.value) return;
+  const draining = schedulerStatus.value.isDraining;
+  const remaining =
+    schedulerStatus.value.remainingExecutingCount ??
+    schedulerStatus.value.executingJobCount ??
+    0;
   Modal.confirm({
     title: $t('page.quartz.jobPage.confirmStopScheduler'),
-    content: $t('page.quartz.jobPage.confirmStopSchedulerContent'),
+    content: draining
+      ? $t('page.quartz.jobPage.confirmStopDrainContent', { count: remaining })
+      : $t('page.quartz.jobPage.confirmStopSchedulerContent'),
     okText: $t('page.quartz.jobPage.ok'),
     okType: 'danger',
     cancelText: $t('page.quartz.jobPage.cancel'),
     async onOk() {
+      schedulerAction.value = 'stop';
       try {
         const response = await stopScheduler();
         if (response.success) {
           message.success($t('page.quartz.jobPage.schedulerStoppedSuccess'));
+          stopDrainPolling();
           await getSchedulerStatusInfo();
           gridApi.query();
+        } else {
+          message.warning(
+            response.message || $t('page.quartz.jobPage.schedulerStopFailed'),
+          );
         }
       } catch (error) {
         console.error($t('page.quartz.jobPage.schedulerStopFailed'), error);
         message.error($t('page.quartz.jobPage.schedulerStopFailed'));
+      } finally {
+        schedulerAction.value = null;
       }
     },
   });
+};
+
+// 排水：停止接收新触发；「立即停止」策略下直接关闭调度器
+const handleDrain = () => {
+  if (isSchedulerBusy.value) return;
+  const immediate = isImmediateStop.value;
+  Modal.confirm({
+    title: $t('page.quartz.jobPage.confirmDrain'),
+    content: immediate
+      ? $t('page.quartz.jobPage.confirmDrainImmediateContent')
+      : $t('page.quartz.jobPage.confirmDrainContent'),
+    okText: $t('page.quartz.jobPage.ok'),
+    cancelText: $t('page.quartz.jobPage.cancel'),
+    async onOk() {
+      schedulerAction.value = 'drain';
+      try {
+        const response = await drainScheduler();
+        if (response.success) {
+          message.success(
+            immediate
+              ? $t('page.quartz.jobPage.drainImmediateSuccess')
+              : $t('page.quartz.jobPage.drainSuccess'),
+          );
+          await getSchedulerStatusInfo(true);
+          // 「立即停止」策略下排水是同步完成的，直接按最新状态收尾，不进入轮询
+          if (schedulerStatus.value.isDraining) {
+            startDrainPolling();
+          } else {
+            stopDrainPolling();
+            await gridApi.query();
+          }
+        } else {
+          message.warning(
+            response.message || $t('page.quartz.jobPage.drainFailed'),
+          );
+        }
+      } catch (error: any) {
+        message.error(error?.message || $t('page.quartz.jobPage.drainFailed'));
+      } finally {
+        schedulerAction.value = null;
+      }
+    },
+  });
+};
+
+// 取消排水，恢复调度
+const handleResumeScheduler = async () => {
+  if (isSchedulerBusy.value) return;
+  schedulerAction.value = 'resume';
+  try {
+    // 按钮可能来自上一次状态快照，先拉最新状态，避免对已结束的排水发恢复请求
+    await getSchedulerStatusInfo();
+    if (!schedulerStatus.value.isDraining) {
+      stopDrainPolling();
+      message.info($t('page.quartz.jobPage.drainCompleted'));
+      await gridApi.query();
+      return;
+    }
+
+    const response = await resumeScheduler();
+    if (response.success) {
+      message.success($t('page.quartz.jobPage.resumeSuccess'));
+      stopDrainPolling();
+      await getSchedulerStatusInfo();
+      gridApi.query();
+    } else {
+      message.warning(
+        response.message || $t('page.quartz.jobPage.resumeFailed'),
+      );
+      await getSchedulerStatusInfo();
+    }
+  } catch (error: any) {
+    message.error(error?.message || $t('page.quartz.jobPage.resumeFailed'));
+    await getSchedulerStatusInfo();
+  } finally {
+    schedulerAction.value = null;
+  }
 };
 
 const API_METHOD_COLORS: Record<string, string> = {
@@ -1188,14 +1481,8 @@ onMounted(async () => {
   }
   // 手动触发首次查询（此时 formApi 已回填搜索条件，query 回调能拿到值）
   await gridApi.query();
-  // 数据加载后恢复排序视觉状态
-  await nextTick();
-  try {
-    const saved = JSON.parse(localStorage.getItem(SORT_KEY) || 'null');
-    if (saved) {
-      gridApi.grid?.setSort({ field: saved.field, order: saved.order });
-    }
-  } catch { }
+  // defaultSort 未生效时兜底恢复排序标识
+  await restoreSortIndicator();
 });
 </script>
 
@@ -1206,22 +1493,94 @@ onMounted(async () => {
       <Grid>
         <!-- 工具栏：左侧调度器控制 + 右侧作业操作 -->
         <template #toolbar-actions>
-          <div class="flex w-full items-center justify-between">
+          <div class="toolbar-shell">
             <div class="scheduler-bar">
-              <span class="scheduler-status" :class="schedulerStatus.isStarted ? 'is-running' : 'is-stopped'">
-                <i class="status-dot"></i>
-                {{ schedulerStatus.status }}
-              </span>
+              <Tooltip
+                placement="bottomLeft"
+                :overlay-style="{ maxWidth: '420px' }"
+              >
+                <template #title>
+                  <div class="scheduler-tip">
+                    <div>
+                      {{ $t('page.quartz.jobPage.runtimeInstance') }}:
+                      {{ schedulerStatus.runtimeInstanceId || schedulerStatus.schedulerInstanceId || '-' }}
+                    </div>
+                    <div>
+                      {{ $t('page.quartz.jobPage.threadPoolSize') }}:
+                      {{ schedulerStatus.threadPoolSize }} ·
+                      {{ $t('page.quartz.jobPage.executingJobs') }}:
+                      {{ executingCount }}
+                    </div>
+                    <div v-if="schedulerStatus.startTime">
+                      {{ $t('page.quartz.jobPage.schedulerStartTime') }}:
+                      {{ formatDateTime(schedulerStatus.startTime) }}
+                    </div>
+                  </div>
+                </template>
+                <span class="scheduler-status" :class="schedulerStateClass">
+                  <i class="status-dot"></i>
+                  <span class="scheduler-status__text">
+                    {{ schedulerStatus.isDraining ? drainBadgeText : schedulerStatus.status }}
+                  </span>
+                  <span
+                    v-if="schedulerStatus.isStarted && executingCount > 0"
+                    class="scheduler-status__count"
+                  >
+                    {{ executingCount }}
+                  </span>
+                </span>
+              </Tooltip>
               <span class="scheduler-sep"></span>
-              <Button type="primary" :disabled="schedulerStatus.isStarted" @click="handleStartScheduler">
-                {{ $t('page.quartz.jobPage.startScheduler') }}
-              </Button>
-              <Button danger :disabled="!schedulerStatus.isStarted || schedulerStatus.isShutdown"
-                @click="handleStopScheduler">
-                {{ $t('page.quartz.jobPage.stopScheduler') }}
-              </Button>
+              <div class="scheduler-actions">
+                <Button
+                  v-if="!schedulerStatus.isStarted"
+                  size="small"
+                  type="primary"
+                  :loading="schedulerAction === 'start'"
+                  @click="handleStartScheduler"
+                >
+                  {{ $t('page.quartz.jobPage.startScheduler') }}
+                </Button>
+                <template v-else>
+                  <Tooltip
+                    v-if="!schedulerStatus.isDraining"
+                    :title="drainHintText"
+                    placement="bottom"
+                  >
+                    <Button
+                      size="small"
+                      :loading="schedulerAction === 'drain'"
+                      :disabled="schedulerStatus.isShutdown"
+                      @click="handleDrain"
+                    >
+                      {{ $t('page.quartz.jobPage.drainScheduler') }}
+                    </Button>
+                  </Tooltip>
+                  <Button
+                    v-else
+                    size="small"
+                    type="primary"
+                    ghost
+                    :loading="schedulerAction === 'resume'"
+                    :disabled="schedulerStatus.isStopping"
+                    @click="handleResumeScheduler"
+                  >
+                    <RotateCw class="scheduler-btn-icon" />
+                    {{ $t('page.quartz.jobPage.resumeScheduler') }}
+                  </Button>
+                  <Button
+                    size="small"
+                    danger
+                    :loading="schedulerAction === 'stop'"
+                    :disabled="schedulerStatus.isShutdown"
+                    @click="handleStopScheduler"
+                  >
+                    {{ $t('page.quartz.jobPage.stopScheduler') }}
+                  </Button>
+                </template>
+              </div>
             </div>
-            <Space>
+            <Space :size="8" class="toolbar-actions">
               <Button type="primary" @click="handleAdd"> {{ $t('page.quartz.jobPage.addJob') }} </Button>
               <Dropdown :trigger="['click']">
                 <Button :disabled="selectedRows.length === 0">
@@ -1273,6 +1632,19 @@ onMounted(async () => {
           <Tag :color="jobStatusMap[row.status as JobStatusEnum]?.status || 'default'">
             {{ jobStatusMap[row.status as JobStatusEnum]?.text?.() || row.status || $t('page.quartz.jobPage.unknown') }}
           </Tag>
+        </template>
+
+        <!-- 中断后自动重跑三态图标 -->
+        <template #rerunOnRecovery="{ row }">
+          <Tooltip :title="rerunIconInfo(row).tip">
+            <component
+              :is="rerunIconInfo(row).icon"
+              :class="rerunIconInfo(row).cls"
+              class="rerun-state-icon inline-flex h-4 w-4"
+              tabindex="-1"
+              focusable="false"
+            />
+          </Tooltip>
         </template>
 
         <!-- 前置依赖 -->
@@ -1334,7 +1706,7 @@ onMounted(async () => {
         :body-style="{ padding: '24px' }" wrapClassName="quartz-job-edit-modal" destroyOnClose
         @cancel="editModalVisible = false">
         <Form ref="formRef" :model="editForm" layout="horizontal" :label-col="{ style: { width: '110px' } }"
-          :wrapper-col="{ flex: 1 }">
+          :wrapper-col="{ flex: 1 }" autocomplete="off">
           <!-- 基本信息 -->
           <div class="form-section-title">{{ $t('page.quartz.jobPage.sectionBasic') }}</div>
           <Row :gutter="16">
@@ -1365,8 +1737,8 @@ onMounted(async () => {
 
           <!-- 调度设置 -->
           <div class="form-section-title">{{ $t('page.quartz.jobPage.sectionSchedule') }}</div>
-          <Row :gutter="16">
-            <Col :xs="24" :md="16">
+          <Row :gutter="16" class="schedule-grid">
+            <Col :xs="24" :md="15" class="schedule-col">
               <Form.Item :label="$t('page.quartz.jobPage.cronExpression')" name="cronExpression"
                 :rules="[{ required: true, message: $t('page.quartz.jobPage.cronRequired') }, { max: 200, message: $t('page.quartz.jobPage.cronMaxLen') }]">
                 <Space.Compact style="width: 100%">
@@ -1376,53 +1748,57 @@ onMounted(async () => {
                 </Space.Compact>
               </Form.Item>
             </Col>
-            <Col :xs="24" :md="8">
-              <Form.Item name="disallowConcurrentExecution">
-                <template #label>
-                  <Tooltip :title="$t('page.quartz.jobPage.disallowConcurrentHint')">
-                    <i class="vxe-icon-warning-circle retry-hint-icon" style="color: hsl(var(--warning)); cursor: help;"></i>
-                    {{ $t('page.quartz.jobPage.disallowConcurrent') }}
-                  </Tooltip>
-                </template>
-                <Switch v-model:checked="editForm.disallowConcurrentExecution" />
+            <Col :xs="24" :md="9" class="schedule-col schedule-col--inline-label">
+              <Form.Item :label="$t('page.quartz.jobPage.disallowConcurrent')" name="disallowConcurrentExecution">
+                <Tooltip :title="$t('page.quartz.jobPage.disallowConcurrentHint')">
+                  <Switch v-model:checked="editForm.disallowConcurrentExecution" />
+                </Tooltip>
               </Form.Item>
             </Col>
-            <!-- 失败重试 + 禁止并发：同一行布局 -->
-            <Col :xs="24">
-              <Form.Item name="retryCount" :rules="[
+            <!-- 前置依赖：独占整行 -->
+            <Col :xs="24" class="schedule-col">
+              <Form.Item :label="$t('page.quartz.jobPage.dependencies')" name="dependencies">
+                <Tooltip :title="$t('page.quartz.jobPage.dependenciesHint')">
+                  <Select v-model:value="dependencyKeys" mode="multiple" :options="dependencySelectOptions"
+                    :placeholder="$t('page.quartz.jobPage.dependenciesPlaceholder')" allowClear
+                    optionFilterProp="label" :maxTagCount="'responsive'" />
+                </Tooltip>
+              </Form.Item>
+            </Col>
+            <!-- 失败重试：次数与间隔紧凑组合 -->
+            <Col :xs="24" :md="15" class="schedule-col">
+              <Form.Item :label="$t('page.quartz.jobPage.retryLabel')" name="retryCount" :rules="[
                 { type: 'number', min: 0, max: 10, message: $t('page.quartz.jobPage.retryCountRange') },
               ]">
-                <template #label>
-                  <Tooltip :title="$t('page.quartz.jobPage.retryCountHint')">
-                    <i class="vxe-icon-warning-circle retry-hint-icon" style="color: hsl(var(--warning)); cursor: help;"></i>
-                    {{ $t('page.quartz.jobPage.retryLabel') }}
-                  </Tooltip>
-                </template>
-                <div class="retry-group">
-                  <InputNumber v-model:value="editForm.retryCount" :min="0" :max="10" class="retry-group__input"
-                    :placeholder="$t('page.quartz.jobPage.placeholderRetryCount')" />
-                  <span class="retry-group__unit">{{ $t('page.quartz.jobPage.retryTimesUnit') }}</span>
-                  <span class="retry-group__sep" aria-hidden="true"></span>
-                  <span class="retry-group__inline-label">{{ $t('page.quartz.jobPage.retryIntervalInline') }}</span>
-                  <InputNumber v-model:value="editForm.retryIntervalSeconds" :min="1" :max="3600"
-                    class="retry-group__input retry-group__input--interval"
-                    :placeholder="$t('page.quartz.jobPage.placeholderRetryInterval')"
-                    :disabled="!editForm.retryCount" />
-                  <span class="retry-group__unit">{{ $t('page.quartz.jobPage.retrySecondsUnit') }}</span>
-                </div>
+                <Tooltip :title="$t('page.quartz.jobPage.retryCountHint')">
+                  <div class="retry-group">
+                    <InputNumber v-model:value="editForm.retryCount" :min="0" :max="10" class="retry-group__input"
+                      :placeholder="$t('page.quartz.jobPage.placeholderRetryCount')" />
+                    <span class="retry-group__unit">{{ $t('page.quartz.jobPage.retryTimesUnit') }}</span>
+                    <span class="retry-group__sep" aria-hidden="true"></span>
+                    <span class="retry-group__inline-label">{{ $t('page.quartz.jobPage.retryIntervalInline') }}</span>
+                    <InputNumber v-model:value="editForm.retryIntervalSeconds" :min="1" :max="3600"
+                      class="retry-group__input retry-group__input--interval"
+                      :placeholder="$t('page.quartz.jobPage.placeholderRetryInterval')"
+                      :disabled="!editForm.retryCount" />
+                    <span class="retry-group__unit">{{ $t('page.quartz.jobPage.retrySecondsUnit') }}</span>
+                  </div>
+                </Tooltip>
               </Form.Item>
             </Col>
-            <Col :xs="24">
-              <Form.Item name="dependencies">
-                <template #label>
-                  <Tooltip :title="$t('page.quartz.jobPage.dependenciesHint')">
-                    <i class="vxe-icon-warning-circle retry-hint-icon" style="color: hsl(var(--warning)); cursor: help;"></i>
-                    {{ $t('page.quartz.jobPage.dependencies') }}
-                  </Tooltip>
-                </template>
-                <Select v-model:value="dependencyKeys" mode="multiple" :options="dependencySelectOptions"
-                  :placeholder="$t('page.quartz.jobPage.dependenciesPlaceholder')" allowClear
-                  optionFilterProp="label" :maxTagCount="'responsive'" />
+            <Col :xs="24" :md="9" class="schedule-col schedule-col--inline-label">
+              <Form.Item :label="$t('page.quartz.jobPage.rerunOnRecovery')" name="rerunOnRecovery">
+                <Tooltip :title="$t('page.quartz.jobPage.rerunOnRecoveryHint')">
+                  <Select
+                    v-model:value="rerunOnRecoveryValue"
+                    :options="[
+                      { label: $t('page.quartz.jobPage.rerunFollowGlobal'), value: 'global' },
+                      { label: $t('page.quartz.jobPage.rerunEnabled'), value: 'on' },
+                      { label: $t('page.quartz.jobPage.rerunDisabled'), value: 'off' },
+                    ]"
+                    style="width: 100%"
+                  />
+                </Tooltip>
               </Form.Item>
             </Col>
           </Row>
@@ -1536,8 +1912,7 @@ onMounted(async () => {
                 <Form.Item name="skipSslValidation" valuePropName="checked">
                   <template #label>
                     <Tooltip :title="$t('page.quartz.jobPage.skipSslWarning')">
-                      <i class="vxe-icon-warning-circle retry-hint-icon" style="color: hsl(var(--warning)); cursor: help;"></i>
-                      {{ $t('page.quartz.jobPage.skipSsl') }}
+                      <span>{{ $t('page.quartz.jobPage.skipSsl') }}</span>
                     </Tooltip>
                   </template>
                   <Switch v-model:checked="editForm.skipSslValidation" />
@@ -1694,20 +2069,69 @@ onMounted(async () => {
 
 
 
-/* ====== 失败重试紧凑配置组 ====== */
-.retry-group {
-  display: flex;
+/* ====== 调度设置：两列混排，标签列与表单其余分区保持一致 ====== */
+.schedule-grid :deep(.ant-form-item) {
+  margin-bottom: 12px;
+}
+
+.schedule-grid :deep(.ant-form-item-row) {
+  flex-wrap: nowrap;
   align-items: center;
-  flex-wrap: wrap;
+}
+
+.schedule-grid :deep(.ant-form-item-label) {
+  display: flex;
+  flex: 0 0 110px;
+  width: 110px;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 6px;
+}
+
+/* 同行右侧字段：标签宽度随文案伸缩，避免英文长标签溢出到左侧字段 */
+.schedule-grid .schedule-col--inline-label :deep(.ant-form-item-label) {
+  flex: 0 0 auto;
+  /* 覆盖 Form labelCol 注入的内联 width */
+  width: auto !important;
+  min-width: 110px;
+}
+
+.schedule-grid :deep(.ant-form-item-label > label) {
+  justify-content: flex-end;
+  height: auto;
+  line-height: 1.4;
+  font-size: 13px;
+  white-space: nowrap;
+  text-align: right;
+}
+
+
+
+.schedule-grid :deep(.ant-form-item-control) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ====== 失败重试：无外框组合，与同行下拉框控件基线对齐 ====== */
+.retry-group {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  max-width: 100%;
+  min-height: 32px;
   gap: 8px;
 }
 
+/* 双列布局下输入框可收缩，避免撑破同行另一列 */
 .retry-group__input {
-  width: 96px;
+  width: 88px;
+  flex: 0 1 88px;
+  min-width: 64px;
 }
 
 .retry-group__input--interval {
-  width: 104px;
+  width: 96px;
+  flex-basis: 96px;
 }
 
 .retry-group__unit,
@@ -1720,18 +2144,6 @@ onMounted(async () => {
 
 .retry-group__inline-label {
   color: hsl(var(--foreground));
-}
-
-/* ====== 表单字段辅助提示 ====== */
-.retry-hint-icon {
-  font-size: 11px;
-  color: hsl(var(--muted-foreground));
-  cursor: pointer;
-  transition: color 0.2s;
-}
-
-.retry-hint-icon:hover {
-  color: hsl(var(--primary));
 }
 
 .retry-group__sep {
@@ -1844,22 +2256,91 @@ onMounted(async () => {
 }
 
 /* ====== 调度器状态条 ====== */
+.toolbar-shell {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .scheduler-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  padding: 4px 6px 4px 8px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+  background: hsl(var(--card));
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.04);
+}
+
+.scheduler-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.scheduler-actions :deep(.scheduler-btn-icon) {
+  width: 13px;
+  height: 13px;
+  margin-right: 4px;
+}
+
+.scheduler-tip {
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.toolbar-actions {
+  flex-shrink: 0;
+}
+
+/* 列表状态图标仅展示，不显示焦点框 */
+.rerun-state-icon:focus,
+.rerun-state-icon:focus-visible {
+  outline: none;
 }
 
 .scheduler-status {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
+  min-width: 84px;
   font-size: 12px;
   font-weight: 500;
   padding: 4px 11px 4px 9px;
   border-radius: 999px;
   line-height: 1;
   letter-spacing: 0.01em;
+  cursor: default;
+  transition: background 0.2s ease;
+}
+
+.scheduler-status__text {
+  max-width: 190px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.scheduler-status__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: hsl(var(--background) / 0.85);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .scheduler-status .status-dot {
@@ -1890,6 +2371,18 @@ onMounted(async () => {
 
 .scheduler-status.is-stopped .status-dot {
   background: hsl(var(--destructive));
+}
+
+.scheduler-status.is-draining {
+  color: hsl(var(--warning));
+  background: hsl(var(--warning) / 0.08);
+  border: 1px solid hsl(var(--warning) / 0.2);
+}
+
+.scheduler-status.is-draining .status-dot {
+  background: hsl(var(--warning));
+  box-shadow: 0 0 0 3px hsl(var(--warning) / 0.15);
+  animation: pulse 1.4s ease-in-out infinite;
 }
 
 @keyframes pulse {

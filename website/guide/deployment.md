@@ -60,14 +60,14 @@ dotnet ef database update
 
 ## 5. 版本升级清单
 
-以 v2.6.0 为例：
+以 v2.7.0 为例：
 
 ```bash
 # 1. 更新主包
-dotnet add package Chet.QuartzNet.UI --version 2.6.0
+dotnet add package Chet.QuartzNet.UI --version 2.7.0
 
 # 2. 同步更新数据库扩展包
-dotnet add package Chet.QuartzNet.EFCore.MySQL --version 2.6.0
+dotnet add package Chet.QuartzNet.EFCore.MySQL --version 2.7.0
 
 # 3. 数据库结构升级
 dotnet ef database update
@@ -80,6 +80,8 @@ dotnet ef database update
 - [ ] 数据库迁移脚本已在测试环境验证
 - [ ] 通知、JWT 等配置未被覆盖
 - [ ] 升级后登录、作业列表、日志、通知均正常
+- [ ] 非幂等作业已关闭「中断后自动重跑」
+- [ ] 宿主 `ShutdownTimeout` 大于「排水超时」
 
 ### 文件存储升级
 
@@ -87,12 +89,18 @@ dotnet ef database update
 
 ### 数据库存储升级
 
-如果只升级主包而不升级 EFCore 扩展包，新增字段可能写入失败。例如 v2.6.0 新增作业依赖字段，需要四个数据库提供程序同步更新并执行 `AddJobDependencies` 迁移。
+如果只升级主包而不升级 EFCore 扩展包，新增字段可能写入失败。例如 v2.6.0 新增作业依赖字段（`AddJobDependencies`），v2.7.0 新增中断恢复与排水字段（`AddRecoveryAndDrainFields`，四个提供程序各一个迁移），都需要扩展包同步更新。
+
+v2.7.0 升级后的变化：
+
+- 执行中的作业会实时写 `Running` 日志，日志表增长会比以前略快，建议同时开启日志自动清理；
+- 中断记录与其补偿链受清理保护，不会因为按天数 / 条数清理而丢失恢复依据。
 
 ## 6. 回滚建议
 
 - 升级前保留旧版本包与数据库备份；
 - 回滚时同时回退主包与扩展包版本；
+- v2.7.0 新增列全部可空或有默认值，回滚旧版本不会破坏结构；回滚后中断记录仍可见，但旧版本不会执行补偿；
 - 若数据库已执行新迁移，回滚前先确认旧版本是否兼容新结构；
 - 文件存储可直接恢复备份目录。
 

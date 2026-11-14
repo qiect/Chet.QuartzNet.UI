@@ -16,6 +16,45 @@ export interface SystemConfigDto {
   logMaxCount?: number;
   /** 日志自动清理间隔（小时） */
   logCleanupIntervalHours?: number;
+
+  // 停机策略（启动期配置）
+  /** 停机模式 */
+  shutdownMode?: ShutdownMode;
+  /** 兼容保留：「等待完成」已并入「排水后停止」，该值不再参与策略（秒） */
+  shutdownWaitTimeoutSeconds?: number;
+  /** 排水后停止模式的等待超时（秒） */
+  drainTimeoutSeconds?: number;
+
+  // 中断恢复（启动期配置）
+  /** 是否启用启动中断补偿 */
+  recoveryEnabled?: boolean;
+  /** 启动后延迟多少秒开始补偿 */
+  compensationDelaySeconds?: number;
+  /** 心跳间隔（秒） */
+  heartbeatIntervalSeconds?: number;
+  /** 租约时长（秒） */
+  leaseDurationSeconds?: number;
+  /** 临近下次触发跳过阈值（秒） */
+  skipIfNextFireWithinSeconds?: number;
+  /** 补偿策略 */
+  catchUpStrategy?: CatchUpStrategy;
+  /** 最大补偿次数 */
+  maxRecoveryAttempts?: number;
+  /** 作业未配置时的默认重跑开关 */
+  defaultRerunOnRecovery?: boolean;
+  /** 中断日志保留天数 */
+  interruptedLogRetentionDays?: number;
+}
+
+/** Wait 为历史值，行为等同 Drain（仅兼容读取旧配置，不再写入） */
+export type ShutdownMode = 'Immediate' | 'Drain' | 'Wait';
+export type CatchUpStrategy = 'None' | 'Latest' | 'All';
+
+// 系统配置响应：持久化配置 + 当前生效快照
+export interface SystemConfigResponseDto extends SystemConfigDto {
+  effectiveConfig?: SystemConfigDto | null;
+  restartRequired?: boolean;
+  bootTime?: string | null;
 }
 
 // 迁移步骤状态枚举
@@ -288,7 +327,7 @@ export interface TriggerMigrationRequestDto {
 }
 
 // 获取系统配置
-export const getSystemConfig = async (): Promise<SystemConfigDto> => {
+export const getSystemConfig = async (): Promise<SystemConfigResponseDto> => {
   const response = await requestClient.get('/api/quartz/GetSystemConfig');
   return response;
 };

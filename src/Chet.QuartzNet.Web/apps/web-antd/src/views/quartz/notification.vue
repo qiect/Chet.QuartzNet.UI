@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted, nextTick, watch } from 'vue';
+import {
+  ref,
+  computed,
+  reactive,
+  onActivated,
+  onMounted,
+  nextTick,
+  watch,
+} from 'vue';
 import { formatDateTime } from '@vben/utils';
 import { Page } from '@vben/common-ui';
 // 导入 vbenadmin 的 Vxe Table 适配器
@@ -14,6 +22,7 @@ import {
   Form,
   Switch,
   message,
+  Popover,
   Tag,
   Row,
   Col,
@@ -24,6 +33,8 @@ import {
   DescriptionsItem,
 } from 'ant-design-vue';
 import type { FormInstance } from 'ant-design-vue';
+import { Check, Eye } from '@vben/icons';
+import dayjs from 'dayjs';
 
 // 导入i18n
 import { $t } from '#/locales';
@@ -45,6 +56,8 @@ import type {
 } from '../../api/quartz/notification';
 // 导入可拖动 Modal 组合式函数
 import { useDraggableModal } from './composables/use-draggable-modal';
+// 导入表头排序标识恢复逻辑
+import { applyGridSortIndicator } from './composables/grid-sort-indicator';
 
 const { locale } = useI18n();
 
@@ -130,6 +143,94 @@ const channelTipMessage = computed(() => {
   return tips[configForm.channel] || '';
 });
 
+// 消息模板格式卡片（每种格式对应后端一种内容生成方式）
+const templateOptions = computed(() => [
+  {
+    value: 'html',
+    label: $t('page.quartz.notificationPage.templateHtml'),
+    desc: $t('page.quartz.notificationPage.templateHtmlDesc'),
+    glyph: '</>',
+    color: '#e5533d',
+    tint: 'rgba(229, 83, 61, 0.12)',
+  },
+  {
+    value: 'markdown',
+    label: $t('page.quartz.notificationPage.templateMarkdown'),
+    desc: $t('page.quartz.notificationPage.templateMarkdownDesc'),
+    glyph: 'MD',
+    color: '#1f6feb',
+    tint: 'rgba(31, 111, 235, 0.12)',
+  },
+  {
+    value: 'txt',
+    label: $t('page.quartz.notificationPage.templateTxt'),
+    desc: $t('page.quartz.notificationPage.templateTxtDesc'),
+    glyph: 'TXT',
+    color: '#7a5af8',
+    tint: 'rgba(122, 90, 248, 0.12)',
+  },
+  {
+    value: 'json',
+    label: $t('page.quartz.notificationPage.templateJson'),
+    desc: $t('page.quartz.notificationPage.templateJsonDesc'),
+    glyph: '{}',
+    color: '#0f9d58',
+    tint: 'rgba(15, 157, 88, 0.12)',
+  },
+]);
+
+// 当前选中的模板格式名称
+const currentTemplateLabel = computed(
+  () =>
+    templateOptions.value.find(
+      (item) => item.value === (configForm.template || '').toLowerCase(),
+    )?.label ?? configForm.template,
+);
+
+// 预览使用的格式（后端对未识别格式回退为 HTML，这里保持一致）
+const previewMode = computed(() => {
+  const mode = (configForm.template || 'html').toLowerCase();
+  return ['html', 'markdown', 'txt', 'json'].includes(mode) ? mode : 'html';
+});
+
+// 预览示例数据（打开配置时刷新触发时间）
+const previewSample = reactive({
+  jobName: 'SampleJob',
+  triggerTime: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+});
+
+// 纯文本模板预览
+const previewText = computed(() =>
+  [
+    `${$t('page.quartz.notificationPage.previewFieldJob')}: ${previewSample.jobName}`,
+    `${$t('page.quartz.notificationPage.previewFieldStatus')}: ${$t('page.quartz.notificationPage.previewStatusSuccess')}`,
+    `${$t('page.quartz.notificationPage.previewFieldTime')}: ${previewSample.triggerTime}`,
+    `${$t('page.quartz.notificationPage.previewFieldDuration')}: 1.28 s`,
+    '',
+    $t('page.quartz.notificationPage.previewFooter'),
+  ].join('\n'),
+);
+
+// JSON 模板预览（与后端 GenerateJobExecutionJsonContent 的字段保持一致）
+const previewJson = computed(() =>
+  JSON.stringify(
+    {
+      eventType: 'jobExecution',
+      title: `${$t('page.quartz.notificationPage.previewStatusSuccess')}: ${previewSample.jobName}`,
+      jobName: previewSample.jobName,
+      jobGroup: 'DEFAULT',
+      status: 'success',
+      statusText: $t('page.quartz.notificationPage.previewStatusSuccess'),
+      message: 'Job executed successfully',
+      executionTime: previewSample.triggerTime,
+      duration: 1280,
+      source: 'Chet.QuartzNET.UI',
+    },
+    null,
+    2,
+  ),
+);
+
 // 列配置
 const columns = computed(() => [
   { type: 'seq', width: 60, title: '#', fixed: 'left' },
@@ -198,6 +299,11 @@ const savedSort = (() => {
     return undefined;
   }
 })();
+// 默认排序：与后端缺省排序（创建时间倒序）保持一致，保证首次进入也有排序标识
+const DEFAULT_SORT = { field: 'createTime', order: 'desc' as const };
+const initialSort = savedSort ?? DEFAULT_SORT;
+// 当前生效的排序：点击表头后会同步更新，搜索/刷新后据此恢复列头标识与查询参数
+const currentSort = { field: initialSort.field, order: initialSort.order };
 const savedSearch = (() => {
   try {
     const raw = localStorage.getItem(SEARCH_KEY);
@@ -217,7 +323,7 @@ const gridOptions: VxeTableGridOptions<QuartzNotificationDto> = {
   sortConfig: {
     trigger: 'cell',
     remote: true,
-    defaultSort: savedSort,
+    defaultSort: initialSort,
   },
   customConfig: { storage: true },
   columnConfig: { resizable: true },
@@ -227,18 +333,9 @@ const gridOptions: VxeTableGridOptions<QuartzNotificationDto> = {
     autoLoad: false,
     ajax: {
       query: async ({ page, sort }: any, formValues: any) => {
-        // autoLoad 首次 query 时 defaultSort 可能未注入，从 localStorage 兜底
-        let sortField = sort?.field;
-        let sortOrderRaw = sort?.order;
-        if (!sortField) {
-          try {
-            const saved = JSON.parse(localStorage.getItem(SORT_KEY) || 'null');
-            if (saved) {
-              sortField = saved.field;
-              sortOrderRaw = saved.order;
-            }
-          } catch {}
-        }
+        // 代理 reload（搜索/刷新）会清空列头排序，回退到当前生效的排序
+        const sortField = sort?.field ?? currentSort.field;
+        const sortOrderRaw = sort?.order ?? currentSort.order;
         // 保持原有行为：sortOrder 使用 ascend/descend 形式
         const sortOrder =
           sortOrderRaw === 'asc' ? 'ascend' : sortOrderRaw === 'desc' ? 'descend' : undefined;
@@ -298,6 +395,11 @@ const gridOptions: VxeTableGridOptions<QuartzNotificationDto> = {
           return { result: [], page: { total: 0 } };
         }
       },
+      // 搜索/刷新走的是代理 reload，vxe 在 reload 前会 clearSort 清空列头排序状态，
+      // 数据仍按 initialSort 排序，这里把列头标识补回来，避免标识与数据不一致
+      querySuccess: () => {
+        restoreSortIndicator();
+      },
     },
     sort: true,
   },
@@ -333,6 +435,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
         label: $t('page.quartz.notificationPage.triggeredBy'),
       },
     ],
+    commonConfig: {
+      // 关闭浏览器对搜索框的自动填充/历史建议
+      componentProps: { autocomplete: 'off' },
+    },
     showCollapseButton: false,
     submitOnChange: false,
     submitOnEnter: true,
@@ -341,11 +447,16 @@ const [Grid, gridApi] = useVbenVxeGrid({
     sortChange: ({ property, field, order }: any) => {
       const sortField = property || field;
       if (sortField && order) {
+        currentSort.field = sortField;
+        currentSort.order = order;
         localStorage.setItem(
           SORT_KEY,
           JSON.stringify({ field: sortField, order }),
         );
       } else {
+        // 取消排序后回退到默认排序，保证列头标识与查询参数始终一致
+        currentSort.field = DEFAULT_SORT.field;
+        currentSort.order = DEFAULT_SORT.order;
         localStorage.removeItem(SORT_KEY);
       }
     },
@@ -355,6 +466,21 @@ const [Grid, gridApi] = useVbenVxeGrid({
 // 对话框支持拖动
 useDraggableModal(configModalVisible, 'quartz-notification-config-modal');
 useDraggableModal(detailModalVisible, 'quartz-notification-detail-modal');
+
+// 恢复表头排序标识：仅在当前排序与期望不一致时设置，避免触发多余查询
+const restoreSortIndicator = () => applyGridSortIndicator(gridApi, currentSort);
+
+// 页面被 keep-alive 缓存后重新激活时，表头排序标识会丢失，需要重新同步
+let sortIndicatorActivated = false;
+onActivated(async () => {
+  if (!sortIndicatorActivated) {
+    // 首次激活与 onMounted 中的恢复重叠，跳过
+    sortIndicatorActivated = true;
+    return;
+  }
+  await nextTick();
+  await restoreSortIndicator();
+});
 
 // 监听语言切换，更新表格列头和搜索表单
 watch(locale, () => {
@@ -388,6 +514,17 @@ const handleOpenConfigModal = async () => {
   try {
     const response = await getPushPlusConfig() as any;
     Object.assign(configForm, response.data || response);
+    // 兼容历史配置：模板格式与通知策略缺失时回退为默认值，避免卡片无选中态
+    configForm.template = (configForm.template || 'html').toLowerCase();
+    if (!configForm.strategy) {
+      configForm.strategy = {
+        notifyOnJobSuccess: false,
+        notifyOnJobFailure: true,
+        notifyOnSchedulerError: true,
+      };
+    }
+    // 预览示例的触发时间每次打开时刷新
+    previewSample.triggerTime = dayjs().format('YYYY-MM-DD HH:mm:ss');
     configModalVisible.value = true;
   } catch (error) {
     message.error($t('page.quartz.notificationPage.getConfigFailed'));
@@ -513,14 +650,8 @@ onMounted(async () => {
   }
   // 手动触发首次查询（autoLoad: false，此时 formApi 已回填搜索条件）
   await gridApi.query();
-  // 数据加载后恢复排序视觉状态
-  await nextTick();
-  try {
-    const saved = JSON.parse(localStorage.getItem(SORT_KEY) || 'null');
-    if (saved) {
-      gridApi.grid?.setSort({ field: saved.field, order: saved.order });
-    }
-  } catch {}
+  // defaultSort 未生效时兜底恢复排序标识
+  await restoreSortIndicator();
 });
 </script>
 
@@ -571,7 +702,7 @@ onMounted(async () => {
       </Grid>
 
       <!-- 配置对话框 -->
-      <Modal v-model:open="configModalVisible" :title="$t('page.quartz.notificationPage.notificationConfig')" width="800px"
+      <Modal v-model:open="configModalVisible" :title="$t('page.quartz.notificationPage.notificationConfig')" width="900px"
         :body-style="{ padding: '24px' }" destroyOnClose
         @cancel="configModalVisible = false" centered wrapClassName="quartz-notification-config-modal">
         <Alert :message="$t('page.quartz.notificationPage.configPushPlusDesc')" type="info" show-icon class="config-tip-alert" />
@@ -611,16 +742,6 @@ onMounted(async () => {
                 </Select>
               </Form.Item>
             </Col>
-            <Col :xs="24" :md="8">
-              <Form.Item :label="$t('page.quartz.notificationPage.messageTemplate')" name="template">
-                <Select v-model:value="configForm.template">
-                  <Select.Option value="html">{{ $t('page.quartz.notificationPage.templateHtml') }}</Select.Option>
-                  <Select.Option value="txt">{{ $t('page.quartz.notificationPage.templateTxt') }}</Select.Option>
-                  <Select.Option value="json">{{ $t('page.quartz.notificationPage.templateJson') }}</Select.Option>
-                  <Select.Option value="markdown">{{ $t('page.quartz.notificationPage.templateMarkdown') }}</Select.Option>
-                </Select>
-              </Form.Item>
-            </Col>
             <Col v-if="['webhook', 'cp', 'mail'].includes(configForm.channel)" :xs="24" :md="8">
               <Form.Item :label="$t('page.quartz.notificationPage.optionLabel')" name="option"
                 :rules="[{ required: ['webhook', 'cp'].includes(configForm.channel), message: $t('page.quartz.notificationPage.optionRequired') }]">
@@ -635,6 +756,107 @@ onMounted(async () => {
           </Row>
 
           <Alert v-if="showChannelParams" :message="channelTipMessage" type="warning" show-icon class="channel-tip" />
+
+          <!-- 消息模板 -->
+          <div class="form-section-title">
+            <span>{{ $t('page.quartz.notificationPage.messageTemplate') }}</span>
+            <span class="section-title-action">
+              <Popover trigger="hover" placement="rightTop" overlay-class-name="template-preview-popover"
+                :overlay-inner-style="{ padding: 0, background: 'transparent', boxShadow: 'none' }"
+                :mouse-enter-delay="0.15" :mouse-leave-delay="0.1">
+                <template #content>
+                  <div class="template-preview">
+                    <div class="preview-bar">
+                      <span class="preview-dots"><i></i><i></i><i></i></span>
+                      <span class="preview-bar__title">{{ $t('page.quartz.notificationPage.templatePreview') }}</span>
+                      <span class="preview-bar__tag">{{ currentTemplateLabel }}</span>
+                    </div>
+
+                    <div class="preview-canvas">
+                      <!-- HTML：富文本消息卡片 -->
+                      <div v-if="previewMode === 'html'" class="mock-rich">
+                        <div class="mock-rich__head">
+                          <span class="mock-badge"><Check :size="13" /></span>
+                          <div class="mock-rich__titles">
+                            <span class="mock-rich__title">{{ $t('page.quartz.notificationPage.previewStatusSuccess') }}</span>
+                            <span class="mock-rich__sub">{{ previewSample.jobName }}</span>
+                          </div>
+                        </div>
+                        <div class="mock-row">
+                          <span>{{ $t('page.quartz.notificationPage.previewFieldJob') }}</span>
+                          <b>{{ previewSample.jobName }}</b>
+                        </div>
+                        <div class="mock-row">
+                          <span>{{ $t('page.quartz.notificationPage.previewFieldStatus') }}</span>
+                          <b class="is-ok">{{ $t('page.quartz.notificationPage.previewStatusSuccess') }}</b>
+                        </div>
+                        <div class="mock-row">
+                          <span>{{ $t('page.quartz.notificationPage.previewFieldTime') }}</span>
+                          <b>{{ previewSample.triggerTime }}</b>
+                        </div>
+                        <div class="mock-row">
+                          <span>{{ $t('page.quartz.notificationPage.previewFieldDuration') }}</span>
+                          <b>1.28 s</b>
+                        </div>
+                        <div class="mock-foot">{{ $t('page.quartz.notificationPage.previewFooter') }}</div>
+                      </div>
+
+                      <!-- Markdown：结构化表格 -->
+                      <div v-else-if="previewMode === 'markdown'" class="mock-md">
+                        <div class="mock-md__title">
+                          {{ $t('page.quartz.notificationPage.previewStatusSuccess') }}: {{ previewSample.jobName }}
+                        </div>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>{{ $t('page.quartz.notificationPage.previewFieldJob') }}</th>
+                              <th>{{ $t('page.quartz.notificationPage.previewFieldStatus') }}</th>
+                              <th>{{ $t('page.quartz.notificationPage.previewFieldTime') }}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>{{ previewSample.jobName }}</td>
+                              <td class="is-ok">{{ $t('page.quartz.notificationPage.previewStatusSuccess') }}</td>
+                              <td>{{ previewSample.triggerTime }}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                        <div class="mock-foot">{{ $t('page.quartz.notificationPage.previewFooter') }}</div>
+                      </div>
+
+                      <!-- TXT：纯文本 -->
+                      <pre v-else-if="previewMode === 'txt'" class="preview-code">{{ previewText }}</pre>
+
+                      <!-- JSON：结构化数据 -->
+                      <pre v-else class="preview-code">{{ previewJson }}</pre>
+                    </div>
+
+                    <div class="preview-foot">{{ $t('page.quartz.notificationPage.templatePreviewHint') }}</div>
+                  </div>
+                </template>
+                <span class="preview-trigger">
+                  <Eye :size="13" />
+                  <span>{{ $t('page.quartz.notificationPage.templatePreview') }}</span>
+                </span>
+              </Popover>
+            </span>
+          </div>
+
+          <div class="template-grid" role="radiogroup" :aria-label="$t('page.quartz.notificationPage.messageTemplate')">
+            <button v-for="opt in templateOptions" :key="opt.value" type="button" class="template-card"
+              :class="{ 'is-active': configForm.template === opt.value }" role="radio"
+              :aria-checked="configForm.template === opt.value" @click="configForm.template = opt.value">
+              <span class="template-card__icon" :style="{ color: opt.color, background: opt.tint }">
+                {{ opt.glyph }}
+              </span>
+              <span class="template-card__name">{{ opt.label }}</span>
+              <span class="template-card__desc">{{ opt.desc }}</span>
+              <span class="template-card__check">
+                <Check :size="10" />
+              </span>
+            </button>
+          </div>
 
           <!-- 通知策略 -->
           <div class="form-section-title">{{ $t('page.quartz.notificationPage.notificationStrategy') }}</div>
@@ -929,6 +1151,354 @@ onMounted(async () => {
   border-radius: 6px;
   margin-top: 4px;
   margin-bottom: 4px;
+}
+
+/* ============ 消息模板：格式卡片 ============ */
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.template-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  padding: 12px 12px 14px;
+  overflow: hidden;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 12px;
+  transition:
+    border-color 0.22s ease,
+    box-shadow 0.22s ease,
+    transform 0.22s ease,
+    background 0.22s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: hsl(var(--primary) / 0.45);
+    box-shadow: 0 10px 22px -16px hsl(var(--primary));
+  }
+
+  &:focus-visible {
+    outline: 2px solid hsl(var(--primary) / 0.45);
+    outline-offset: 2px;
+  }
+
+  &.is-active {
+    background: linear-gradient(
+      180deg,
+      hsl(var(--primary) / 0.09),
+      hsl(var(--card)) 72%
+    );
+    border-color: hsl(var(--primary));
+    box-shadow:
+      0 0 0 1px hsl(var(--primary) / 0.35),
+      0 12px 26px -18px hsl(var(--primary));
+  }
+}
+
+.template-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-radius: 9px;
+  transition: transform 0.22s ease;
+}
+
+.template-card.is-active .template-card__icon {
+  transform: scale(1.06);
+}
+
+.template-card__name {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: hsl(var(--foreground));
+}
+
+.template-card__desc {
+  font-size: 11px;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+.template-card__check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  color: #fff;
+  background: hsl(var(--primary));
+  border-radius: 50%;
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+}
+
+.template-card.is-active .template-card__check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ============ 推送预览（悬浮显示） ============ */
+.preview-trigger {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.6;
+  color: hsl(var(--primary));
+  cursor: pointer;
+  user-select: none;
+  background: hsl(var(--primary) / 0.08);
+  border: 1px solid hsl(var(--primary) / 0.2);
+  border-radius: 999px;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+
+  &:hover {
+    background: hsl(var(--primary) / 0.16);
+    border-color: hsl(var(--primary) / 0.4);
+  }
+}
+
+/* 悬浮层容器去掉默认内边距与底色，由预览卡片自带样式 */
+:global(.template-preview-popover .ant-popover-inner) {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:global(.template-preview-popover .ant-popover-arrow) {
+  display: none;
+}
+
+.template-preview {
+  width: 380px;
+  overflow: hidden;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 14px;
+  box-shadow:
+    0 24px 48px -24px hsl(var(--foreground) / 0.45),
+    0 2px 8px -4px hsl(var(--foreground) / 0.2);
+}
+
+.preview-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, hsl(var(--accent) / 0.75), hsl(var(--card)));
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.preview-dots {
+  display: inline-flex;
+  gap: 4px;
+
+  i {
+    width: 7px;
+    height: 7px;
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 50%;
+  }
+}
+
+.preview-bar__title {
+  font-size: 11px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.preview-bar__tag {
+  padding: 1px 8px;
+  margin-left: auto;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--background) / 0.7);
+  border: 1px solid hsl(var(--border));
+  border-radius: 999px;
+}
+
+.preview-canvas {
+  max-height: 340px;
+  padding: 14px;
+  overflow: auto;
+  background: hsl(var(--accent) / 0.32);
+}
+
+.preview-foot {
+  padding: 0 14px 12px;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--accent) / 0.32);
+}
+
+/* HTML 预览：消息卡片 */
+.mock-rich {
+  padding: 14px 16px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+  box-shadow: 0 6px 18px -16px hsl(var(--foreground));
+}
+
+.mock-rich__head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed hsl(var(--border));
+}
+
+.mock-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  font-size: 13px;
+  color: #52c41a;
+  background: rgba(82, 196, 26, 0.14);
+  border-radius: 50%;
+}
+
+.mock-rich__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mock-rich__title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.mock-rich__sub {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 11.5px;
+  color: hsl(var(--muted-foreground));
+}
+
+.mock-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  font-size: 12.5px;
+  color: hsl(var(--muted-foreground));
+  border-bottom: 1px dashed hsl(var(--border) / 0.6);
+
+  b {
+    font-weight: 500;
+    color: hsl(var(--foreground));
+    word-break: break-all;
+    text-align: right;
+  }
+
+  b.is-ok {
+    font-weight: 600;
+    color: #52c41a;
+  }
+}
+
+.mock-foot {
+  margin-top: 10px;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  text-align: center;
+}
+
+/* Markdown 预览 */
+.mock-md {
+  padding: 14px 16px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+  box-shadow: 0 6px 18px -16px hsl(var(--foreground));
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11.5px;
+  }
+
+  th,
+  td {
+    padding: 6px 8px;
+    text-align: left;
+    border: 1px solid hsl(var(--border));
+  }
+
+  th {
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    background: hsl(var(--accent) / 0.6);
+  }
+
+  td.is-ok {
+    font-weight: 600;
+    color: #52c41a;
+  }
+}
+
+.mock-md__title {
+  margin-bottom: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+/* TXT / JSON 预览 */
+.preview-code {
+  max-height: 240px;
+  padding: 14px 16px;
+  margin: 0;
+  overflow: auto;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  color: hsl(var(--foreground));
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+}
+
+@media (max-width: 767px) {
+  .template-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .advanced-toggle {

@@ -90,6 +90,8 @@ export interface QuartzJobDto {
   skipSslValidation?: boolean;
   /** 禁止并发执行（同一作业上一次执行未完成时，新的触发会等待） */
   disallowConcurrentExecution?: boolean;
+  /** 中断后是否自动重跑：null=跟随全局，true=开启，false=关闭 */
+  rerunOnRecovery?: boolean | null;
   /** 前置依赖作业，依赖作业最近一次执行成功后才执行本作业 */
   dependencies?: JobDependency[];
   /** 开始时间 */
@@ -136,6 +138,10 @@ export interface QuartzJobResponseDto {
   skipSslValidation: boolean;
   /** 禁止并发执行 */
   disallowConcurrentExecution: boolean;
+  /** 中断后是否自动重跑（原值，null=跟随全局） */
+  rerunOnRecovery?: boolean | null;
+  /** 中断后是否自动重跑（按全局配置解析后的最终值） */
+  effectiveRerunOnRecovery?: boolean;
   /** 前置依赖作业 */
   dependencies?: JobDependency[];
   /** 开始时间 */

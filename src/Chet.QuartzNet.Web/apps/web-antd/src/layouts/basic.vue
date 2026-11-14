@@ -1,8 +1,7 @@
 <script lang="ts" setup>
 // import type { NotificationItem } from '@vben/layouts';
 
-import { computed, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, watch } from 'vue';
 
 import { AuthenticationLoginExpiredModal } from '@vben/common-ui';
 import { VBEN_DOC_URL, VBEN_GITHUB_URL } from '@vben/constants';
@@ -20,6 +19,7 @@ import { openWindow } from '@vben/utils';
 import { $t } from '#/locales';
 import { useAuthStore } from '#/store';
 import LoginForm from '#/views/_core/authentication/login.vue';
+import RecoveryNotice from '#/views/quartz/components/RecoveryNotice.vue';
 
 // const notifications = ref<NotificationItem[]>([
 //   {
@@ -74,7 +74,6 @@ import LoginForm from '#/views/_core/authentication/login.vue';
 //   },
 // ]);
 
-const router = useRouter();
 const userStore = useUserStore();
 const authStore = useAuthStore();
 const accessStore = useAccessStore();
@@ -182,6 +181,7 @@ watch(
       />
     </template> -->
     <template #extra>
+      <RecoveryNotice />
       <AuthenticationLoginExpiredModal
         v-model:open="accessStore.loginExpired"
         :avatar

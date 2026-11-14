@@ -177,6 +177,7 @@ public class FileJobStorage : IJobStorage
                 existingJob.RetryIntervalSeconds = jobInfo.RetryIntervalSeconds;
                 existingJob.SkipSslValidation = jobInfo.SkipSslValidation;
                 existingJob.DisallowConcurrentExecution = jobInfo.DisallowConcurrentExecution;
+                existingJob.RerunOnRecovery = jobInfo.RerunOnRecovery;
                 existingJob.Dependencies = jobInfo.Dependencies;
                 existingJob.StartTime = jobInfo.StartTime;
                 existingJob.EndTime = jobInfo.EndTime;
@@ -483,7 +484,7 @@ public class FileJobStorage : IJobStorage
             try
             {
                 // 读取与写入在同一把锁内完成，避免并发执行时日志被覆盖丢失
-                var logs = LoadLogsCore();
+                var logs = LoadLogsCore(throwOnError: true);
                 logs.Add(jobLog);
                 SaveLogsCore(logs);
 
@@ -533,6 +534,12 @@ public class FileJobStorage : IJobStorage
             if (queryDto.Status.HasValue)
             {
                 logs = logs.Where(l => l.Status == queryDto.Status.Value).ToList();
+            }
+
+            if (queryDto.Statuses != null && queryDto.Statuses.Count > 0)
+            {
+                var statusSet = queryDto.Statuses.ToHashSet();
+                logs = logs.Where(l => statusSet.Contains(l.Status)).ToList();
             }
 
             if (queryDto.StartTime.HasValue)
@@ -665,7 +672,7 @@ public class FileJobStorage : IJobStorage
     {
         try
         {
-            var logs = await LoadLogsAsync();
+            var logs = await LoadLogsAsync(throwOnError: true);
             var cutoffDate = DateTime.Now.AddDays(-daysToKeep);
 
             // 筛选过期日志
@@ -712,7 +719,7 @@ public class FileJobStorage : IJobStorage
                 return 0;
             }
 
-            var logs = await LoadLogsAsync();
+            var logs = await LoadLogsAsync(throwOnError: true);
             if (logs.Count <= maxCount)
             {
                 return 0;
@@ -745,7 +752,7 @@ public class FileJobStorage : IJobStorage
     {
         try
         {
-            var logs = await LoadLogsAsync();
+            var logs = await LoadLogsAsync(throwOnError: true);
             var originalCount = logs.Count;
 
             // 找出需要删除的日志（即匹配查询条件的日志）
@@ -775,6 +782,11 @@ public class FileJobStorage : IJobStorage
                         match &= log.Status == queryDto.Status.Value;
                     }
 
+                    if (queryDto.Statuses != null && queryDto.Statuses.Count > 0)
+                    {
+                        match &= queryDto.Statuses.Contains(log.Status);
+                    }
+
                     if (queryDto.StartTime.HasValue)
                     {
                         match &= log.StartTime >= queryDto.StartTime.Value;
@@ -794,12 +806,16 @@ public class FileJobStorage : IJobStorage
                 string.IsNullOrEmpty(queryDto.JobName)
                 && string.IsNullOrEmpty(queryDto.JobGroup)
                 && !queryDto.Status.HasValue
+                && (queryDto.Statuses == null || queryDto.Statuses.Count == 0)
                 && !queryDto.StartTime.HasValue
                 && !queryDto.EndTime.HasValue
             )
             {
                 logsToDelete = logs;
             }
+
+            // 手动清空是用户明确操作，包含中断记录在内的全部匹配日志都删除。
+            // 补偿链保护只用于后台自动清理（ClearExpiredLogsAsync / ClearOverflowLogsAsync）。
 
             // 创建新的日志列表，不包含需要删除的日志
             var logsToKeep = logs.Except(logsToDelete).ToList();
@@ -819,6 +835,360 @@ public class FileJobStorage : IJobStorage
             return false;
         }
     }
+
+    #region 中断恢复支撑
+
+    /// <summary>
+    /// 按 LogId 获取单条日志
+    /// </summary>
+    public Task<QuartzJobLog?> GetJobLogAsync(
+        Guid logId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var logs = LoadLogsCore();
+        return Task.FromResult(logs.FirstOrDefault(l => l.LogId == logId));
+    }
+
+    /// <summary>
+    /// 更新日志（收尾/补偿状态回写）
+    /// </summary>
+    public Task<bool> UpdateJobLogAsync(
+        QuartzJobLog jobLog,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var lockObject = GetFileLock(_logsFilePath);
+        lock (lockObject)
+        {
+            try
+            {
+                var logs = LoadLogsCore(throwOnError: true);
+                var index = logs.FindIndex(l => l.LogId == jobLog.LogId);
+                if (index < 0)
+                {
+                    _logger.LogWarn(
+                        "更新作业日志",
+                        $"未找到日志记录，收尾结果未写入: {jobLog.LogId}, 状态: {jobLog.Status}"
+                    );
+                    return Task.FromResult(false);
+                }
+
+                logs[index] = jobLog;
+                SaveLogsCore(logs);
+                return Task.FromResult(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogFailure("更新作业日志", ex);
+                return Task.FromResult(false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 批量更新运行中日志的心跳时间
+    /// </summary>
+    public Task<int> UpdateJobLogHeartbeatsAsync(
+        IReadOnlyCollection<Guid> logIds,
+        DateTime heartbeatTime,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (logIds.Count == 0)
+        {
+            return Task.FromResult(0);
+        }
+
+        var lockObject = GetFileLock(_logsFilePath);
+        lock (lockObject)
+        {
+            try
+            {
+                var idSet = logIds.ToHashSet();
+                var logs = LoadLogsCore(throwOnError: true);
+                var updated = 0;
+                foreach (var log in logs)
+                {
+                    if (idSet.Contains(log.LogId) && log.Status == LogStatus.Running)
+                    {
+                        log.HeartbeatTime = heartbeatTime;
+                        updated++;
+                    }
+                }
+
+                if (updated > 0)
+                {
+                    SaveLogsCore(logs);
+                }
+
+                return Task.FromResult(updated);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogFailure("更新作业日志心跳", ex);
+                return Task.FromResult(0);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 获取可恢复的日志：运行中且心跳过期，或已中断但补偿仍待处理
+    /// </summary>
+    public Task<List<QuartzJobLog>> GetRecoverableLogsAsync(
+        DateTime staleBefore,
+        int limit,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var logs = LoadLogsCore()
+            .Where(l =>
+                (
+                    l.Status == LogStatus.Running
+                    && (l.HeartbeatTime ?? l.StartTime) < staleBefore
+                )
+                || (
+                    l.Status == LogStatus.Interrupted
+                    && l.CompensationStatus == CompensationStatus.Pending
+                )
+            )
+            .OrderBy(l => l.StartTime)
+            .Take(limit <= 0 ? 200 : limit)
+            .ToList();
+
+        return Task.FromResult(logs);
+    }
+
+    /// <summary>
+    /// 原子认领并标记中断：仅当状态仍为 Running 时成功
+    /// </summary>
+    public Task<bool> TryMarkInterruptedAsync(
+        Guid logId,
+        string instanceId,
+        DateTime interruptedAt,
+        string reason,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var lockObject = GetFileLock(_logsFilePath);
+        lock (lockObject)
+        {
+            try
+            {
+                var logs = LoadLogsCore(throwOnError: true);
+                var log = logs.FirstOrDefault(l => l.LogId == logId);
+                if (log == null || log.Status != LogStatus.Running)
+                {
+                    return Task.FromResult(false);
+                }
+
+                var lastSeen = log.HeartbeatTime ?? log.StartTime;
+                log.Status = LogStatus.Interrupted;
+                log.InterruptedAt = interruptedAt;
+                log.EndTime = lastSeen;
+                log.Duration = Math.Max(0, (long)(lastSeen - log.StartTime).TotalMilliseconds);
+                log.CompensationStatus = CompensationStatus.Pending;
+                log.Message = reason;
+                log.InstanceId = string.IsNullOrEmpty(log.InstanceId) ? instanceId : log.InstanceId;
+
+                SaveLogsCore(logs);
+                return Task.FromResult(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogFailure("标记作业中断", ex);
+                return Task.FromResult(false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 原子抢占补偿权：仅当已被判定中断且尚未触发补偿时成功
+    /// </summary>
+    public Task<bool> TryClaimCompensationAsync(
+        Guid logId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var lockObject = GetFileLock(_logsFilePath);
+        lock (lockObject)
+        {
+            try
+            {
+                var logs = LoadLogsCore(throwOnError: true);
+                var log = logs.FirstOrDefault(l => l.LogId == logId);
+                if (
+                    log == null
+                    || log.Status != LogStatus.Interrupted
+                    || log.CompensationStatus == CompensationStatus.Triggered
+                )
+                {
+                    return Task.FromResult(false);
+                }
+
+                log.CompensationStatus = CompensationStatus.Triggered;
+                SaveLogsCore(logs);
+                return Task.FromResult(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogFailure("抢占补偿权", ex);
+                return Task.FromResult(false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 回写补偿结果
+    /// </summary>
+    public Task<bool> MarkCompensationResultAsync(
+        Guid logId,
+        CompensationStatus status,
+        Guid? compensationLogId,
+        string? reason,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var lockObject = GetFileLock(_logsFilePath);
+        lock (lockObject)
+        {
+            try
+            {
+                var logs = LoadLogsCore(throwOnError: true);
+                var log = logs.FirstOrDefault(l => l.LogId == logId);
+                if (log == null)
+                {
+                    return Task.FromResult(false);
+                }
+
+                log.CompensationStatus = status;
+                log.CompensationLogId = compensationLogId;
+                log.SkipReason = reason;
+                SaveLogsCore(logs);
+                return Task.FromResult(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogFailure("回写补偿结果", ex);
+                return Task.FromResult(false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 清除过期日志（带中断日志独立保留天数，保护待补偿记录）
+    /// </summary>
+    public async Task<int> ClearExpiredLogsAsync(
+        int daysToKeep,
+        int interruptedDaysToKeep,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var logs = await LoadLogsAsync(throwOnError: true);
+            var now = DateTime.Now;
+            var cutoff = now.AddDays(-Math.Max(0, daysToKeep));
+            var interruptedCutoff = interruptedDaysToKeep > 0
+                ? now.AddDays(-interruptedDaysToKeep)
+                : cutoff;
+
+            var expiredLogs = logs
+                .Where(l =>
+                {
+                    if (IsRecoveryProtected(l))
+                    {
+                        return false;
+                    }
+
+                    var isRecoveryChain =
+                        l.Status == LogStatus.Interrupted
+                        || l.CompensationLogId.HasValue
+                        || l.RecoverySourceLogId.HasValue;
+                    return l.CreateTime < (isRecoveryChain ? interruptedCutoff : cutoff);
+                })
+                .ToList();
+
+            if (expiredLogs.Count == 0)
+            {
+                return 0;
+            }
+
+            foreach (var log in expiredLogs)
+            {
+                logs.Remove(log);
+            }
+
+            await SaveLogsAsync(logs);
+            _logger.LogSuccess("清理过期作业日志", $"共计: {expiredLogs.Count} 条");
+            return expiredLogs.Count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("清理过期作业日志", ex);
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 清除超出最大保留条数的日志（可选择保护待补偿记录）
+    /// </summary>
+    public async Task<int> ClearOverflowLogsAsync(
+        int maxCount,
+        bool keepRecoveryChain,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            if (maxCount <= 0)
+            {
+                return 0;
+            }
+
+            var logs = await LoadLogsAsync(throwOnError: true);
+            if (logs.Count <= maxCount)
+            {
+                return 0;
+            }
+
+            var keep = logs.OrderByDescending(l => l.CreateTime).Take(maxCount).ToList();
+            if (keepRecoveryChain)
+            {
+                var protectedLogs = logs.Where(IsRecoveryProtected).ToList();
+                keep = keep.Concat(protectedLogs).DistinctBy(l => l.LogId).ToList();
+            }
+
+            var removed = logs.Count - keep.Count;
+            if (removed <= 0)
+            {
+                return 0;
+            }
+
+            await SaveLogsAsync(keep);
+            _logger.LogSuccess("清理超出保留条数的作业日志", $"共计: {removed} 条");
+            return removed;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("清理超出保留条数的作业日志", ex);
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 是否属于必须保留的恢复链记录（待判定或待补偿）
+    /// </summary>
+    private static bool IsRecoveryProtected(QuartzJobLog log)
+    {
+        return log.Status == LogStatus.Interrupted
+            && (
+                log.CompensationStatus == CompensationStatus.None
+                || log.CompensationStatus == CompensationStatus.Pending
+            );
+    }
+
+    #endregion
 
     #endregion
 
@@ -969,15 +1339,19 @@ public class FileJobStorage : IJobStorage
         WriteFileAtomically(_jobsFilePath, json);
     }
 
-    private Task<List<QuartzJobLog>> LoadLogsAsync()
+    private Task<List<QuartzJobLog>> LoadLogsAsync(bool throwOnError = false)
     {
-        return Task.FromResult(LoadLogsCore());
+        return Task.FromResult(LoadLogsCore(throwOnError));
     }
 
     /// <summary>
     /// 读取日志数据（不加锁：写入端使用临时文件原子替换，读到的始终是完整文件）
     /// </summary>
-    private List<QuartzJobLog> LoadLogsCore()
+    /// <param name="throwOnError">
+    /// 读取失败时是否抛出异常。写操作必须传 true，否则会把「读失败」当成「没有数据」写回，
+    /// 造成收尾丢失甚至整表被覆盖。查询类调用保持 false，由上层降级为空结果。
+    /// </param>
+    private List<QuartzJobLog> LoadLogsCore(bool throwOnError = false)
     {
         try
         {
@@ -1004,6 +1378,11 @@ public class FileJobStorage : IJobStorage
         catch (Exception ex)
         {
             _logger.LogFailure("加载作业日志", ex);
+            if (throwOnError)
+            {
+                throw;
+            }
+
             return new List<QuartzJobLog>();
         }
     }
@@ -1264,8 +1643,18 @@ public class FileJobStorage : IJobStorage
                     MaxDuration = g.Where(l => l.Duration.HasValue).Any()
                         ? g.Where(l => l.Duration.HasValue).Max(l => (double)l.Duration!.Value)
                         : 0,
-                    MinDuration = g.Where(l => l.Duration.HasValue && l.Status != LogStatus.Running).Any()
-                        ? g.Where(l => l.Duration.HasValue && l.Status != LogStatus.Running).Min(l => (double)l.Duration!.Value)
+                    MinDuration = g.Where(l =>
+                            l.Duration.HasValue
+                            && l.Status != LogStatus.Running
+                            && l.Status != LogStatus.Interrupted
+                        )
+                        .Any()
+                        ? g.Where(l =>
+                                l.Duration.HasValue
+                                && l.Status != LogStatus.Running
+                                && l.Status != LogStatus.Interrupted
+                            )
+                            .Min(l => (double)l.Duration!.Value)
                         : 0,
                     LastExecutionTime = g.Max(l => l.StartTime),
                 })
@@ -2020,7 +2409,7 @@ public class FileJobStorage : IJobStorage
 
         try
         {
-            var existingLogs = await LoadLogsAsync();
+            var existingLogs = await LoadLogsAsync(throwOnError: true);
             var existingIds = new HashSet<Guid>(existingLogs.Select(l => l.LogId));
 
             var newLogs = logs.Where(l => !existingIds.Contains(l.LogId)).ToList();

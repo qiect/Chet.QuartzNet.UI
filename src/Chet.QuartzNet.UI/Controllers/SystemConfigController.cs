@@ -27,7 +27,7 @@ public class SystemConfigController : ControllerBase
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>系统配置</returns>
     [HttpGet("GetSystemConfig")]
-    public async Task<ActionResult<ApiResponseDto<SystemConfigDto>>> GetSystemConfig(
+    public async Task<ActionResult<ApiResponseDto<SystemConfigResponseDto>>> GetSystemConfig(
         CancellationToken cancellationToken = default
     )
     {
@@ -48,7 +48,9 @@ public class SystemConfigController : ControllerBase
         {
             _logger.LogFailure("获取系统配置", ex);
             return Ok(
-                ApiResponseDto<SystemConfigDto>.ErrorResponse("获取系统配置失败: " + ex.Message)
+                ApiResponseDto<SystemConfigResponseDto>.ErrorResponse(
+                    "获取系统配置失败: " + ex.Message
+                )
             );
         }
     }

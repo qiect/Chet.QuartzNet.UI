@@ -142,6 +142,87 @@ public interface IJobStorage
         CancellationToken cancellationToken = default
     );
 
+    #region 中断恢复支撑
+
+    /// <summary>
+    /// 按 LogId 获取单条日志
+    /// </summary>
+    Task<QuartzJobLog?> GetJobLogAsync(Guid logId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 更新日志（收尾/补偿状态回写）
+    /// </summary>
+    Task<bool> UpdateJobLogAsync(
+        QuartzJobLog jobLog,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 批量更新运行中日志的心跳时间
+    /// </summary>
+    /// <returns>实际更新的条数</returns>
+    Task<int> UpdateJobLogHeartbeatsAsync(
+        IReadOnlyCollection<Guid> logIds,
+        DateTime heartbeatTime,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 获取可恢复的日志：运行中且心跳过期，或已中断但补偿仍待处理
+    /// </summary>
+    Task<List<QuartzJobLog>> GetRecoverableLogsAsync(
+        DateTime staleBefore,
+        int limit,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 原子认领并标记中断：仅当状态仍为 Running 时成功
+    /// </summary>
+    Task<bool> TryMarkInterruptedAsync(
+        Guid logId,
+        string instanceId,
+        DateTime interruptedAt,
+        string reason,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 原子抢占补偿权：仅当已被判定中断且尚未触发补偿时成功
+    /// </summary>
+    Task<bool> TryClaimCompensationAsync(Guid logId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 回写补偿结果
+    /// </summary>
+    Task<bool> MarkCompensationResultAsync(
+        Guid logId,
+        CompensationStatus status,
+        Guid? compensationLogId,
+        string? reason,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 清除过期日志（带中断日志独立保留天数，保护待补偿记录）
+    /// </summary>
+    Task<int> ClearExpiredLogsAsync(
+        int daysToKeep,
+        int interruptedDaysToKeep,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 清除超出最大保留条数的日志（可选择保护待补偿记录）
+    /// </summary>
+    Task<int> ClearOverflowLogsAsync(
+        int maxCount,
+        bool keepRecoveryChain,
+        CancellationToken cancellationToken = default
+    );
+
+    #endregion
+
     /// <summary>
     /// 初始化存储
     /// </summary>

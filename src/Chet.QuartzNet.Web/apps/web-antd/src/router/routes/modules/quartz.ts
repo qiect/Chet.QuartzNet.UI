@@ -30,6 +30,8 @@ const routes: RouteRecordRaw[] = [
     meta: {
       icon: 'lucide:logs',
       keepAlive: true,
+      // 带筛选 query 的深链与菜单入口复用同一个标签页，避免出现两个日志管理
+      fullPathKey: false,
       title: $t('page.quartz.log'),
     },
   },

@@ -18,6 +18,10 @@ obj/
 
 # Database files
 App_Data/
+# SQLite 运行时文件（数据库本体 + WAL/SHM），不进版本库
+*.db
+*.db-shm
+*.db-wal
 
 # Temporary files
 *.tmp
