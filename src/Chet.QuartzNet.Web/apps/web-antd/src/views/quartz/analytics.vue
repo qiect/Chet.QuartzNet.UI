@@ -1,5 +1,15 @@
 <script setup lang="ts">
-import { ref, shallowRef, onMounted, computed, h, watch } from 'vue';
+import {
+  ref,
+  shallowRef,
+  onMounted,
+  onActivated,
+  onDeactivated,
+  onUnmounted,
+  computed,
+  h,
+  watch,
+} from 'vue';
 import { Page } from '@vben/common-ui';
 import {
   Card,
@@ -22,6 +32,8 @@ import {
   getAnalyticsOverview,
   getAnalyticsJobPerformance,
 } from '../../api/quartz/analytics';
+import { getSchedulerStatus } from '../../api/quartz/scheduler';
+import type { SchedulerStatusDto } from '../../api/quartz/scheduler';
 import type {
   JobStats,
   JobExecutionTrend,
@@ -48,14 +60,12 @@ const {
 const { renderEcharts: renderHeatmap } = useEcharts(heatmapChartRef);
 
 const overviewChartRef = ref<EchartsUIType | null>(null);
-const activityChartRef = ref<EchartsUIType | null>(null);
 const qualityChartRef = ref<EchartsUIType | null>(null);
-const durationChartRef = ref<EchartsUIType | null>(null);
+const riskChartRef = ref<EchartsUIType | null>(null);
 
 const { renderEcharts: renderOverview } = useEcharts(overviewChartRef);
-const { renderEcharts: renderActivity } = useEcharts(activityChartRef);
 const { renderEcharts: renderQuality } = useEcharts(qualityChartRef);
-const { renderEcharts: renderDuration } = useEcharts(durationChartRef);
+const { renderEcharts: renderRisk } = useEcharts(riskChartRef);
 
 const statsOverview = ref<JobStats>({
   totalJobs: 0,
@@ -71,6 +81,20 @@ const jobHealthData = shallowRef<JobHealth[]>([]);
 const heatmapData = shallowRef<JobExecutionHeatmap[]>([]);
 const topSlowData = shallowRef<TopSlowJob[]>([]);
 const jobStatusDistribution = shallowRef<JobStatusDistribution[]>([]);
+
+const schedulerStatus = ref<SchedulerStatusDto>({
+  schedulerName: '',
+  schedulerInstanceId: '',
+  isStarted: false,
+  isShutdown: true,
+  inStandbyMode: false,
+  status: '',
+  jobCount: 0,
+  executingJobCount: 0,
+  threadPoolSize: 0,
+  version: '',
+  runningTime: 0,
+});
 
 const normalCount = computed(
   () => jobStatusDistribution.value.find((d) => d.status === 'Normal')?.count || 0,
@@ -105,10 +129,6 @@ const recent7Data = computed(() => dailyTrendData.value.slice(-7));
 const recent7TotalExecutions = computed(() =>
   recent7Data.value.reduce((sum, d) => sum + d.totalCount, 0),
 );
-const recent7DailyAvg = computed(() => {
-  const n = recent7Data.value.length;
-  return n > 0 ? Number((recent7TotalExecutions.value / n).toFixed(1)) : 0;
-});
 const recent7SuccessCount = computed(() =>
   recent7Data.value.reduce((sum, d) => sum + d.successCount, 0),
 );
@@ -119,24 +139,76 @@ const recent7SuccessRate = computed(() => {
   const total = recent7TotalExecutions.value;
   return total > 0 ? Number(((recent7SuccessCount.value / total) * 100).toFixed(1)) : 0;
 });
-const avgDurationValue = computed(() => {
-  const data = jobHealthData.value;
-  if (data.length === 0) return 0;
-  const totalExec = data.reduce((sum, d) => sum + d.executionCount, 0);
-  if (totalExec === 0) return 0;
-  return data.reduce((sum, d) => sum + d.avgDuration * d.executionCount, 0) / totalExec;
+// 调度运行态：执行中任务数（排水期以剩余收尾任务数计）
+const executingJobCount = computed(() => {
+  const s = schedulerStatus.value;
+  if (s.isDraining) return s.remainingExecutingCount ?? s.executingJobCount ?? 0;
+  return s.executingJobCount ?? 0;
 });
-const p99Duration = computed(() => {
-  const data = jobHealthData.value;
-  if (data.length === 0) return 0;
-  return Math.max(...data.map((d) => d.maxDuration));
+// 线程池占用率
+const threadUtilization = computed(() => {
+  const size = schedulerStatus.value.threadPoolSize || 0;
+  if (size <= 0) return 0;
+  return Math.min(100, Math.round((executingJobCount.value / size) * 100));
 });
-const slowestJobName = computed(() => {
-  const data = jobHealthData.value;
-  if (data.length === 0) return '-';
-  const sorted = [...data].sort((a, b) => b.avgDuration - a.avgDuration);
-  return sorted[0]?.jobName ?? '-';
+// 线程槽位图：每个格子代表一个（或合并后的若干个）线程，占用则点亮
+const THREAD_SLOT_MAX_CELLS = 20;
+const threadSlots = computed(() => {
+  const size = Math.max(schedulerStatus.value.threadPoolSize || 0, 0);
+  const cells = size > 0 ? Math.min(size, THREAD_SLOT_MAX_CELLS) : THREAD_SLOT_MAX_CELLS;
+  const perCell = size > 0 ? size / cells : 0;
+  const usedCells =
+    perCell > 0 ? Math.min(cells, Math.ceil(executingJobCount.value / perCell)) : 0;
+  return Array.from({ length: cells }, (_, i) => i < usedCells);
 });
+const threadSlotLevel = computed(() => {
+  if (threadUtilization.value >= 85) return 'high';
+  if (threadUtilization.value >= 60) return 'mid';
+  return 'low';
+});
+const threadSlotTitle = computed(
+  () =>
+    `${$t('page.quartz.analyticsPage.executingThreads')} ${executingJobCount.value} / ${
+      schedulerStatus.value.threadPoolSize || '-'
+    }`,
+);
+const schedulerStateText = computed(() => {
+  const s = schedulerStatus.value;
+  if (s.isDraining) return $t('page.quartz.analyticsPage.schedulerDraining');
+  if (s.inStandbyMode) return $t('page.quartz.analyticsPage.schedulerStandby');
+  if (s.isStarted && !s.isShutdown) return $t('page.quartz.analyticsPage.schedulerRunning');
+  return $t('page.quartz.analyticsPage.schedulerStopped');
+});
+const schedulerDotClass = computed(() => {
+  const s = schedulerStatus.value;
+  if (s.isDraining || s.inStandbyMode) return 'dot--warning';
+  if (s.isStarted && !s.isShutdown) return 'dot--success';
+  return 'dot--danger';
+});
+
+// 风险巡检：失败率不达标的作业（按失败次数降序）
+const failedJobStats = computed(() =>
+  jobHealthData.value
+    .filter((j) => j.executionCount > 0)
+    .map((j) => ({
+      jobName: j.jobName,
+      jobGroup: j.jobGroup,
+      successRate: j.successRate,
+      failedCount: Math.round((j.executionCount * (100 - j.successRate)) / 100),
+    }))
+    .filter((j) => j.failedCount > 0 && j.successRate < 95)
+    .sort((a, b) => b.failedCount - a.failedCount),
+);
+// 沉默作业：启用但统计周期内没有任何执行记录（cron 失效 / 触发器未生效）
+const silentJobCount = computed(
+  () =>
+    jobHealthData.value.filter(
+      (j) => j.isEnabled && j.status !== 'Paused' && j.executionCount === 0,
+    ).length,
+);
+const riskJobCount = computed(() => silentJobCount.value + failedJobStats.value.length);
+const topFailJobs = computed(() => failedJobStats.value.slice(0, 5));
+const worstFailJob = computed(() => failedJobStats.value[0]);
 
 const trendSummary = ref({
   recent7Avg: 0,
@@ -863,35 +935,6 @@ const getOverviewOption = (): EChartsOption => {
   };
 };
 
-const getActivityOption = (): EChartsOption => ({
-  backgroundColor: 'transparent',
-  grid: { left: 0, right: 0, top: 5, bottom: 0, containLabel: false },
-  xAxis: { type: 'category', show: false, boundaryGap: false },
-  yAxis: { type: 'value', show: false, min: 0 },
-  series: [
-    {
-      type: 'line',
-      data: recent7Data.value.map((d) => d.totalCount),
-      smooth: true,
-      symbol: 'none',
-      lineStyle: { width: 2, color: '#52c41a' },
-      areaStyle: {
-        color: {
-          type: 'linear',
-          x: 0,
-          y: 0,
-          x2: 0,
-          y2: 1,
-          colorStops: [
-            { offset: 0, color: 'rgba(82,196,26,0.25)' },
-            { offset: 1, color: 'rgba(82,196,26,0.02)' },
-          ],
-        },
-      },
-    },
-  ],
-});
-
 const getQualityOption = (): EChartsOption => {
   const success = recent7SuccessCount.value;
   const failed = recent7FailedCount.value;
@@ -930,37 +973,37 @@ const getQualityOption = (): EChartsOption => {
   };
 };
 
-const getDurationOption = (): EChartsOption => {
-  const data = jobHealthData.value;
-  if (data.length === 0) {
+const getRiskOption = (): EChartsOption => {
+  const grid = { left: 0, right: 0, top: 5, bottom: 0, containLabel: false };
+  const list = topFailJobs.value;
+  if (list.length === 0) {
     return {
       backgroundColor: 'transparent',
-      grid: { left: 0, right: 0, top: 5, bottom: 0, containLabel: false },
+      grid,
       xAxis: { type: 'category', show: false },
       yAxis: { type: 'value', show: false },
       series: [],
     };
   }
-  const sorted = [...data].sort((a, b) => b.avgDuration - a.avgDuration).slice(0, 7);
-  const durations = sorted.map((d) => d.avgDuration);
-  const maxDur = Math.max(...durations, 1);
+  const values = list.map((j) => j.failedCount);
+  const maxVal = Math.max(...values, 1);
   return {
     backgroundColor: 'transparent',
-    grid: { left: 0, right: 0, top: 5, bottom: 0, containLabel: false },
-    xAxis: { type: 'category', show: false },
-    yAxis: { type: 'value', show: false, min: 0, max: maxDur * 1.2 },
+    grid,
+    xAxis: { type: 'category', show: false, data: list.map((j) => j.jobName) },
+    yAxis: { type: 'value', show: false, min: 0, max: maxVal * 1.2 },
     series: [
       {
         type: 'bar',
-        data: durations,
-        barWidth: 6,
+        data: values,
+        barWidth: 8,
         itemStyle: {
           color: {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: '#b37feb' },
-              { offset: 1, color: '#722ed1' },
+              { offset: 0, color: '#ffa39e' },
+              { offset: 1, color: '#ff4d4f' },
             ],
           },
           borderRadius: [2, 2, 0, 0],
@@ -977,6 +1020,18 @@ const formatDuration = (ms: number): string => {
   if (ms < 60000) return `${(ms / 1000).toFixed(1)} s`;
   if (ms < 3600000) return `${(ms / 60000).toFixed(1)} min`;
   return `${(ms / 3600000).toFixed(1)} h`;
+};
+
+// 调度器运行时长
+const formatUptime = (ms?: number | null): string => {
+  if (!ms || ms <= 0) return '-';
+  const totalMinutes = Math.floor(ms / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
 };
 
 const formatDateTime = (dt?: string | null): string => {
@@ -1073,9 +1128,10 @@ const fetchData = async () => {
   const query: StatsQueryDto = {};
 
   try {
-    const [overviewRes, perfRes] = await Promise.all([
+    const [overviewRes, perfRes, schedulerRes] = await Promise.all([
       getAnalyticsOverview(query),
       getAnalyticsJobPerformance({ ...query, topCount: 10 }),
+      getSchedulerStatus().catch(() => null),
     ]);
 
     if (overviewRes.success && overviewRes.data) {
@@ -1090,13 +1146,16 @@ const fetchData = async () => {
       topSlowData.value = perfRes.data.topSlowJobs;
     }
 
+    if (schedulerRes?.success && schedulerRes.data) {
+      schedulerStatus.value = schedulerRes.data;
+    }
+
     renderTrend(getTrendOption(trendData.value));
     renderHealth(getHealthOption(jobHealthData.value)).then(disableHealthBubbleZLift);
     renderHeatmap(getHeatmapOption(heatmapData.value));
     renderOverview(getOverviewOption());
-    renderActivity(getActivityOption());
     renderQuality(getQualityOption());
-    renderDuration(getDurationOption());
+    renderRisk(getRiskOption());
   } catch (error) {
     console.error('Data Fetch Error:', error);
   } finally {
@@ -1119,10 +1178,46 @@ const environmentTag = computed(
 
 const hasServiceName = computed(() => !!systemConfig.value.serviceName);
 
+// 调度运行态为实时指标，单独轻量轮询（不影响统计数据）
+let runtimePollTimer: ReturnType<typeof setInterval> | null = null;
+
+const stopRuntimePolling = () => {
+  if (runtimePollTimer) {
+    clearInterval(runtimePollTimer);
+    runtimePollTimer = null;
+  }
+};
+
+const refreshSchedulerStatus = async () => {
+  try {
+    const res = await getSchedulerStatus();
+    if (res.success && res.data) {
+      schedulerStatus.value = res.data;
+    }
+  } catch {
+    // 轮询失败静默处理，避免打扰
+  }
+};
+
+const startRuntimePolling = () => {
+  stopRuntimePolling();
+  runtimePollTimer = setInterval(() => {
+    if (document.visibilityState !== 'visible') {
+      return;
+    }
+    void refreshSchedulerStatus();
+  }, 5_000);
+};
+
 onMounted(() => {
   loadSystemConfig();
   fetchData();
+  startRuntimePolling();
 });
+
+onActivated(startRuntimePolling);
+onDeactivated(stopRuntimePolling);
+onUnmounted(stopRuntimePolling);
 
 watch(locale, () => {
   fetchData();
@@ -1197,24 +1292,41 @@ watch(isDark, () => {
         <Card class="stat-card stat-card--green" :loading="loading" :bordered="false">
           <div class="stat-content">
             <div class="stat-main">
-              <span class="stat-title">{{ $t('page.quartz.analyticsPage.executionActivity') }}</span>
-              <div class="stat-number-row">
-                <span class="stat-number">
-                  {{ recent7DailyAvg }}
-                  <small class="stat-unit">{{ $t('page.quartz.analyticsPage.dailyAvgExecution') }}</small>
-                </span>
-                <span class="stat-badge" :class="trendSummary.changePercent >= 0 ? 'stat-badge--up' : 'stat-badge--down'">
-                  {{ trendSummary.changePercent >= 0 ? '↑' : '↓' }}{{ Math.abs(trendSummary.changePercent) }}%
-                </span>
-              </div>
+              <span class="stat-title">{{ $t('page.quartz.analyticsPage.schedulerRuntime') }}</span>
+              <span class="stat-number">
+                {{ executingJobCount }}
+                <small class="stat-unit">/ {{ schedulerStatus.threadPoolSize || '-' }} {{ $t('page.quartz.analyticsPage.threadsUnit') }}</small>
+              </span>
             </div>
             <div class="stat-mini-chart">
-              <EchartsUI ref="activityChartRef" style="height: 85px; width: 85px" />
+              <div
+                class="thread-slots"
+                :data-level="threadSlotLevel"
+                :title="threadSlotTitle"
+              >
+                <div class="thread-slots__grid">
+                  <i
+                    v-for="(used, index) in threadSlots"
+                    :key="index"
+                    class="thread-slot"
+                    :class="{ 'thread-slot--used': used }"
+                  ></i>
+                </div>
+              </div>
             </div>
           </div>
           <div class="stat-footer">
             <span class="stat-footer__item">
-              {{ $t('page.quartz.analyticsPage.recent7Total') }} {{ recent7TotalExecutions }} {{ $t('page.quartz.analyticsPage.times') }}
+              <i class="dot" :class="schedulerDotClass"></i>{{ schedulerStateText }}
+            </span>
+            <span class="stat-footer__item">
+              {{ $t('page.quartz.analyticsPage.uptime') }} {{ formatUptime(schedulerStatus.runningTime) }}
+            </span>
+            <span
+              v-if="(schedulerStatus.pendingCompensationCount ?? 0) > 0"
+              class="stat-footer__item"
+            >
+              <i class="dot dot--warning"></i>{{ $t('page.quartz.analyticsPage.pendingCompensation') }} {{ schedulerStatus.pendingCompensationCount }}
             </span>
           </div>
         </Card>
@@ -1249,21 +1361,32 @@ watch(isDark, () => {
         <Card class="stat-card stat-card--purple" :loading="loading" :bordered="false">
           <div class="stat-content">
             <div class="stat-main">
-              <span class="stat-title">{{ $t('page.quartz.analyticsPage.durationLevel') }}</span>
+              <span class="stat-title">{{ $t('page.quartz.analyticsPage.riskRadar') }}</span>
               <span class="stat-number">
-                {{ formatDuration(avgDurationValue) }}
+                {{ riskJobCount }}
+                <small class="stat-unit">{{ $t('page.quartz.analyticsPage.jobsUnit') }}</small>
               </span>
             </div>
             <div class="stat-mini-chart">
-              <EchartsUI ref="durationChartRef" style="height: 85px; width: 85px" />
+              <EchartsUI ref="riskChartRef" style="height: 85px; width: 85px" />
             </div>
           </div>
           <div class="stat-footer">
-            <span class="stat-footer__item">
-              P99 {{ formatDuration(p99Duration) }}
+            <span
+              class="stat-footer__item"
+              :title="$t('page.quartz.analyticsPage.silentJobsTip')"
+            >
+              <i class="dot dot--warning"></i>{{ $t('page.quartz.analyticsPage.silentJobs') }} {{ silentJobCount }}
             </span>
-            <span class="stat-footer__item">
-              {{ $t('page.quartz.analyticsPage.slowestJob') }}: {{ slowestJobName }}
+            <span
+              class="stat-footer__item stat-footer__item--clip"
+              :title="worstFailJob?.jobName"
+            >
+              <i class="dot dot--danger"></i>{{ $t('page.quartz.analyticsPage.worstFailedJob') }}:
+              <template v-if="worstFailJob">
+                {{ worstFailJob.jobName }} {{ worstFailJob.failedCount }}{{ $t('page.quartz.analyticsPage.times') }}
+              </template>
+              <template v-else>-</template>
             </span>
           </div>
         </Card>
@@ -1525,35 +1648,49 @@ watch(isDark, () => {
   margin-left: 4px;
 }
 
-.stat-number-row {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.stat-badge {
-  display: inline-flex;
-  align-items: center;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 0 4px;
-  border-radius: 3px;
-  line-height: 1.5;
-}
-
-.stat-badge--up {
-  color: #52c41a;
-  background: rgba(82, 196, 26, 0.1);
-}
-
-.stat-badge--down {
-  color: #ff4d4f;
-  background: rgba(255, 77, 79, 0.1);
-}
-
 .stat-mini-chart {
   flex-shrink: 0;
   margin-left: 8px;
+}
+
+/* 线程池槽位图：一格一线程，占用点亮 */
+.thread-slots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 85px;
+  height: 85px;
+  box-sizing: border-box;
+}
+
+.thread-slots__grid {
+  display: grid;
+  grid-template-columns: repeat(5, 13px);
+  grid-auto-rows: 13px;
+  gap: 4px;
+  align-content: center;
+  justify-content: center;
+}
+
+.thread-slot {
+  border-radius: 3px;
+  background: hsl(var(--muted-foreground) / 0.14);
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.thread-slots[data-level='low'] .thread-slot--used {
+  background: linear-gradient(180deg, #95de64, #52c41a);
+  box-shadow: 0 0 4px rgba(82, 196, 26, 0.4);
+}
+
+.thread-slots[data-level='mid'] .thread-slot--used {
+  background: linear-gradient(180deg, #ffd666, #faad14);
+  box-shadow: 0 0 4px rgba(250, 173, 20, 0.4);
+}
+
+.thread-slots[data-level='high'] .thread-slot--used {
+  background: linear-gradient(180deg, #ff7875, #ff4d4f);
+  box-shadow: 0 0 5px rgba(255, 77, 79, 0.5);
 }
 
 .stat-footer {
@@ -1571,6 +1708,13 @@ watch(isDark, () => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+.stat-footer__item--clip {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .dot {
