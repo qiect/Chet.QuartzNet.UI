@@ -105,6 +105,7 @@ const pausedCount = computed(
 const enabledRatio = computed(() =>
   (statsOverview.value.enabledJobs / (statsOverview.value.totalJobs || 1)) * 100,
 );
+const enabledPercentText = computed(() => `${Math.round(enabledRatio.value)}%`);
 const dailyTrendData = computed(() => {
   const map = new Map<string, { time: string; successCount: number; failedCount: number; totalCount: number }>();
   for (const item of trendData.value) {
@@ -161,9 +162,12 @@ const threadSlots = computed(() => {
     perCell > 0 ? Math.min(cells, Math.ceil(executingJobCount.value / perCell)) : 0;
   return Array.from({ length: cells }, (_, i) => i < usedCells);
 });
+// 占用配色阈值：<60% 空闲（绿）、60%~85% 偏忙（黄）、≥85% 接近打满（红）
+const THREAD_LEVEL_MID = 60;
+const THREAD_LEVEL_HIGH = 85;
 const threadSlotLevel = computed(() => {
-  if (threadUtilization.value >= 85) return 'high';
-  if (threadUtilization.value >= 60) return 'mid';
+  if (threadUtilization.value >= THREAD_LEVEL_HIGH) return 'high';
+  if (threadUtilization.value >= THREAD_LEVEL_MID) return 'mid';
   return 'low';
 });
 const threadSlotTitle = computed(
@@ -172,6 +176,22 @@ const threadSlotTitle = computed(
       schedulerStatus.value.threadPoolSize || '-'
     }`,
 );
+// 槽位格子尺寸自适应：在 88px 盒子里尽量铺满，保持与其他卡片图表等大
+const threadSlotGridStyle = computed(() => {
+  const cells = threadSlots.value.length;
+  const cols = cells <= 2 ? Math.max(cells, 1) : cells <= 6 ? 3 : cells <= 12 ? 4 : 5;
+  const rows = Math.ceil(cells / cols);
+  const gap = 4;
+  const box = 82;
+  const size = Math.floor(
+    Math.min((box - (cols - 1) * gap) / cols, (box - (rows - 1) * gap) / rows, 26),
+  );
+  const cell = Math.max(size, 6);
+  return {
+    gridTemplateColumns: `repeat(${cols}, ${cell}px)`,
+    gridAutoRows: `${cell}px`,
+  };
+});
 const schedulerStateText = computed(() => {
   const s = schedulerStatus.value;
   if (s.isDraining) return $t('page.quartz.analyticsPage.schedulerDraining');
@@ -872,64 +892,63 @@ const getHeatmapOption = (data: JobExecutionHeatmap[]): EChartsOption => {
 };
 
 const getOverviewOption = (): EChartsOption => {
-  const enabledPct = Number(enabledRatio.value.toFixed(0));
+  const total = statsOverview.value.totalJobs;
+
+  // 无作业时用占位灰环，避免图表整块空掉
+  const outerData =
+    total > 0
+      ? [
+          {
+            value: statsOverview.value.enabledJobs,
+            itemStyle: {
+              color: {
+                type: 'linear',
+                x: 0,
+                y: 0,
+                x2: 1,
+                y2: 1,
+                colorStops: [
+                  { offset: 0, color: '#73d13d' },
+                  { offset: 1, color: '#52c41a' },
+                ],
+              },
+            },
+          },
+          { value: statsOverview.value.disabledJobs, itemStyle: { color: '#d9d9d9' } },
+        ]
+      : [{ value: 1, itemStyle: { color: '#f0f0f0' } }];
+
+  const innerData =
+    total > 0
+      ? [
+          { value: normalCount.value, itemStyle: { color: '#1677ff' } },
+          { value: pausedCount.value, itemStyle: { color: '#faad14' } },
+        ]
+      : [{ value: 1, itemStyle: { color: '#f5f5f5' } }];
+
+  // 中心百分比由模板的 CSS 覆盖层绘制，避免 echarts 文字定位在深色/多语言下的偏移
   return {
     backgroundColor: 'transparent',
     series: [
       {
         type: 'pie',
-        radius: ['62%', '80%'],
+        radius: ['70%', '86%'],
         center: ['50%', '50%'],
+        startAngle: 90,
         silent: true,
         label: { show: false },
         animation: false,
-        data: [
-          { value: statsOverview.value.enabledJobs, itemStyle: { color: '#52c41a' } },
-          { value: statsOverview.value.disabledJobs, itemStyle: { color: '#d9d9d9' } },
-        ],
+        data: outerData,
       },
       {
         type: 'pie',
-        radius: ['38%', '56%'],
+        radius: ['47%', '56%'],
         center: ['50%', '50%'],
+        startAngle: 90,
         silent: true,
         label: { show: false },
         animation: false,
-        data: [
-          { value: normalCount.value, itemStyle: { color: '#1677ff' } },
-          { value: pausedCount.value, itemStyle: { color: '#faad14' } },
-        ],
-      },
-    ],
-    graphic: [
-      {
-        type: 'group',
-        left: 'center',
-        top: 'center',
-        children: [
-          {
-            type: 'text',
-            style: {
-              text: `${enabledPct}%`,
-              fill: '#262626',
-              fontSize: 13,
-              fontWeight: 700,
-              fontFamily: 'DIN Alternate, sans-serif',
-              textAlign: 'center',
-              y: -7,
-            },
-          },
-          {
-            type: 'text',
-            style: {
-              text: $t('page.quartz.analyticsPage.enabledStatus'),
-              fill: '#8c8c8c',
-              fontSize: 7,
-              textAlign: 'center',
-              y: 7,
-            },
-          },
-        ],
+        data: innerData,
       },
     ],
   };
@@ -1030,8 +1049,8 @@ const formatUptime = (ms?: number | null): string => {
   const hours = Math.floor((totalMinutes % 1440) / 60);
   const minutes = totalMinutes % 60;
   if (days > 0) return `${days}d ${hours}h`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}min`;
+  return `${minutes}min`;
 };
 
 const formatDateTime = (dt?: string | null): string => {
@@ -1268,7 +1287,10 @@ watch(isDark, () => {
               </span>
             </div>
             <div class="stat-mini-chart">
-              <EchartsUI ref="overviewChartRef" style="height: 100px; width: 100px" />
+              <div class="overview-ring">
+                <EchartsUI ref="overviewChartRef" style="height: 88px; width: 88px" />
+                <span class="overview-ring__center">{{ enabledPercentText }}</span>
+              </div>
             </div>
           </div>
           <div class="stat-footer">
@@ -1304,7 +1326,7 @@ watch(isDark, () => {
                 :data-level="threadSlotLevel"
                 :title="threadSlotTitle"
               >
-                <div class="thread-slots__grid">
+                <div class="thread-slots__grid" :style="threadSlotGridStyle">
                   <i
                     v-for="(used, index) in threadSlots"
                     :key="index"
@@ -1343,7 +1365,7 @@ watch(isDark, () => {
               </span>
             </div>
             <div class="stat-mini-chart">
-              <EchartsUI ref="qualityChartRef" style="height: 100px; width: 100px" />
+              <EchartsUI ref="qualityChartRef" style="height: 88px; width: 88px" />
             </div>
           </div>
           <div class="stat-footer">
@@ -1368,7 +1390,7 @@ watch(isDark, () => {
               </span>
             </div>
             <div class="stat-mini-chart">
-              <EchartsUI ref="riskChartRef" style="height: 85px; width: 85px" />
+              <EchartsUI ref="riskChartRef" style="height: 88px; width: 88px" />
             </div>
           </div>
           <div class="stat-footer">
@@ -1653,20 +1675,40 @@ watch(isDark, () => {
   margin-left: 8px;
 }
 
+/* 作业总览双环：中心百分比用覆盖层绘制，跟随主题且绝对居中 */
+.overview-ring {
+  position: relative;
+  width: 88px;
+  height: 88px;
+}
+
+.overview-ring__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'DIN Alternate', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: hsl(var(--foreground));
+  pointer-events: none;
+}
+
 /* 线程池槽位图：一格一线程，占用点亮 */
 .thread-slots {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 85px;
-  height: 85px;
+  width: 88px;
+  height: 88px;
   box-sizing: border-box;
 }
 
 .thread-slots__grid {
   display: grid;
-  grid-template-columns: repeat(5, 13px);
-  grid-auto-rows: 13px;
   gap: 4px;
   align-content: center;
   justify-content: center;
