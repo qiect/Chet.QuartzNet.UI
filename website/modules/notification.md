@@ -26,8 +26,30 @@ description: 通知管理页配置 PushPlus 渠道、通知策略与模板，并
 | 启用通知 | 总开关 |
 | Token | PushPlus 个人 Token |
 | 推送渠道 | 微信 / 企业微信 / 钉钉 / 邮件等 |
-| 消息模板 | HTML / Markdown / 纯文本 / JSON，配置页提供实时推送预览 |
+| 消息模板 | HTML / Markdown / 纯文本 / JSON，卡片式选择器 |
 | 主题 | 通知主题（可选） |
+
+### 2.1 消息模板与推送预览
+
+v2.7.0 起消息模板改为卡片式选择器，选中后下方实时渲染预览，可切换 HTML / Markdown / 纯文本 / JSON 查看效果：
+
+- **JSON 模板**输出结构化消息，便于对接自动化流程；
+- 测试通知也按当前模板格式生成，可直接验证模板效果；
+- 模板预览改为悬停浮层，标题栏保留「推送预览」入口；
+- 历史配置中缺失的模板格式与通知策略字段自动兼容。
+
+JSON 模板输出示例：
+
+```json
+{
+  "eventType": "jobExecution",
+  "jobName": "order-sync",
+  "jobGroup": "DEFAULT",
+  "status": "failed",
+  "statusText": "失败",
+  "executionTime": "2026-11-14 10:00:00"
+}
+```
 
 配置步骤与 PushPlus 注册见 [通知配置](/guide/notification)。
 

@@ -9,10 +9,10 @@ description: Chet.QuartzNet.UI 六大功能页面总览：分析、作业、日�
 | 模块 | 主要能力 | 文档 |
 | --- | --- | --- |
 | 分析页 | KPI、健康象限、热力图、耗时排行 | [分析页](/modules/dashboard) |
-| 作业管理 | 增删改查、启停、批量操作、依赖、重试 | [作业管理](/modules/job) |
-| 日志管理 | 执行历史、状态筛选、详情、自动清理 | [日志管理](/modules/log) |
+| 作业管理 | 增删改查、启停、批量操作、依赖、重试、排水 | [作业管理](/modules/job) |
+| 日志管理 | 执行历史、状态筛选、中断重跑、日志配置 | [日志管理](/modules/log) |
 | 通知管理 | PushPlus 配置、策略、历史、测试 | [通知管理](/modules/notification) |
-| 系统配置 | 服务标识、日志清理、数据迁移 | [系统配置](/modules/system-config) |
+| 系统配置 | 服务标识、停机与恢复、数据迁移 | [系统配置](/modules/system-config) |
 | 多语言 / 主题 | 中英文、浅色 / 深色主题、偏好设置 | [多语言与主题](/modules/i18n) |
 
 ![分析页](/images/analytices.png)
