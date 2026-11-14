@@ -2555,11 +2555,11 @@ loadMigrationStatus();
 <style scoped>
 /* ============ 分区导航 ============ */
 .system-config-tabs :deep(.ant-segmented-item-label) {
-  min-height: 30px;
-  padding: 0 20px;
-  font-size: 13px;
+  min-height: 40px;
+  padding: 0 28px;
+  font-size: 15px;
   font-weight: 500;
-  line-height: 30px;
+  line-height: 40px;
 }
 
 /* ============ 分组 ============ */
