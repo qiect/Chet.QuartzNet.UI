@@ -13,7 +13,6 @@ import { useRoute } from 'vue-router';
 import { formatDateTime } from '@vben/utils';
 import dayjs from 'dayjs';
 import { Page } from '@vben/common-ui';
-import { CircleAlert } from '@vben/icons';
 // 导入 vbenadmin 的 Vxe Table 适配器
 import { useVbenVxeGrid } from '@vben/plugins/vxe-table';
 import type { VxeTableGridOptions } from '@vben/plugins/vxe-table';
@@ -21,8 +20,10 @@ import {
   Button,
   Descriptions,
   DescriptionsItem,
+  InputNumber,
   Modal,
   Popover,
+  Switch,
   Tag,
   Tooltip,
   message,
@@ -46,6 +47,12 @@ import type {
   LogResponseDto,
   TriggerType,
 } from '../../api/quartz/log';
+// 日志自动清理配置沿用系统配置接口
+import {
+  getSystemConfig,
+  saveSystemConfig,
+} from '../../api/quartz/system-config';
+import type { SystemConfigDto } from '../../api/quartz/system-config';
 // 导入可拖动 Modal 组合式函数
 import { useDraggableModal } from './composables/use-draggable-modal';
 // 导入表头排序标识恢复逻辑
@@ -512,6 +519,108 @@ const restoreSortIndicator = () => applyGridSortIndicator(gridApi, currentSort);
 
 // 搜索/重置由 VbenForm 内置提交按钮触发，无需手动处理
 
+// ============ 日志自动清理配置（自系统设置页迁移） ============
+const cleanupModalVisible = ref(false);
+const cleanupLoading = ref(false);
+const cleanupSaving = ref(false);
+const cleanupEnabled = ref(true);
+const cleanupRetentionDays = ref(30);
+const cleanupMaxCount = ref(0);
+const cleanupIntervalHours = ref(6);
+// 完整配置快照：保存时需连带其它配置一起提交，避免覆盖系统设置
+const cleanupBaseConfig = ref<null | Record<string, any>>(null);
+const logTotal = ref<null | number>(null);
+
+const logTotalText = computed(() =>
+  logTotal.value === null
+    ? '—'
+    : new Intl.NumberFormat().format(logTotal.value),
+);
+
+const loadLogTotal = async () => {
+  try {
+    const response: any = await getLogList({ pageIndex: 1, pageSize: 1 });
+    logTotal.value = response?.success
+      ? (response.data?.totalCount ?? null)
+      : null;
+  } catch {
+    logTotal.value = null;
+  }
+};
+
+const handleCleanupToggle = (checked: any) => {
+  const enabled = checked === true;
+  cleanupEnabled.value = enabled;
+  // 重新打开时若两条限制都为 0，给一个合理默认值，避免「开着但不清理」
+  if (
+    enabled &&
+    (cleanupRetentionDays.value ?? 0) <= 0 &&
+    (cleanupMaxCount.value ?? 0) <= 0
+  ) {
+    cleanupRetentionDays.value = 30;
+  }
+};
+
+const handleOpenCleanupModal = async () => {
+  cleanupLoading.value = true;
+  try {
+    const response: any = await getSystemConfig();
+    const data = response?.data ?? response;
+    cleanupBaseConfig.value = data ?? null;
+    cleanupRetentionDays.value = data?.logRetentionDays ?? 0;
+    cleanupMaxCount.value = data?.logMaxCount ?? 0;
+    cleanupIntervalHours.value = data?.logCleanupIntervalHours ?? 6;
+    cleanupEnabled.value =
+      (cleanupRetentionDays.value ?? 0) > 0 || (cleanupMaxCount.value ?? 0) > 0;
+    cleanupModalVisible.value = true;
+    loadLogTotal();
+  } catch (error) {
+    message.error($t('page.quartz.logPage.cleanupGetConfigFailed'));
+    console.error($t('page.quartz.logPage.cleanupGetConfigFailed'), error);
+  } finally {
+    cleanupLoading.value = false;
+  }
+};
+
+const handleSaveCleanup = async () => {
+  cleanupSaving.value = true;
+  try {
+    // 只保留可写字段，避免把生效快照等只读信息回传给后端
+    const payload: any = { ...(cleanupBaseConfig.value ?? {}) };
+    delete payload.effectiveConfig;
+    delete payload.restartRequired;
+    delete payload.bootTime;
+    payload.serviceName = payload.serviceName ?? '';
+    payload.environment = payload.environment ?? 'DEV';
+    payload.serviceDescription = payload.serviceDescription ?? '';
+    payload.logRetentionDays = cleanupEnabled.value
+      ? (cleanupRetentionDays.value ?? 0)
+      : 0;
+    payload.logMaxCount = cleanupEnabled.value
+      ? (cleanupMaxCount.value ?? 0)
+      : 0;
+    payload.logCleanupIntervalHours = cleanupIntervalHours.value ?? 6;
+
+    const response = await saveSystemConfig(payload as SystemConfigDto);
+    if (response.success) {
+      message.success(
+        response.message || $t('page.quartz.logPage.cleanupSaveSuccess'),
+      );
+      cleanupModalVisible.value = false;
+      await loadLogTotal();
+    } else {
+      message.error(
+        response.message || $t('page.quartz.logPage.cleanupSaveFailed'),
+      );
+    }
+  } catch (error: any) {
+    message.error(error?.message || $t('page.quartz.logPage.cleanupSaveFailed'));
+    console.error($t('page.quartz.logPage.cleanupSaveFailed'), error);
+  } finally {
+    cleanupSaving.value = false;
+  }
+};
+
 // 清空日志
 const handleClear = () => {
   Modal.confirm({
@@ -832,31 +941,36 @@ onMounted(async () => {
     <template #default>
       <!-- 日志列表 -->
       <Grid>
-        <!-- 工具栏：快捷筛选 + 清空日志 -->
+        <!-- 工具栏：清理配置 + 快捷筛选 + 清空日志 -->
         <template #toolbar-actions>
           <div class="log-toolbar">
-            <Tooltip
-              :title="$t('page.quartz.logPage.needsAttentionHint')"
-              placement="bottomLeft"
+            <Button
+              type="primary"
+              :loading="cleanupLoading"
+              @click="handleOpenCleanupModal"
             >
-              <button
-                type="button"
-                class="log-attention-filter"
-                :class="{ 'is-active': needsAttentionOnly }"
-                :aria-pressed="needsAttentionOnly"
-                @click="toggleNeedsAttention"
-              >
-                <CircleAlert class="log-attention-filter__icon" />
-                <span>{{ $t('page.quartz.logPage.needsAttention') }}</span>
-                <span
-                  v-if="needsAttentionOnly"
-                  class="log-attention-filter__dot"
-                ></span>
-              </button>
-            </Tooltip>
-            <Button danger @click="handleClear">
-              {{ $t('page.quartz.logPage.clearLogs') }}
+              {{ $t('page.quartz.logPage.cleanupConfig') }}
             </Button>
+            <div class="flex items-center gap-2">
+              <Tooltip
+                :title="$t('page.quartz.logPage.needsAttentionHint')"
+                placement="bottomLeft"
+                :mouse-enter-delay="0.35"
+              >
+                <button
+                  type="button"
+                  class="log-attention-btn"
+                  :class="{ 'is-active': needsAttentionOnly }"
+                  :aria-pressed="needsAttentionOnly"
+                  @click="toggleNeedsAttention"
+                >
+                  {{ $t('page.quartz.logPage.needsAttention') }}
+                </button>
+              </Tooltip>
+              <Button danger @click="handleClear">
+                {{ $t('page.quartz.logPage.clearLogs') }}
+              </Button>
+            </div>
           </div>
         </template>
 
@@ -947,6 +1061,115 @@ onMounted(async () => {
           </div>
         </template>
       </Grid>
+
+      <!-- 日志清理配置对话框 -->
+      <Modal
+        v-model:open="cleanupModalVisible"
+        :title="$t('page.quartz.logPage.cleanupConfigTitle')"
+        :width="640"
+        centered
+        destroyOnClose
+        :confirm-loading="cleanupSaving"
+        :ok-text="$t('page.quartz.logPage.cleanupSave')"
+        :cancel-text="$t('page.quartz.logPage.cancel')"
+        wrapClassName="quartz-log-cleanup-modal"
+        @ok="handleSaveCleanup"
+      >
+        <div class="space-y-4">
+          <!-- 概览：当前日志总量 + 自动清理主开关 -->
+          <div
+            class="flex items-center justify-between gap-3 rounded-lg bg-muted/40 px-3 py-2.5"
+          >
+            <span class="text-xs text-muted-foreground">
+              {{ $t('page.quartz.logPage.cleanupCurrentTotal') }}
+              <span class="ml-1 text-sm font-semibold tabular-nums text-foreground">
+                {{ logTotalText }}
+              </span>
+              <span class="ml-0.5">
+                {{ $t('page.quartz.logPage.unitCount') }}
+              </span>
+            </span>
+            <span class="flex items-center gap-2">
+              <span class="text-xs text-muted-foreground">
+                {{ $t('page.quartz.logPage.cleanupEnable') }}
+              </span>
+              <Switch
+                :checked="cleanupEnabled"
+                size="small"
+                @change="handleCleanupToggle"
+              />
+            </span>
+          </div>
+
+          <!-- 开关关闭时说明「不做任何自动清理」，行内参数同步置灰 -->
+          <p
+            v-if="!cleanupEnabled"
+            class="rounded-md bg-muted/40 px-3 py-2 text-xs leading-5 text-muted-foreground"
+          >
+            {{ $t('page.quartz.logPage.cleanupEnableHint') }}
+          </p>
+
+          <div class="overflow-hidden rounded-lg border border-border/60">
+            <div
+              class="grid grid-cols-[88px_140px_minmax(0,1fr)] items-center gap-x-4 px-3 py-2.5"
+            >
+              <span class="text-[13px]">
+                {{ $t('page.quartz.logPage.cleanupRetentionDays') }}
+              </span>
+              <InputNumber
+                v-model:value="cleanupRetentionDays"
+                :min="0"
+                :max="3650"
+                :disabled="!cleanupEnabled"
+                :addon-after="$t('page.quartz.logPage.unitDays')"
+                class="w-full"
+                size="middle"
+              />
+              <span class="text-xs leading-5 text-muted-foreground">
+                {{ $t('page.quartz.logPage.cleanupRetentionDaysHint') }}
+              </span>
+            </div>
+            <div
+              class="grid grid-cols-[88px_140px_minmax(0,1fr)] items-center gap-x-4 border-t border-border/60 px-3 py-2.5"
+            >
+              <span class="text-[13px]">
+                {{ $t('page.quartz.logPage.cleanupMaxCount') }}
+              </span>
+              <InputNumber
+                v-model:value="cleanupMaxCount"
+                :min="0"
+                :max="10000000"
+                :disabled="!cleanupEnabled"
+                :addon-after="$t('page.quartz.logPage.unitCount')"
+                class="w-full"
+                size="middle"
+              />
+              <span class="text-xs leading-5 text-muted-foreground">
+                {{ $t('page.quartz.logPage.cleanupMaxCountHint') }}
+              </span>
+            </div>
+            <div
+              class="grid grid-cols-[88px_140px_minmax(0,1fr)] items-center gap-x-4 border-t border-border/60 px-3 py-2.5"
+            >
+              <span class="text-[13px]">
+                {{ $t('page.quartz.logPage.cleanupInterval') }}
+              </span>
+              <InputNumber
+                v-model:value="cleanupIntervalHours"
+                :min="1"
+                :max="168"
+                :disabled="!cleanupEnabled"
+                :addon-after="$t('page.quartz.logPage.unitHours')"
+                class="w-full"
+                size="middle"
+              />
+              <span class="text-xs leading-5 text-muted-foreground">
+                {{ $t('page.quartz.logPage.cleanupIntervalHint') }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       <!-- 详情对话框 -->
       <Modal v-model:open="detailModalVisible" :title="$t('page.quartz.logPage.logDetail')" width="800px"
@@ -1107,7 +1330,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-/* 工具栏快捷筛选 */
+/* 工具栏：左侧配置入口，右侧快捷筛选与清空 */
 .log-toolbar {
   display: flex;
   width: 100%;
@@ -1116,53 +1339,62 @@ onMounted(async () => {
   gap: 8px;
 }
 
-.log-attention-filter {
+/* 「仅看异常」是开关型按钮：hover 只做轻提示，选中态常驻高亮，点击有下沉反馈 */
+.log-attention-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 12px;
-  border: 1px solid hsl(var(--border));
-  border-radius: 999px;
-  background: hsl(var(--card));
-  color: hsl(var(--muted-foreground));
-  font-size: 12px;
+  justify-content: center;
+  height: 32px;
+  padding: 0 15px;
+  font-family: inherit;
+  font-size: 14px;
   line-height: 1;
+  color: hsl(var(--foreground));
   white-space: nowrap;
   cursor: pointer;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
   transition:
-    color 0.2s ease,
-    border-color 0.2s ease,
-    background 0.2s ease;
+    color 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.1s ease;
 }
 
-.log-attention-filter:hover {
+.log-attention-btn:hover {
   color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 0.06);
   border-color: hsl(var(--destructive) / 0.45);
 }
 
-.log-attention-filter.is-active {
-  color: hsl(var(--destructive));
-  border-color: hsl(var(--destructive) / 0.55);
-  background: hsl(var(--destructive) / 0.08);
-  font-weight: 500;
+/* 按下瞬间轻微下沉，松开立即回弹，避免「点了没反应」的错觉 */
+.log-attention-btn:active {
+  background: hsl(var(--destructive) / 0.12);
+  transform: scale(0.97);
 }
 
-.log-attention-filter:focus-visible {
+.log-attention-btn:focus-visible {
   outline: 2px solid hsl(var(--destructive) / 0.35);
   outline-offset: 2px;
 }
 
-.log-attention-filter__icon {
-  width: 14px;
-  height: 14px;
+/* 选中态：浅红底 + 红色描边常驻，hover 再加深一档 */
+.log-attention-btn.is-active {
+  font-weight: 500;
+  color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 0.1);
+  border-color: hsl(var(--destructive) / 0.55);
+  box-shadow: inset 0 0 0 1px hsl(var(--destructive) / 0.12);
 }
 
-.log-attention-filter__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
+.log-attention-btn.is-active:hover {
+  background: hsl(var(--destructive) / 0.16);
+}
+
+.log-attention-btn.is-active:active {
+  background: hsl(var(--destructive) / 0.22);
 }
 
 /* ============ 详情对话框 ============ */

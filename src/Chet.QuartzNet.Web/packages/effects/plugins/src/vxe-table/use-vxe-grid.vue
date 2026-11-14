@@ -77,6 +77,11 @@ const {
   separator,
 } = usePriorityValues(props, state);
 
+/** 表格 id，用于关联列设置相关的本地存储 */
+const gridId = computed(
+  () => (toRaw(gridOptions.value) as undefined | VxeTableGridProps)?.id,
+);
+
 const { isMobile } = usePreferences();
 const isSeparator = computed(() => {
   if (
@@ -179,6 +184,124 @@ const toolbarOptions = computed(() => {
   return { toolbarConfig };
 });
 
+/**
+ * 列定义引用缓存。
+ *
+ * 父组件任意一次渲染都会写一次 state，从而让下面的 options 重算并整体 cloneDeep，
+ * 产生一份全新的 columns 数组。vxe 收到新的 columns 会重新加载列，
+ * 这会把「列设置」面板里已拖拽的顺序重置回默认值，用户点「确认」时保存的其实是默认顺序
+ * （表现为列顺序调整后确认无效）。这里按源引用缓存克隆结果：源数组没变就复用同一份，
+ * 只有页面真正替换了列定义（如切换语言）时才让 vxe 重新加载列。
+ */
+let columnsSource: unknown;
+let columnsClone: unknown;
+
+const UNPIN_STORAGE_PREFIX = 'vben-vxe-unpinned:';
+
+function columnKeyOf(column: any): string {
+  return column?.field || (column?.type ? `type=${column.type}` : '');
+}
+
+function readUnpinnedKeys(gridId?: string): string[] {
+  if (!gridId) {
+    return [];
+  }
+  try {
+    const raw = localStorage.getItem(`${UNPIN_STORAGE_PREFIX}${gridId}`);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((key) => typeof key === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeUnpinnedKeys(gridId: string | undefined, keys: string[]) {
+  if (!gridId) {
+    return;
+  }
+  try {
+    const storageKey = `${UNPIN_STORAGE_PREFIX}${gridId}`;
+    if (keys.length === 0) {
+      localStorage.removeItem(storageKey);
+    } else {
+      localStorage.setItem(storageKey, JSON.stringify(keys));
+    }
+  } catch {
+    // 忽略隐私模式等场景下的存储异常
+  }
+}
+
+/** 按记录取消列定义上的固定（含子列） */
+function applyUnpinnedFixed(columns: any, keys: string[]) {
+  if (!keys.length || !Array.isArray(columns)) {
+    return;
+  }
+  const walk = (list: any[]) => {
+    list.forEach((column) => {
+      if (!column || typeof column !== 'object') {
+        return;
+      }
+      if (column.fixed && keys.includes(columnKeyOf(column))) {
+        column.fixed = undefined;
+      }
+      if (Array.isArray(column.children)) {
+        walk(column.children);
+      }
+    });
+  };
+  walk(columns);
+}
+
+/**
+ * vxe 的固定列始终渲染在表格两端，因此把固定列拖到中间位置时排序不会生效。
+ * 这里把「已经不在固定端」的固定列收集起来，视为用户想取消该列的固定。
+ */
+function collectOutOfEdgeFixedKeys(columns: any[]): string[] {
+  const list = columns.filter(
+    (column) => column && column.type !== 'checkbox',
+  );
+  if (list.length === 0) {
+    return [];
+  }
+  let head = 0;
+  while (head < list.length && list[head]?.fixed === 'left') {
+    head += 1;
+  }
+  let tail = list.length - 1;
+  while (tail >= 0 && list[tail]?.fixed === 'right') {
+    tail -= 1;
+  }
+  const keys: string[] = [];
+  list.forEach((column, index) => {
+    const key = columnKeyOf(column);
+    if (!key) {
+      return;
+    }
+    const outOfEdge =
+      (column.fixed === 'left' && index >= head) ||
+      (column.fixed === 'right' && index <= tail);
+    if (outOfEdge) {
+      keys.push(key);
+    }
+  });
+  return keys;
+}
+
+function getStableColumns(columns: unknown) {
+  if (!columns) {
+    return columns;
+  }
+  if (columns !== columnsSource) {
+    columnsSource = columns;
+    columnsClone = cloneDeep(columns);
+    // 用户曾把固定列拖出固定端，重新加载列定义时要继续沿用「取消固定」的结果
+    applyUnpinnedFixed(columnsClone, readUnpinnedKeys(gridId.value));
+  }
+  return columnsClone;
+}
+
 const options = computed(() => {
   const globalGridConfig = VxeUI?.getConfig()?.grid ?? {};
 
@@ -190,6 +313,14 @@ const options = computed(() => {
       globalGridConfig,
     ),
   );
+
+  const rawColumns = (toRaw(gridOptions.value) as undefined | VxeTableGridProps)
+    ?.columns;
+  if (rawColumns) {
+    mergedOptions.columns = getStableColumns(
+      rawColumns,
+    ) as VxeTableGridProps['columns'];
+  }
 
   if (mergedOptions.proxyConfig) {
     const { ajax } = mergedOptions.proxyConfig;
@@ -241,6 +372,45 @@ function onToolbarToolClick(event: VxeGridDefines.ToolbarToolClickEventParams) {
   )?.(event);
 }
 
+/**
+ * 「列设置」确认后，把被拖离固定端的固定列记为「取消固定」。
+ * 固定列只会渲染在表格两端，不取消固定的话对其拖动排序是无效的。
+ */
+function syncFixedColumnsAfterCustom() {
+  const grid = gridRef.value;
+  const id = gridId.value;
+  if (!grid || !id) {
+    return;
+  }
+  const keys = collectOutOfEdgeFixedKeys(
+    (grid as any).getFullColumns?.() ?? [],
+  );
+  const previousKeys = readUnpinnedKeys(id);
+  writeUnpinnedKeys(id, keys);
+  if (isEqual([...keys].sort(), [...previousKeys].sort())) {
+    return;
+  }
+  const rawOptions = toRaw(gridOptions.value) as
+    | undefined
+    | VxeTableGridProps;
+  const rawColumns = rawOptions?.columns;
+  if (!rawOptions || !Array.isArray(rawColumns)) {
+    return;
+  }
+  // 换一份新的列定义触发 vxe 重新加载列，让本次取消固定立即生效，
+  // 列顺序仍由 vxe 的列设置存储恢复
+  props.api?.setState?.({
+    gridOptions: { ...rawOptions, columns: [...rawColumns] },
+  } as any);
+}
+
+function onCustomChange(event: { type: string }) {
+  if (event?.type === 'confirm') {
+    syncFixedColumnsAfterCustom();
+  }
+  (gridEvents.value?.custom as ((evt: any) => void) | undefined)?.(event);
+}
+
 function onSearchBtnClick() {
   props.api?.toggleSearchForm?.();
 }
@@ -249,6 +419,7 @@ const events = computed(() => {
   return {
     ...gridEvents.value,
     toolbarToolClick: onToolbarToolClick,
+    custom: onCustomChange,
   };
 });
 

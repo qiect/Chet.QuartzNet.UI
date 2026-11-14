@@ -25,7 +25,6 @@ import {
 
 import { $t } from '#/locales';
 
-import { getLogList } from '../../api/quartz/log';
 import {
   cancelMigration,
   getMigrationOptions,
@@ -56,9 +55,8 @@ const configLoading = ref(false);
 const saveLoading = ref(false);
 
 // ============ 分区导航 ============
-const activeTab = ref<string>('general');
+const activeTab = ref<string>('recovery');
 const tabOptions = computed(() => [
-  { label: $t('page.quartz.systemConfigPage.generalSection'), value: 'general' },
   {
     label: $t('page.quartz.systemConfigPage.recoverySection'),
     value: 'recovery',
@@ -144,31 +142,12 @@ const identityDraft = ref({
   serviceDescription: '',
 });
 
-// ============ 日志自动清理 ============
-const logAutoCleanup = ref(true);
-const logRetentionDays = ref(30);
-const logMaxCount = ref(0);
-const logCleanupIntervalHours = ref(6);
-const logTotal = ref<null | number>(null);
-
-const logTotalText = computed(() =>
-  logTotal.value === null
-    ? '—'
-    : new Intl.NumberFormat().format(logTotal.value),
-);
-
-function handleLogCleanupToggle(checked: any) {
-  const enabled = checked === true;
-  logAutoCleanup.value = enabled;
-  // 重新打开时若两条限制都为 0，给一个合理默认值，避免“开着但不清理”
-  if (
-    enabled &&
-    (logRetentionDays.value ?? 0) <= 0 &&
-    (logMaxCount.value ?? 0) <= 0
-  ) {
-    logRetentionDays.value = 30;
-  }
-}
+// ============ 日志清理（编辑入口已迁移到日志管理，此处仅原样透传） ============
+const logSettings = ref({
+  logRetentionDays: 0,
+  logMaxCount: 0,
+  logCleanupIntervalHours: 6,
+});
 
 // ============ 停机与恢复（启动期配置） ============
 const shutdownMode = ref<ShutdownMode>('Drain');
@@ -301,12 +280,6 @@ const STARTUP_FIELD_META: Array<{
   },
 ];
 
-const GENERAL_FIELDS: Array<keyof SystemConfigDto> = [
-  'logRetentionDays',
-  'logMaxCount',
-  'logCleanupIntervalHours',
-];
-
 const STARTUP_FIELD_KEYS = new Set<string>(
   STARTUP_FIELD_META.map((item) => item.key as string),
 );
@@ -319,9 +292,9 @@ const buildConfig = (): SystemConfigDto => ({
   serviceName: serviceName.value,
   environment: environment.value,
   serviceDescription: serviceDescription.value,
-  logRetentionDays: logAutoCleanup.value ? (logRetentionDays.value ?? 0) : 0,
-  logMaxCount: logAutoCleanup.value ? (logMaxCount.value ?? 0) : 0,
-  logCleanupIntervalHours: logCleanupIntervalHours.value ?? 6,
+  logRetentionDays: logSettings.value.logRetentionDays ?? 0,
+  logMaxCount: logSettings.value.logMaxCount ?? 0,
+  logCleanupIntervalHours: logSettings.value.logCleanupIntervalHours ?? 6,
   shutdownMode: shutdownMode.value,
   shutdownWaitTimeoutSeconds: shutdownWaitTimeoutSeconds.value,
   drainTimeoutSeconds: drainTimeoutSeconds.value,
@@ -341,8 +314,9 @@ const dirtyFields = computed<Array<keyof SystemConfigDto>>(() => {
   const base = baseline.value;
   if (!base) return [];
   const current = buildConfig();
-  return [...GENERAL_FIELDS, ...STARTUP_FIELD_META.map((item) => item.key)]
-    .filter((key) => !isSameValue(current[key], base[key]));
+  return STARTUP_FIELD_META.map((item) => item.key).filter(
+    (key) => !isSameValue(current[key], base[key]),
+  );
 });
 
 const dirtyCount = computed(() => dirtyFields.value.length);
@@ -406,11 +380,11 @@ function applyConfigData(data: any) {
   serviceName.value = data?.serviceName || '';
   environment.value = data?.environment || 'DEV';
   serviceDescription.value = data?.serviceDescription || '';
-  logRetentionDays.value = data?.logRetentionDays ?? 30;
-  logMaxCount.value = data?.logMaxCount ?? 0;
-  logCleanupIntervalHours.value = data?.logCleanupIntervalHours ?? 6;
-  logAutoCleanup.value =
-    (logRetentionDays.value ?? 0) > 0 || (logMaxCount.value ?? 0) > 0;
+  logSettings.value = {
+    logRetentionDays: data?.logRetentionDays ?? 0,
+    logMaxCount: data?.logMaxCount ?? 0,
+    logCleanupIntervalHours: data?.logCleanupIntervalHours ?? 6,
+  };
 
   // 历史「Wait（等待完成）」配置等价于「排水后停止」，加载时归一化
   shutdownMode.value =
@@ -443,22 +417,6 @@ async function loadConfig() {
     console.error($t('page.quartz.systemConfigPage.getConfigFailed'), error);
   } finally {
     configLoading.value = false;
-  }
-}
-
-async function loadLogTotal() {
-  try {
-    const response = (await getLogList({
-      pageIndex: 1,
-      pageSize: 1,
-    })) as any;
-    if (response?.success) {
-      logTotal.value = response.data?.totalCount ?? null;
-      return;
-    }
-    logTotal.value = null;
-  } catch {
-    logTotal.value = null;
   }
 }
 
@@ -605,7 +563,6 @@ async function handleReset() {
 }
 
 loadConfig();
-loadLogTotal();
 
 // ============ 数据迁移 ============
 
@@ -869,6 +826,35 @@ const migrationErrorSamples = computed(
   () => migrationStatus.value?.errorSamples ?? [],
 );
 
+interface StorageVisual {
+  dotClass: string;
+  pillClass: string;
+}
+
+// 存储类型标识：文件用青色、数据库用紫色，与环境色块（灰/蓝/橙/红）区分
+const STORAGE_VISUALS: Record<string, StorageVisual> = {
+  File: {
+    dotClass: 'bg-cyan-500',
+    pillClass: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400',
+  },
+  Database: {
+    dotClass: 'bg-violet-500',
+    pillClass: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
+  },
+};
+
+const STORAGE_FALLBACK: StorageVisual = {
+  dotClass: 'bg-slate-300 dark:bg-slate-600',
+  pillClass: 'border border-border/60 text-muted-foreground',
+};
+
+const storageVisual = computed<StorageVisual>(() => {
+  const type =
+    migrationOptions.value?.currentStorageType ??
+    migrationStatus.value?.storageType;
+  return (type && STORAGE_VISUALS[type]) || STORAGE_FALLBACK;
+});
+
 // 当前实际生效的存储模式，兼容选项未加载完成的情况
 const currentStorageDisplay = computed(() => {
   const options = migrationOptions.value;
@@ -878,11 +864,11 @@ const currentStorageDisplay = computed(() => {
 
   if (options.currentStorageType === 'Database') {
     return options.currentDatabaseProvider
-      ? `${$t('page.quartz.systemConfigPage.migrationStorageDatabase')} · ${options.currentDatabaseProvider}`
-      : $t('page.quartz.systemConfigPage.migrationStorageDatabase');
+      ? `${$t('page.quartz.systemConfigPage.storageDatabase')} · ${options.currentDatabaseProvider}`
+      : $t('page.quartz.systemConfigPage.storageDatabase');
   }
 
-  return $t('page.quartz.systemConfigPage.migrationStorageFile');
+  return $t('page.quartz.systemConfigPage.storageFile');
 });
 
 function normalizeProvider(provider: string): MigrationStoreType {
@@ -1259,11 +1245,14 @@ loadMigrationStatus();
               {{ environmentLabel }}
             </span>
             <span
-              class="inline-flex items-center gap-1.5 rounded-full border border-border/60 px-2 py-0.5 text-xs text-muted-foreground"
+              class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
+              :class="storageVisual.pillClass"
             >
-              {{ $t('page.quartz.systemConfigPage.storageLabel') }}：{{
-                currentStorageDisplay
-              }}
+              <span
+                class="h-1.5 w-1.5 rounded-full"
+                :class="storageVisual.dotClass"
+              />
+              {{ currentStorageDisplay }}
             </span>
             <Tag
               v-if="restartRequired"
@@ -1295,103 +1284,8 @@ loadMigrationStatus();
       class="system-config-tabs w-fit"
     />
 
-    <!-- 常规配置：日志自动清理 -->
-    <Card v-if="activeTab === 'general'" :loading="configLoading">
-      <template #title>
-        <div class="flex flex-col">
-          <span>{{ $t('page.quartz.systemConfigPage.logCleanupSection') }}</span>
-          <span class="text-xs font-normal leading-4 text-muted-foreground">
-            {{ $t('page.quartz.systemConfigPage.logCleanupDescription') }}
-          </span>
-        </div>
-      </template>
-
-      <template #extra>
-        <div class="flex items-center gap-3">
-          <span class="text-xs font-normal text-muted-foreground">
-            {{ $t('page.quartz.systemConfigPage.logCurrentTotal') }}
-            <span
-              class="ml-1 text-sm font-semibold tabular-nums text-foreground"
-            >
-              {{ logTotalText }}
-            </span>
-            <span class="ml-0.5">
-              {{ $t('page.quartz.systemConfigPage.unitCount') }}
-            </span>
-          </span>
-          <span class="h-4 w-px bg-border/60" />
-          <span class="flex items-center gap-2">
-            <span class="text-xs text-muted-foreground">
-              {{ $t('page.quartz.systemConfigPage.logCleanupEnable') }}
-            </span>
-            <Switch
-              :checked="logAutoCleanup"
-              size="small"
-              @change="handleLogCleanupToggle"
-            />
-          </span>
-        </div>
-      </template>
-
-      <!-- 主开关放到卡片层级，下面的行只描述「开关打开后」的参数 -->
-      <p
-        v-if="!logAutoCleanup"
-        class="mb-4 rounded-md bg-muted/40 px-3 py-2 text-xs leading-5 text-muted-foreground"
-      >
-        {{ $t('page.quartz.systemConfigPage.logCleanupEnableHint') }}
-      </p>
-
-      <div>
-        <SettingRow
-          :label="$t('page.quartz.systemConfigPage.logRetentionDays')"
-          :hint="$t('page.quartz.systemConfigPage.logRetentionDaysHint')"
-          :disabled="!logAutoCleanup"
-        >
-          <InputNumber
-            v-model:value="logRetentionDays"
-            :min="0"
-            :max="3650"
-            :disabled="!logAutoCleanup"
-            :addon-after="$t('page.quartz.systemConfigPage.unitDays')"
-            class="w-full"
-            size="middle"
-          />
-        </SettingRow>
-        <SettingRow
-          :label="$t('page.quartz.systemConfigPage.logMaxCount')"
-          :hint="$t('page.quartz.systemConfigPage.logMaxCountHint')"
-          :disabled="!logAutoCleanup"
-        >
-          <InputNumber
-            v-model:value="logMaxCount"
-            :min="0"
-            :max="10000000"
-            :disabled="!logAutoCleanup"
-            :addon-after="$t('page.quartz.systemConfigPage.unitCount')"
-            class="w-full"
-            size="middle"
-          />
-        </SettingRow>
-        <SettingRow
-          :label="$t('page.quartz.systemConfigPage.logCleanupInterval')"
-          :hint="$t('page.quartz.systemConfigPage.logCleanupIntervalHint')"
-          :disabled="!logAutoCleanup"
-        >
-          <InputNumber
-            v-model:value="logCleanupIntervalHours"
-            :min="1"
-            :max="168"
-            :disabled="!logAutoCleanup"
-            :addon-after="$t('page.quartz.systemConfigPage.unitHours')"
-            class="w-full"
-            size="middle"
-          />
-        </SettingRow>
-      </div>
-    </Card>
-
     <!-- 停机与恢复 -->
-    <Card v-else-if="activeTab === 'recovery'">
+    <Card v-if="activeTab === 'recovery'" :loading="configLoading">
       <template #title>
         <div class="flex flex-col">
           <span>{{ $t('page.quartz.systemConfigPage.recoverySection') }}</span>
