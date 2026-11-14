@@ -257,9 +257,13 @@ public static class ServiceCollectionExtensions
                 ?? schedulerInstance.GetSchedulerAsync(schedulerFactory).GetAwaiter().GetResult();
         });
 
+        // 应用关闭时的等待策略由 GracefulShutdownHostedService（DrainCoordinator）按
+        // 系统配置的 ShutdownMode 统一处理：排水模式会等到执行中任务收尾或超时，
+        // 立即停止模式则直接返回。这里必须为 false，否则 Quartz 宿主服务会无条件
+        // 无超时地等待所有作业完成，导致「立即停止」策略失效。
         services.AddQuartzHostedService(options =>
         {
-            options.WaitForJobsToComplete = true;
+            options.WaitForJobsToComplete = false;
         });
 
         services.AddHostedService<JobSchedulerInitializer>();
@@ -476,49 +480,25 @@ public static class ServiceCollectionExtensions
                             attribute.CronExpression
                         );
 
-                        // 立即调度作业到Quartz调度器，只有启用状态的作业才调度
-                        if (attribute.Enabled)
-                        {
-                            try
-                            {
-                                var jobService =
-                                    scope.ServiceProvider.GetRequiredService<IQuartzJobService>();
-                                var jobServiceImpl = jobService as QuartzJobService;
-                                if (jobServiceImpl != null)
-                                {
-                                    var scheduleMethod = typeof(QuartzJobService).GetMethod(
-                                        "ScheduleJobAsync",
-                                        System.Reflection.BindingFlags.NonPublic
-                                            | System.Reflection.BindingFlags.Instance
-                                    );
+                    }
 
-                                    if (scheduleMethod != null)
-                                    {
-                                        var result = scheduleMethod.Invoke(
-                                            jobServiceImpl,
-                                            new object[] { jobInfo, cancellationToken }
-                                        );
-                                        if (result is Task task)
-                                        {
-                                            await task;
-                                            _logger.LogSuccess(
-                                                "ClassJob初始化",
-                                                "ClassJob调度成功: {JobKey}",
-                                                $"{attribute.Name}.{attribute.Group}"
-                                            );
-                                        }
-                                    }
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogFailure(
-                                    "ClassJob初始化",
-                                    $"ClassJob调度失败: {attribute.Name}.{attribute.Group}",
-                                    ex
-                                );
-                            }
-                        }
+                    // 新增的作业统一交给作业服务按存储内容加载，
+                    // 不再通过反射调用私有调度方法（启用状态由服务内部判断）
+                    var jobService = scope.ServiceProvider.GetRequiredService<IQuartzJobService>();
+                    var reloadResult = await jobService.ReloadJobsAsync(cancellationToken);
+                    if (reloadResult.Success)
+                    {
+                        _logger.LogSuccess(
+                            "ClassJob初始化",
+                            reloadResult.Message ?? "ClassJob调度完成"
+                        );
+                    }
+                    else
+                    {
+                        _logger.LogWarn(
+                            "ClassJob初始化",
+                            reloadResult.Message ?? "ClassJob调度失败"
+                        );
                     }
                 }
             }
@@ -560,103 +540,17 @@ public static class ServiceCollectionExtensions
                 // 创建一个作用域来获取服务
                 using (var scope = _scopeFactory.CreateScope())
                 {
-                    var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
-                    var scheduler = scope.ServiceProvider.GetRequiredService<IScheduler>();
-
-                    // 获取所有存储的作业
-                    var allJobs = await jobStorage.GetAllJobsAsync(cancellationToken);
-                    _logger.LogInfo("作业调度", "找到 {JobCount} 个存储的作业", allJobs.Count);
-
-                    foreach (var jobInfo in allJobs)
+                    // 统一交给作业服务按存储内容重新加载（已存在触发器、禁用、暂停的作业会自动跳过），
+                    // 避免通过反射调用私有调度方法
+                    var jobService = scope.ServiceProvider.GetRequiredService<IQuartzJobService>();
+                    var reloadResult = await jobService.ReloadJobsAsync(cancellationToken);
+                    if (reloadResult.Success)
                     {
-                        try
-                        {
-                            // 检查作业是否已经有触发器
-                            var jobKey = new JobKey(jobInfo.JobName, jobInfo.JobGroup);
-                            var triggers = await scheduler.GetTriggersOfJob(
-                                jobKey,
-                                cancellationToken
-                            );
-
-                            if (triggers.Any())
-                            {
-                                _logger.LogInfo(
-                                    "作业调度",
-                                    "作业 {JobKey} 已存在 {TriggerCount} 个触发器，跳过调度",
-                                    $"{jobInfo.JobGroup}.{jobInfo.JobName}",
-                                    triggers.Count
-                                );
-                                continue;
-                            }
-
-                            // 检查作业是否被禁用，如果是禁用状态，不重新调度
-                            if (!jobInfo.IsEnabled)
-                            {
-                                _logger.LogWarn(
-                                    "作业调度",
-                                    "作业 {JobKey} 处于禁用状态，跳过调度",
-                                    $"{jobInfo.JobGroup}.{jobInfo.JobName}"
-                                );
-                                continue;
-                            }
-
-                            // 检查作业状态，如果是暂停状态，不重新调度
-                            if (jobInfo.Status == Chet.QuartzNet.Models.Entities.JobStatus.Paused)
-                            {
-                                _logger.LogWarn(
-                                    "作业调度",
-                                    "作业 {JobKey} 处于暂停状态，跳过调度",
-                                    $"{jobInfo.JobGroup}.{jobInfo.JobName}"
-                                );
-                                continue;
-                            }
-
-                            // 获取QuartzJobService实例来调用ScheduleJobAsync
-                            var jobService =
-                                scope.ServiceProvider.GetRequiredService<IQuartzJobService>();
-
-                            // 调用ScheduleJobAsync方法重新调度作业
-                            // 由于ScheduleJobAsync是私有方法，我们需要使用反射来调用
-                            var jobServiceImpl = jobService as QuartzJobService;
-                            if (jobServiceImpl != null)
-                            {
-                                // 调用ScheduleJobAsync方法重新调度作业
-                                // 由于ScheduleJobAsync是私有方法，我们需要使用反射来调用
-                                var scheduleMethod = typeof(QuartzJobService).GetMethod(
-                                    "ScheduleJobAsync",
-                                    System.Reflection.BindingFlags.NonPublic
-                                        | System.Reflection.BindingFlags.Instance
-                                );
-
-                                if (scheduleMethod != null)
-                                {
-                                    var result = scheduleMethod.Invoke(
-                                        jobServiceImpl,
-                                        new object[] { jobInfo, cancellationToken }
-                                    );
-                                    if (result is Task task)
-                                    {
-                                        await task;
-                                        _logger.LogSuccess(
-                                            "作业调度",
-                                            $"{jobInfo.JobGroup}.{jobInfo.JobName}"
-                                        );
-                                    }
-                                }
-                                else
-                                {
-                                    _logger.LogFailure("作业调度", "无法找到ScheduleJobAsync方法");
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogFailure(
-                                "调度作业: {JobKey}",
-                                $"{jobInfo.JobGroup}.{jobInfo.JobName}",
-                                ex
-                            );
-                        }
+                        _logger.LogSuccess("作业调度", reloadResult.Message ?? "作业调度完成");
+                    }
+                    else
+                    {
+                        _logger.LogWarn("作业调度", reloadResult.Message ?? "作业调度失败");
                     }
                 }
             }

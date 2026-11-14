@@ -681,14 +681,20 @@ useDraggableModal(editModalVisible, 'quartz-job-edit-modal');
 // 恢复表头排序标识：仅在当前排序与期望不一致时设置，避免触发多余查询
 const restoreSortIndicator = () => applyGridSortIndicator(gridApi, currentSort);
 
-// 页面被 keep-alive 缓存后重新激活时，表头排序标识会丢失，需要重新同步
-let sortIndicatorActivated = false;
+// 页面被 keep-alive 缓存后重新激活（切回页签）时统一刷新一次：
+// 调度器状态与作业列表都可能是离开页面时的旧快照，
+// 例如排水结束、任务执行完毕、在其它页签删除作业后，这里必须重新拉取
+let pageActivated = false;
 onActivated(async () => {
-  if (!sortIndicatorActivated) {
-    // 首次激活与 onMounted 中的恢复重叠，跳过
-    sortIndicatorActivated = true;
+  if (!pageActivated) {
+    // 首次激活与 onMounted 中的加载重叠，跳过
+    pageActivated = true;
     return;
   }
+
+  // 静默刷新：切页失败不弹错误，避免刷屏；内部会在排水期间自动恢复轮询
+  await getSchedulerStatusInfo(true);
+  await gridApi.query();
   await nextTick();
   await restoreSortIndicator();
 });
@@ -945,12 +951,15 @@ const handleSave = async () => {
 
     // 检查API响应
     if (response.success) {
-      message.success(successMessage);
+      // 后端可能返回补充说明（如调度器未运行时仅保存配置），优先展示
+      message.success(response.message || successMessage);
       editModalVisible.value = false;
       gridApi.query();
     } else {
       // 显示API返回的错误信息
       message.error(response.message || $t('page.quartz.jobPage.operationFailed'));
+      // 后端在重新调度失败时会把作业置为禁用，失败后也要刷新列表，避免界面与存储不一致
+      gridApi.query();
     }
   } catch (error: any) {
     if (error.errorFields) {
@@ -977,7 +986,16 @@ const handleDelete = (job: QuartzJobResponseDto) => {
     cancelText: $t('page.quartz.jobPage.cancel'),
     async onOk() {
       try {
-        await deleteJob(job.jobName, job.jobGroup);
+        const response = await deleteJob(job.jobName, job.jobGroup);
+        // 后端在存储删除失败时会返回 success=false，必须提示真实原因，
+        // 否则会出现「提示删除成功、列表里作业还在」的相悖现象
+        if (!response.success) {
+          message.warning(
+            response.message || $t('page.quartz.jobPage.jobDeletedFailed'),
+          );
+          gridApi.query();
+          return;
+        }
         message.success($t('page.quartz.jobPage.jobDeletedSuccess'));
         gridApi.query();
       } catch (error) {
@@ -991,8 +1009,17 @@ const handleDelete = (job: QuartzJobResponseDto) => {
 // 停止作业
 const handleStop = async (job: QuartzJobResponseDto) => {
   try {
-    await pauseJob(job.jobName, job.jobGroup);
-    message.success($t('page.quartz.jobPage.jobPausedSuccess'));
+    const response = await pauseJob(job.jobName, job.jobGroup);
+    if (!response.success) {
+      message.warning(
+        response.message || $t('page.quartz.jobPage.jobPausedFailed'),
+      );
+      return;
+    }
+    // 调度器未运行时后端只更新存储状态，这里展示后端给出的补充说明
+    message.success(
+      response.message || $t('page.quartz.jobPage.jobPausedSuccess'),
+    );
     gridApi.query();
   } catch (error) {
     message.error($t('page.quartz.jobPage.jobPausedFailed'));
@@ -1003,8 +1030,16 @@ const handleStop = async (job: QuartzJobResponseDto) => {
 // 恢复作业
 const handleResume = async (job: QuartzJobResponseDto) => {
   try {
-    await resumeJob(job.jobName, job.jobGroup);
-    message.success($t('page.quartz.jobPage.jobResumedSuccess'));
+    const response = await resumeJob(job.jobName, job.jobGroup);
+    if (!response.success) {
+      message.warning(
+        response.message || $t('page.quartz.jobPage.jobResumedFailed'),
+      );
+      return;
+    }
+    message.success(
+      response.message || $t('page.quartz.jobPage.jobResumedSuccess'),
+    );
     gridApi.query();
   } catch (error) {
     message.error($t('page.quartz.jobPage.jobResumedFailed'));
@@ -1015,7 +1050,14 @@ const handleResume = async (job: QuartzJobResponseDto) => {
 // 立即执行作业
 const handleExecute = async (job: QuartzJobResponseDto) => {
   try {
-    await triggerJob(job.jobName, job.jobGroup);
+    const response = await triggerJob(job.jobName, job.jobGroup);
+    if (!response.success) {
+      // 调度器已停止时后端会明确拒绝，不能再提示「执行成功」
+      message.warning(
+        response.message || $t('page.quartz.jobPage.jobExecutedFailed'),
+      );
+      return;
+    }
     message.success($t('page.quartz.jobPage.jobExecutedSuccess'));
     notification.success({
       message: $t('page.quartz.jobPage.jobExecutionNotify'),
@@ -1039,7 +1081,7 @@ const handleToggleEnabled = (job: QuartzJobResponseDto, checked: boolean) => {
     onOk: async () => {
       toggleLoadingKeys.value = new Set([...toggleLoadingKeys.value, key]);
       try {
-        await updateJob({
+        const response = await updateJob({
           jobName: job.jobName,
           jobGroup: job.jobGroup,
           jobType: job.jobType,
@@ -1055,12 +1097,26 @@ const handleToggleEnabled = (job: QuartzJobResponseDto, checked: boolean) => {
           retryIntervalSeconds: job.retryIntervalSeconds,
           skipSslValidation: job.skipSslValidation,
           disallowConcurrentExecution: job.disallowConcurrentExecution,
+          // 后端按整条配置覆盖，漏传会被重置为「跟随全局」，这里必须带回原值
+          rerunOnRecovery: job.rerunOnRecovery,
           dependencies: job.dependencies,
           startTime: job.startTime,
           endTime: job.endTime,
           isEnabled: checked,
         });
-        message.success($t('page.quartz.jobPage.toggleEnabledSuccess', { action }));
+        if (!response.success) {
+          // 重新调度失败时后端会把作业置为禁用，这里提示原因并刷新真实状态
+          message.warning(
+            response.message ||
+              $t('page.quartz.jobPage.toggleEnabledFailed', { action }),
+          );
+          gridApi.query();
+          return;
+        }
+        message.success(
+          response.message ||
+            $t('page.quartz.jobPage.toggleEnabledSuccess', { action }),
+        );
         gridApi.query();
       } catch (error) {
         message.error($t('page.quartz.jobPage.toggleEnabledFailed', { action }));

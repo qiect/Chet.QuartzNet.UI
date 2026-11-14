@@ -470,14 +470,16 @@ useDraggableModal(detailModalVisible, 'quartz-notification-detail-modal');
 // 恢复表头排序标识：仅在当前排序与期望不一致时设置，避免触发多余查询
 const restoreSortIndicator = () => applyGridSortIndicator(gridApi, currentSort);
 
-// 页面被 keep-alive 缓存后重新激活时，表头排序标识会丢失，需要重新同步
-let sortIndicatorActivated = false;
+// 页面被 keep-alive 缓存后重新激活（切回页签）时统一刷新一次列表与表头排序标识，
+// 避免一直显示离开页面时的旧数据（例如其它页签刚触发过通知）
+let pageActivated = false;
 onActivated(async () => {
-  if (!sortIndicatorActivated) {
-    // 首次激活与 onMounted 中的恢复重叠，跳过
-    sortIndicatorActivated = true;
+  if (!pageActivated) {
+    // 首次激活与 onMounted 中的加载重叠，跳过
+    pageActivated = true;
     return;
   }
+  await gridApi.query();
   await nextTick();
   await restoreSortIndicator();
 });

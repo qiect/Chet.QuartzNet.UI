@@ -1,5 +1,6 @@
 using Chet.QuartzNet.Core.Interfaces;
 using Chet.QuartzNet.Core.Recovery;
+using Chet.QuartzNet.Core.Scheduling;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -11,9 +12,20 @@ namespace Chet.QuartzNet.UI.HostedServices;
 /// </summary>
 public sealed class RecoveryHostedService : BackgroundService
 {
+    /// <summary>
+    /// 等待调度器进入运行状态的最长时间
+    /// </summary>
+    private static readonly TimeSpan SchedulerWaitTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// 轮询间隔
+    /// </summary>
+    private static readonly TimeSpan SchedulerPollInterval = TimeSpan.FromMilliseconds(200);
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly RecoveryOptionsProvider _options;
     private readonly RecoveryCoordinator _coordinator;
+    private readonly SchedulerInstance _schedulerInstance;
     private readonly ILogger<RecoveryHostedService> _logger;
 
     /// <summary>
@@ -23,12 +35,14 @@ public sealed class RecoveryHostedService : BackgroundService
         IServiceScopeFactory scopeFactory,
         RecoveryOptionsProvider options,
         RecoveryCoordinator coordinator,
+        SchedulerInstance schedulerInstance,
         ILogger<RecoveryHostedService> logger
     )
     {
         _scopeFactory = scopeFactory;
         _options = options;
         _coordinator = coordinator;
+        _schedulerInstance = schedulerInstance;
         _logger = logger;
     }
 
@@ -39,8 +53,9 @@ public sealed class RecoveryHostedService : BackgroundService
     {
         try
         {
-            // 等待调度器与作业加载完成
-            await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+            // 等待调度器真正启动：宿主服务启动顺序虽然固定，但启动耗时不确定，
+            // 固定延迟既可能在调度器就绪前就开始补偿，也会白白拖慢启动
+            await WaitForSchedulerStartedAsync(stoppingToken);
 
             using (var scope = _scopeFactory.CreateScope())
             {
@@ -66,5 +81,29 @@ public sealed class RecoveryHostedService : BackgroundService
         {
             _logger.LogError(ex, "启动中断恢复失败");
         }
+    }
+
+    /// <summary>
+    /// 轮询等待调度器进入运行状态（未关闭、已启动且不在待机）
+    /// </summary>
+    /// <param name="stoppingToken">停机令牌</param>
+    private async Task WaitForSchedulerStartedAsync(CancellationToken stoppingToken)
+    {
+        var deadline = DateTime.UtcNow + SchedulerWaitTimeout;
+        while (!stoppingToken.IsCancellationRequested && DateTime.UtcNow < deadline)
+        {
+            var scheduler = _schedulerInstance.Current;
+            if (scheduler is { IsShutdown: false, IsStarted: true, InStandbyMode: false })
+            {
+                return;
+            }
+
+            await Task.Delay(SchedulerPollInterval, stoppingToken);
+        }
+
+        _logger.LogWarning(
+            "等待调度器启动超时（{Timeout} 秒），继续尝试执行启动补偿",
+            SchedulerWaitTimeout.TotalSeconds
+        );
     }
 }

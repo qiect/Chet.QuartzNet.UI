@@ -46,6 +46,7 @@ public sealed class DrainCoordinator : IDisposable
 
     private CancellationTokenSource? _monitorCts;
     private Task? _monitorTask;
+    private bool _disposed;
 
     /// <summary>
     /// 初始化排水协调器
@@ -172,12 +173,12 @@ public sealed class DrainCoordinator : IDisposable
 
             await scheduler.Standby(cancellationToken);
 
-            _monitorCts = new CancellationTokenSource();
+            var monitorCts = ReplaceMonitorCts();
             _monitorTask = MonitorAsync(
                 scheduler,
                 Deadline.Value,
                 allowCancelWindow,
-                _monitorCts.Token
+                monitorCts.Token
             );
             monitorStarted = true;
 
@@ -229,7 +230,7 @@ public sealed class DrainCoordinator : IDisposable
 
         if (interruptedCount > 0)
         {
-            await MarkRemainingInterruptedAsync("按「立即停止」策略关闭调度器，执行未正常完成");
+            await MarkActiveExecutionsInterruptedAsync("按「立即停止」策略关闭调度器，执行未正常完成");
         }
 
         Complete();
@@ -342,6 +343,9 @@ public sealed class DrainCoordinator : IDisposable
         var options = _options.Current;
         if (options.ShutdownMode == ShutdownMode.Immediate)
         {
+            // 立即停止：不等待执行中任务，但被强制终止的执行必须标记为「中断」，
+            // 否则下次启动的恢复策略拿不到这些记录，与「中断可补偿」的设计脱节
+            await StopImmediatelyAsync("立即停止策略，执行被强制终止", cancellationToken);
             return;
         }
 
@@ -356,6 +360,9 @@ public sealed class DrainCoordinator : IDisposable
 
         if (timeout <= 0)
         {
+            // 排水超时为 0 等价于「不等待」：同样把残留执行标记为中断，
+            // 保证「超时后强制关闭并标记中断」的承诺成立
+            await StopImmediatelyAsync("排水超时为 0，执行被强制终止", cancellationToken);
             return;
         }
 
@@ -441,6 +448,13 @@ public sealed class DrainCoordinator : IDisposable
         Phase = DrainPhase.Stopping;
         RemainingExecutingCount = 0;
 
+        if (timedOut)
+        {
+            // 先标记再关闭：关闭会立刻中断任务线程，
+            // 若标记晚于监听器写入，执行记录会变成「失败」而丢掉「中断」状态
+            await MarkActiveExecutionsInterruptedAsync("排水超时，执行未正常完成");
+        }
+
         var stopped = await TryShutdownAsync(scheduler);
         if (!stopped)
         {
@@ -448,11 +462,6 @@ public sealed class DrainCoordinator : IDisposable
             Reset();
             _logger.LogWarning("排水收尾未能关闭调度器，已回退排水状态，调度器当前状态以实际为准");
             return;
-        }
-
-        if (timedOut)
-        {
-            await MarkRemainingInterruptedAsync("排水超时，执行未正常完成");
         }
 
         Complete();
@@ -489,7 +498,41 @@ public sealed class DrainCoordinator : IDisposable
         Deadline = null;
     }
 
-    private async Task MarkRemainingInterruptedAsync(string reason)
+    /// <summary>
+    /// 不等待执行中任务，直接关闭调度器，并把残留执行标记为「中断」，
+    /// 供下次启动的恢复策略决定是否补跑。
+    /// </summary>
+    /// <param name="reason">中断原因</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    private async Task StopImmediatelyAsync(string reason, CancellationToken cancellationToken)
+    {
+        var scheduler = await GetSchedulerAsync(cancellationToken);
+        if (scheduler.IsShutdown || !scheduler.IsStarted)
+        {
+            return;
+        }
+
+        // 先标记再关闭：关闭会立刻中断作业线程，若先关闭再标记，
+        // 监听器可能已经先写入失败状态，导致「中断」记录丢失（两次写入存在竞争）
+        await MarkActiveExecutionsInterruptedAsync(reason);
+
+        if (!await TryShutdownAsync(scheduler))
+        {
+            // 关闭失败：作业仍在运行，结束时会由监听器写回真实结果（标记会被覆盖）
+            _logger.LogWarning("立即停止未能关闭调度器，调度器当前状态以实际为准");
+            return;
+        }
+
+        _logger.LogWarning("已按「立即停止」关闭调度器，残留执行标记为中断: {Reason}", reason);
+    }
+
+    /// <summary>
+    /// 把本进程仍在执行的日志标记为「中断」，供下次启动的恢复策略决定是否补跑。
+    /// 停止调度器（立即停止/排水超时）前必须先调用：
+    /// 否则监听器来不及收尾，执行记录会一直停留在「运行中」并继续读秒。
+    /// </summary>
+    /// <param name="reason">中断原因</param>
+    public async Task MarkActiveExecutionsInterruptedAsync(string reason)
     {
         var active = _registry.Snapshot();
         if (active.Count == 0)
@@ -519,12 +562,58 @@ public sealed class DrainCoordinator : IDisposable
     }
 
     /// <summary>
+    /// 轮换监视用 CancellationTokenSource。
+    /// 排水流程不可重入（处于排水/收尾阶段时会直接拒绝），
+    /// 因此上一轮监视任务此时必然已结束，可以安全释放其 CTS 避免句柄泄漏。
+    /// </summary>
+    private CancellationTokenSource ReplaceMonitorCts()
+    {
+        var previous = _monitorCts;
+        var current = new CancellationTokenSource();
+        _monitorCts = current;
+        if (previous is null)
+        {
+            return current;
+        }
+
+        try
+        {
+            previous.Cancel();
+            previous.Dispose();
+        }
+        catch (ObjectDisposedException)
+        {
+            // 已释放，忽略
+        }
+
+        return current;
+    }
+
+    /// <summary>
     /// 释放资源
     /// </summary>
     public void Dispose()
     {
-        _monitorCts?.Cancel();
-        _monitorCts?.Dispose();
-        _gate.Dispose();
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
+        var cts = _monitorCts;
+        _monitorCts = null;
+        try
+        {
+            cts?.Cancel();
+            cts?.Dispose();
+        }
+        catch (ObjectDisposedException)
+        {
+            // 已释放，忽略
+        }
+
+        // 停机时可能仍有请求在等待 gate，直接释放信号量会让其抛 ObjectDisposedException，
+        // 这里不主动释放，交由 GC 回收
     }
 }

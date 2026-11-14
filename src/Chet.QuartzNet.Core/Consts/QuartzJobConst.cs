@@ -31,6 +31,11 @@ public static class QuartzJobConst
     public const string DisallowConcurrentExecution = "DisallowConcurrentExecution";
 
     /// <summary>
+    /// 手动触发标记的Key（执行级，兼容历史数据）
+    /// </summary>
+    public const string IsManualTrigger = "IsManualTrigger";
+
+    /// <summary>
     /// 执行日志ID的Key（执行级，不能写入 JobDetail）
     /// </summary>
     public const string LogId = "__QuartzLogId";
