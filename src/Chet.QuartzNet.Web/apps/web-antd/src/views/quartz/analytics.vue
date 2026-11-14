@@ -48,6 +48,28 @@ import { useSystemConfig } from '../../composables/use-system-config';
 const loading = ref(false);
 const { locale } = useI18n();
 const { isDark } = usePreferences();
+
+// 图表配色：统一从主题派生，避免各 option 里硬编码浅色值在深色下不可读
+const chartPalette = computed(() => {
+  const dark = isDark.value;
+  return {
+    text: dark ? 'rgba(255, 255, 255, 0.62)' : '#8c8c8c',
+    textStrong: dark ? '#e6e8eb' : '#262626',
+    axisLine: dark ? 'rgba(255, 255, 255, 0.16)' : '#e8e8e8',
+    guide: dark ? 'rgba(255, 255, 255, 0.24)' : '#d9d9d9',
+    empty: dark ? 'rgba(255, 255, 255, 0.16)' : '#d9d9d9',
+    placeholder: dark ? 'rgba(255, 255, 255, 0.08)' : '#f0f0f0',
+    splitArea: dark ? 'rgba(255, 255, 255, 0.035)' : 'rgba(0, 0, 0, 0.02)',
+    shadow: dark ? '0 6px 16px rgba(0, 0, 0, 0.45)' : '0 6px 16px rgba(0, 0, 0, 0.08)',
+    heatColors: dark
+      ? ['#2b1a1c', '#5c1f24', '#8e252c', '#c02a33', '#f5222d']
+      : ['#fff1f0', '#ffa39e', '#ff7875', '#ff4d4f', '#cf1322'],
+    momentColors: dark
+      ? ['#10243a', '#14395c', '#1a4d7a', '#2064a0', '#2a7ac4']
+      : ['#e6f7ff', '#bae7ff', '#91d5ff', '#69c0ff', '#40a9ff'],
+    momentBorder: dark ? 'rgba(255, 255, 255, 0.35)' : '#ffffff',
+  };
+});
 const trendChartRef = ref<EchartsUIType | null>(null);
 const healthChartRef = ref<EchartsUIType | null>(null);
 const heatmapChartRef = ref<EchartsUIType | null>(null);
@@ -316,6 +338,7 @@ const trendSummary = computed(() => {
 });
 
 const getTrendOption = (): EChartsOption => {
+  const palette = chartPalette.value;
   const data = dailyTrendData.value;
   const dates = data.map((d) => d.time);
   const successValues = data.map((d) => d.successCount);
@@ -338,18 +361,18 @@ const getTrendOption = (): EChartsOption => {
       trigger: 'axis',
       borderWidth: 0,
       padding: [10, 14],
-      textStyle: { fontSize: 12, color: '#595959' },
-      extraCssText: 'backdrop-filter: blur(8px); box-shadow: 0 6px 16px rgba(0,0,0,0.08);',
+      textStyle: { fontSize: 12, color: palette.text },
+      extraCssText: `backdrop-filter: blur(8px); box-shadow: ${palette.shadow};`,
       formatter: (params: any[]) => {
         if (!params || params.length === 0) return '';
         const idx = params[0]!.dataIndex;
         const date = params[0]!.axisValue;
-        let html = `<div style="font-weight:600;color:#262626;font-size:13px;margin-bottom:6px;">${date}</div>`;
+        let html = `<div style="font-weight:600;color:${palette.textStrong};font-size:13px;margin-bottom:6px;">${date}</div>`;
         for (const p of params) {
           if (p.seriesName === $t('page.quartz.analyticsPage.successRate')) {
-            html += `<div style="font-size:12px;line-height:20px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:6px;"></span>${p.seriesName}: <b style="color:#262626;">${p.value}%</b></div>`;
+            html += `<div style="font-size:12px;line-height:20px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:6px;"></span>${p.seriesName}: <b style="color:${palette.textStrong};">${p.value}%</b></div>`;
           } else {
-            html += `<div style="font-size:12px;line-height:20px;"><span style="display:inline-block;width:8px;height:3px;border-radius:1px;background:${p.color};margin-right:6px;"></span>${p.seriesName}: <b style="color:#262626;">${p.value}</b></div>`;
+            html += `<div style="font-size:12px;line-height:20px;"><span style="display:inline-block;width:8px;height:3px;border-radius:1px;background:${p.color};margin-right:6px;"></span>${p.seriesName}: <b style="color:${palette.textStrong};">${p.value}</b></div>`;
           }
         }
         if (idx > 0 && idx < totalValues.length) {
@@ -359,7 +382,7 @@ const getTrendOption = (): EChartsOption => {
             const pct = (((curr - prev) / prev) * 100).toFixed(1);
             const arrow = Number(pct) >= 0 ? '↑' : '↓';
             const clr = Number(pct) >= 0 ? '#52c41a' : '#ff4d4f';
-            html += `<div style="font-size:11px;color:#8c8c8c;margin-top:4px;border-top:1px dashed #e8e8e8;padding-top:4px;">${periodLabel}: <span style="color:${clr};font-weight:500;">${arrow}${Math.abs(Number(pct))}%</span></div>`;
+            html += `<div style="font-size:11px;color:${palette.text};margin-top:4px;border-top:1px dashed ${palette.axisLine};padding-top:4px;">${periodLabel}: <span style="color:${clr};font-weight:500;">${arrow}${Math.abs(Number(pct))}%</span></div>`;
           }
         }
         return html;
@@ -376,21 +399,21 @@ const getTrendOption = (): EChartsOption => {
       top: 0,
       itemWidth: 16,
       itemHeight: 3,
-      textStyle: { fontSize: 12, color: '#8c8c8c' },
+      textStyle: { fontSize: 12, color: palette.text },
     },
     grid: { left: 50, right: 50, bottom: 30, top: 36 },
     xAxis: {
       type: 'category',
       data: dates,
       boundaryGap: false,
-      axisLabel: { color: '#8c8c8c', fontSize: 11, rotate: dates.length > 15 ? 45 : 0 },
+      axisLabel: { color: palette.text, fontSize: 11, rotate: dates.length > 15 ? 45 : 0 },
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: '#e8e8e8' } },
+      axisLine: { lineStyle: { color: palette.axisLine } },
     },
     yAxis: [
       {
         type: 'value',
-        axisLabel: { color: '#8c8c8c', fontSize: 11 },
+        axisLabel: { color: palette.text, fontSize: 11 },
         splitLine: { show: false },
         axisLine: { show: false },
         axisTick: { show: false },
@@ -399,7 +422,7 @@ const getTrendOption = (): EChartsOption => {
         type: 'value',
         min: 0,
         max: 100,
-        axisLabel: { color: '#8c8c8c', fontSize: 11, formatter: (v: number) => `${v}%` },
+        axisLabel: { color: palette.text, fontSize: 11, formatter: (v: number) => `${v}%` },
         splitLine: { show: false },
         axisLine: { show: false },
         axisTick: { show: false },
@@ -433,7 +456,7 @@ const getTrendOption = (): EChartsOption => {
           label: {
             formatter: `{c}`,
             fontSize: 10,
-            color: '#8c8c8c',
+            color: palette.text,
           },
           data: [{ yAxis: avgTotal, name: $t('page.quartz.analyticsPage.avgLine') }],
         },
@@ -455,9 +478,9 @@ const getTrendOption = (): EChartsOption => {
               const dateStr = typeof idx === 'number' && dates[idx] ? dates[idx] : '';
               const failVal = typeof idx === 'number' && failedValues[idx] ? failedValues[idx] : params.value;
               return `<b style="color:#ff4d4f;">${$t('page.quartz.analyticsPage.anomalyDay')}</b><br/>
-                <span style="color:#8c8c8c;">${dateStr}</span><br/>
+                <span style="color:${palette.text};">${dateStr}</span><br/>
                 <span style="color:#ff4d4f;">${$t('page.quartz.analyticsPage.failed')}: <b>${failVal}</b></span><br/>
-                <span style="color:#8c8c8c;">${$t('page.quartz.analyticsPage.threshold')}: <b>${anomalyThreshold.toFixed(1)}</b></span>`;
+                <span style="color:${palette.text};">${$t('page.quartz.analyticsPage.threshold')}: <b>${anomalyThreshold.toFixed(1)}</b></span>`;
             },
           },
         } : undefined,
@@ -511,6 +534,7 @@ const getTrendOption = (): EChartsOption => {
 };
 
 const getHealthOption = (data: JobHealth[]): EChartsOption => {
+  const palette = chartPalette.value;
   const statusColorMap: Record<string, string> = {
     Normal: '#1677ff',
     Paused: '#faad14',
@@ -562,8 +586,8 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
       trigger: 'item',
       borderWidth: 0,
       padding: [10, 14],
-      textStyle: { fontSize: 12, color: '#595959' },
-      extraCssText: 'backdrop-filter: blur(8px); box-shadow: 0 6px 16px rgba(0,0,0,0.08);',
+      textStyle: { fontSize: 12, color: palette.text },
+      extraCssText: `backdrop-filter: blur(8px); box-shadow: ${palette.shadow};`,
       formatter: (params: any) => {
         const d = params.data;
         if (!d) return '';
@@ -574,14 +598,14 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
         const q = getQuadrant(d.successRate, d.avgDuration);
         const quadrant = quadrantLabelMap[q.key];
         return `
-          <div style="font-weight:600;color:#262626;font-size:13px;margin-bottom:6px;">${d.jobName}</div>
+          <div style="font-weight:600;color:${palette.textStrong};font-size:13px;margin-bottom:6px;">${d.jobName}</div>
           <div style="display:inline-block;padding:1px 8px;border-radius:3px;font-size:11px;font-weight:500;color:${q.color};background:${q.color}14;margin-bottom:4px;">${quadrant}</div>
-          <div style="color:#8c8c8c;font-size:12px;line-height:20px;">
+          <div style="color:${palette.text};font-size:12px;line-height:20px;">
             ${$t('page.quartz.analyticsPage.jobGroup')}: ${d.jobGroup}<br/>
             ${$t('page.quartz.analyticsPage.jobStatus')}: ${enabledText}<br/>
-            ${$t('page.quartz.analyticsPage.jobHealthSuccessRate')}: <b style="color:#262626;">${d.successRate}%</b><br/>
-            ${$t('page.quartz.analyticsPage.jobHealthAvgDuration')}: <b style="color:#262626;">${dur}</b><br/>
-            ${$t('page.quartz.analyticsPage.jobHealthExecutionCount')}: <b style="color:#262626;">${d.executionCount}</b>
+            ${$t('page.quartz.analyticsPage.jobHealthSuccessRate')}: <b style="color:${palette.textStrong};">${d.successRate}%</b><br/>
+            ${$t('page.quartz.analyticsPage.jobHealthAvgDuration')}: <b style="color:${palette.textStrong};">${dur}</b><br/>
+            ${$t('page.quartz.analyticsPage.jobHealthExecutionCount')}: <b style="color:${palette.textStrong};">${d.executionCount}</b>
           </div>`;
       },
     },
@@ -594,7 +618,7 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
       min: 0,
       max: 100,
       splitLine: { show: false },
-      axisLabel: { color: '#8c8c8c', fontSize: 12 },
+      axisLabel: { color: palette.text, fontSize: 12 },
     },
     yAxis: {
       name: $t('page.quartz.analyticsPage.jobHealthAvgDuration'),
@@ -602,7 +626,7 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
       nameGap: 50,
       type: 'value',
       axisLabel: {
-        color: '#8c8c8c',
+        color: palette.text,
         fontSize: 12,
         formatter: (v: number) => formatDuration(v),
       },
@@ -774,7 +798,7 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
         markLine: {
           silent: true,
           symbol: 'none',
-          lineStyle: { color: '#d9d9d9', type: 'dashed', width: 1 },
+          lineStyle: { color: palette.guide, type: 'dashed', width: 1 },
           label: { show: false },
           data: [
             { xAxis: successThreshold },
@@ -787,6 +811,7 @@ const getHealthOption = (data: JobHealth[]): EChartsOption => {
 };
 
 const getHeatmapOption = (data: JobExecutionHeatmap[]): EChartsOption => {
+  const palette = chartPalette.value;
   const now = new Date();
   const currentDayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
   const currentHour = now.getHours();
@@ -804,26 +829,36 @@ const getHeatmapOption = (data: JobExecutionHeatmap[]): EChartsOption => {
 
   const maxCount = Math.max(...data.map((d) => d.count), 1);
 
-  const currentMomentBlueStops = ['#e6f7ff', '#bae7ff', '#91d5ff', '#69c0ff', '#40a9ff'];
+  const momentStops = palette.momentColors;
   const getCurrentMomentColor = (count: number): string => {
     const ratio = Math.min(count / maxCount, 1);
-    const idx = Math.min(Math.floor(ratio * currentMomentBlueStops.length), currentMomentBlueStops.length - 1);
-    return currentMomentBlueStops[idx];
+    const idx = Math.min(Math.floor(ratio * momentStops.length), momentStops.length - 1);
+    return momentStops[idx]!;
   };
 
-  const heatmapValues = data.map((d) => {
-    const isCurrentMoment = d.dayOfWeek === currentDayOfWeek && d.hour === currentHour;
-    const base: any = { value: [d.hour, d.dayOfWeek - 1, d.count] };
-    if (isCurrentMoment) {
-      base.itemStyle = {
-        color: getCurrentMomentColor(d.count),
-        borderColor: '#ffffff',
-        borderWidth: 1.5,
-        borderType: 'dashed',
+  // 补齐 7×24 全部格子，无执行补 0，避免空白格与“0 次”混淆
+  const dataMap = new Map(data.map((d) => [`${d.dayOfWeek}-${d.hour}`, d]));
+  const heatmapValues: any[] = [];
+  for (let dayOfWeek = 1; dayOfWeek <= 7; dayOfWeek++) {
+    for (let hour = 0; hour < 24; hour++) {
+      const item = dataMap.get(`${dayOfWeek}-${hour}`);
+      const count = item?.count ?? 0;
+      const cell: any = {
+        value: [hour, dayOfWeek - 1, count],
+        successCount: item?.successCount ?? 0,
+        failedCount: item?.failedCount ?? 0,
       };
+      if (dayOfWeek === currentDayOfWeek && hour === currentHour) {
+        cell.itemStyle = {
+          color: getCurrentMomentColor(count),
+          borderColor: palette.momentBorder,
+          borderWidth: 1.5,
+          borderType: 'dashed',
+        };
+      }
+      heatmapValues.push(cell);
     }
-    return base;
-  });
+  }
 
   const yAxisData = days.map((name, i) =>
     i === currentDayOfWeek - 1 ? `{today|●}${name}` : name,
@@ -834,42 +869,47 @@ const getHeatmapOption = (data: JobExecutionHeatmap[]): EChartsOption => {
     tooltip: {
       borderWidth: 0,
       padding: [10, 14],
-      textStyle: { fontSize: 12, color: '#595959' },
-      extraCssText: 'backdrop-filter: blur(8px); box-shadow: 0 6px 16px rgba(0,0,0,0.08);',
+      textStyle: { fontSize: 12, color: palette.text },
+      extraCssText: `backdrop-filter: blur(8px); box-shadow: ${palette.shadow};`,
       formatter: (params: any) => {
-        const d = data.find(
-          (item) => item.dayOfWeek === params.value[1] + 1 && item.hour === params.value[0],
-        );
-        if (!d) return '';
+        const count = params.value?.[2] ?? 0;
+        const successCount = params.data?.successCount ?? 0;
+        const failedCount = params.data?.failedCount ?? 0;
         const dayName = days[params.value[1]];
         const isCurrentMoment = params.value[1] + 1 === currentDayOfWeek && params.value[0] === currentHour;
+        const badgeBg = isDark.value ? 'rgba(24, 144, 255, 0.22)' : '#e6f7ff';
+        const badgeColor = isDark.value ? '#69c0ff' : '#1890ff';
         const todayBadge = isCurrentMoment
-          ? ` <span style="display:inline-block;font-size:10px;color:#1890ff;background:#e6f7ff;padding:0 4px;border-radius:2px;margin-left:4px;">${$t('page.quartz.analyticsPage.todayTag')}</span>`
+          ? ` <span style="display:inline-block;font-size:10px;color:${badgeColor};background:${badgeBg};padding:0 4px;border-radius:2px;margin-left:4px;">${$t('page.quartz.analyticsPage.todayTag')}</span>`
           : '';
-        return `<b style="color:#262626;">${dayName} ${params.value[0]}:00${todayBadge}</b><br/>
-          <span style="color:#8c8c8c;">${$t('page.quartz.analyticsPage.heatmapExec')}: <b style="color:#262626;">${d.count}</b> ${$t('page.quartz.analyticsPage.times')}</span><br/>
-          <span style="color:#52c41a;">${$t('page.quartz.analyticsPage.success')}: <b>${d.successCount}</b></span> /
-          <span style="color:#ff4d4f;">${$t('page.quartz.analyticsPage.failed')}: <b>${d.failedCount}</b></span>`;
+        return `<b style="color:${palette.textStrong};">${dayName} ${params.value[0]}:00${todayBadge}</b><br/>
+          <span style="color:${palette.text};">${$t('page.quartz.analyticsPage.heatmapExec')}: <b style="color:${palette.textStrong};">${count}</b> ${$t('page.quartz.analyticsPage.times')}</span><br/>
+          <span style="color:#52c41a;">${$t('page.quartz.analyticsPage.success')}: <b>${successCount}</b></span> /
+          <span style="color:#ff4d4f;">${$t('page.quartz.analyticsPage.failed')}: <b>${failedCount}</b></span>`;
       },
     },
     grid: { left: 50, right: 20, bottom: 40, top: 10 },
     xAxis: {
       type: 'category',
       data: hours,
-      splitArea: { show: true, areaStyle: { color: ['rgba(0,0,0,0.02)', 'transparent'] } },
-      axisLabel: { color: '#8c8c8c', fontSize: 11, interval: 1 },
+      splitArea: { show: true, areaStyle: { color: [palette.splitArea, 'transparent'] } },
+      axisLabel: { color: palette.text, fontSize: 11, interval: 1 },
       axisTick: { show: false },
       axisLine: { show: false },
     },
     yAxis: {
       type: 'category',
       data: yAxisData,
-      splitArea: { show: true, areaStyle: { color: ['rgba(0,0,0,0.02)', 'transparent'] } },
+      splitArea: { show: true, areaStyle: { color: [palette.splitArea, 'transparent'] } },
       axisLabel: {
-        color: '#8c8c8c',
+        color: palette.text,
         fontSize: 11,
         rich: {
-          today: { color: '#1890ff', fontSize: 10, padding: [0, 4, 0, 0] },
+          today: {
+            color: isDark.value ? '#69c0ff' : '#1890ff',
+            fontSize: 10,
+            padding: [0, 4, 0, 0],
+          },
         },
       },
       axisTick: { show: false },
@@ -883,9 +923,9 @@ const getHeatmapOption = (data: JobExecutionHeatmap[]): EChartsOption => {
       left: 'center',
       bottom: 0,
       inRange: {
-        color: ['#fff1f0', '#ffa39e', '#ff7875', '#ff4d4f', '#cf1322'],
+        color: palette.heatColors,
       },
-      textStyle: { color: '#8c8c8c', fontSize: 10 },
+      textStyle: { color: palette.text, fontSize: 10 },
       show: true,
     },
     series: [
@@ -902,6 +942,7 @@ const getHeatmapOption = (data: JobExecutionHeatmap[]): EChartsOption => {
 };
 
 const getOverviewOption = (): EChartsOption => {
+  const palette = chartPalette.value;
   const total = statsOverview.value.totalJobs;
 
   // 无作业时用占位灰环，避免图表整块空掉
@@ -924,9 +965,9 @@ const getOverviewOption = (): EChartsOption => {
               },
             },
           },
-          { value: statsOverview.value.disabledJobs, itemStyle: { color: '#d9d9d9' } },
+          { value: statsOverview.value.disabledJobs, itemStyle: { color: palette.empty } },
         ]
-      : [{ value: 1, itemStyle: { color: '#f0f0f0' } }];
+      : [{ value: 1, itemStyle: { color: palette.placeholder } }];
 
   const innerData =
     total > 0
@@ -934,7 +975,7 @@ const getOverviewOption = (): EChartsOption => {
           { value: normalCount.value, itemStyle: { color: '#1677ff' } },
           { value: pausedCount.value, itemStyle: { color: '#faad14' } },
         ]
-      : [{ value: 1, itemStyle: { color: '#f5f5f5' } }];
+      : [{ value: 1, itemStyle: { color: palette.placeholder } }];
 
   // 中心百分比由模板的 CSS 覆盖层绘制，避免 echarts 文字定位在深色/多语言下的偏移
   return {
@@ -965,6 +1006,7 @@ const getOverviewOption = (): EChartsOption => {
 };
 
 const getQualityOption = (): EChartsOption => {
+  const palette = chartPalette.value;
   const success = recent7SuccessCount.value;
   const failed = recent7FailedCount.value;
   const rate = recent7SuccessRate.value;
@@ -991,7 +1033,7 @@ const getQualityOption = (): EChartsOption => {
         top: 'center',
         style: {
           text: `${rate}%`,
-          fill: '#262626',
+          fill: palette.textStrong,
           fontSize: 12,
           fontWeight: 700,
           fontFamily: 'DIN Alternate, sans-serif',
@@ -1270,8 +1312,16 @@ watch(locale, () => {
   fetchData();
 });
 
-// 主题切换时 useEcharts 内部会重建图表实例并异步重渲染，需延时重新应用气泡层级补丁
+// 主题切换：useEcharts 内部会用旧的 option 重建实例，这里再用新配色重绘一次
 watch(isDark, () => {
+  renderTrend(getTrendOption());
+  renderHealth(getHealthOption(jobHealthData.value)).then(disableHealthBubbleZLift);
+  renderHeatmap(getHeatmapOption(heatmapData.value));
+  renderOverview(getOverviewOption());
+  renderQuality(getQualityOption());
+  renderRisk(getRiskOption());
+
+  // 气泡层级补丁依赖重建后的实例，异步重试几次
   let retries = 0;
   const applyPatch = () => {
     if (disableHealthBubbleZLift(getHealthInstance()) > 0 || retries >= 5) {
@@ -1877,12 +1927,12 @@ watch(isDark, () => {
 }
 
 .trend-summary__label {
-  color: #8c8c8c;
+  color: hsl(var(--muted-foreground));
 }
 
 .trend-summary__value {
   font-weight: 600;
-  color: #262626;
+  color: hsl(var(--foreground));
   font-variant-numeric: tabular-nums;
 }
 
