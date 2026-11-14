@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using Chet.QuartzNet.Core.Consts;
 using Chet.QuartzNet.Core.Helpers;
 using Chet.QuartzNet.Core.Interfaces;
 using Chet.QuartzNet.Models.Entities;
@@ -58,13 +59,17 @@ public class ApiJob : IJob
 
         // 检查作业是否被暂停（手动触发时允许执行暂停中的作业）
         bool isManualTrigger =
-            context.MergedJobDataMap.TryGetValue("IsManualTrigger", out var manualTriggerValue)
+            context.MergedJobDataMap.TryGetValue(
+                QuartzJobConst.IsManualTrigger,
+                out var manualTriggerValue
+            )
             && manualTriggerValue is bool
             && (bool)manualTriggerValue;
         if (jobInfo.Status == JobStatus.Paused && !isManualTrigger)
         {
             _logger.LogWarn("执行API作业", $"作业执行被跳过, 作业已被暂停 - {jobGroup}.{jobName}");
-            return; // 直接返回, 不执行作业
+            // 不能静默返回：否则监听器会把本次执行记为「成功」，与 DLL 作业的行为也不一致
+            throw new JobExecutionException($"作业 {jobGroup}.{jobName} 已被暂停，本次执行被跳过");
         }
 
         // 计算超时时间
@@ -167,6 +172,7 @@ public class ApiJob : IJob
             }
 
             // 使用CancellationTokenSource来设置请求超时, 而不是修改HttpClient的Timeout属性
+            // 同时链接中断令牌：删除/禁用作业时可通过 Interrupt 立即终止请求
             cts = new CancellationTokenSource(timeout);
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
                 context.CancellationToken,
@@ -188,14 +194,15 @@ public class ApiJob : IJob
         }
         catch (OperationCanceledException ex)
         {
-            // 区分超时和作业取消
+            // 区分超时、作业取消和人工中断（删除/禁用作业）
             if (cts?.IsCancellationRequested == true)
             {
                 _logger.LogFailure("执行API作业", $"API请求超时: {jobGroup}.{jobName}", ex);
             }
             else if (context.CancellationToken.IsCancellationRequested)
             {
-                _logger.LogFailure("执行API作业", $"作业被取消: {jobGroup}.{jobName}", ex);
+                // 调度器 Interrupt（删除/禁用作业）触发的取消，不算失败
+                _logger.LogInfo("执行API作业", $"作业被中断: {jobGroup}.{jobName}");
             }
             else
             {

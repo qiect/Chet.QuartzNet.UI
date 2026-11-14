@@ -1304,7 +1304,18 @@ onMounted(() => {
   startRuntimePolling();
 });
 
-onActivated(startRuntimePolling);
+// 切回页签时先刷新一次统计与调度状态，再恢复轮询，
+// 避免显示离开页面时的旧数据（例如排水结束后仍显示旧的执行中数量）
+let pageActivated = false;
+onActivated(async () => {
+  startRuntimePolling();
+  if (!pageActivated) {
+    // 首次激活与 onMounted 中的加载重叠，跳过
+    pageActivated = true;
+    return;
+  }
+  await Promise.all([fetchData(), refreshSchedulerStatus()]);
+});
 onDeactivated(stopRuntimePolling);
 onUnmounted(stopRuntimePolling);
 
@@ -1395,7 +1406,7 @@ watch(isDark, () => {
               <span class="stat-title">{{ $t('page.quartz.analyticsPage.schedulerRuntime') }}</span>
               <span class="stat-number">
                 {{ executingJobCount }}
-                <small class="stat-unit">/ {{ schedulerStatus.threadPoolSize || '-' }} {{ $t('page.quartz.analyticsPage.threadsUnit') }}</small>
+                <small class="stat-unit">{{ $t('page.quartz.analyticsPage.executingUnit') }}</small>
               </span>
             </div>
             <div class="stat-mini-chart">
@@ -1421,6 +1432,9 @@ watch(isDark, () => {
             </span>
             <span class="stat-footer__item">
               {{ $t('page.quartz.analyticsPage.uptime') }} {{ formatUptime(schedulerStatus.runningTime) }}
+            </span>
+            <span class="stat-footer__item">
+              <i class="dot dot--muted"></i>{{ $t('page.quartz.analyticsPage.threadPoolLimit') }} {{ schedulerStatus.threadPoolSize || '-' }}
             </span>
             <span
               v-if="(schedulerStatus.pendingCompensationCount ?? 0) > 0"

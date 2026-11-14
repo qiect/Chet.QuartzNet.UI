@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, h, onUnmounted, ref, watch } from 'vue';
+import { computed, h, onActivated, onUnmounted, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { formatDateTime } from '@vben/utils';
@@ -258,6 +258,59 @@ const shutdownTimeoutLabel = computed(() =>
 const shutdownTimeoutHint = computed(() =>
   $t('page.quartz.systemConfigPage.hintDrainTimeout'),
 );
+
+// 停机与恢复的出厂默认值，与后端 SystemConfigDto 的默认保持一致
+const RECOVERY_DEFAULTS = {
+  shutdownMode: 'Drain' as ShutdownMode,
+  shutdownWaitTimeoutSeconds: 30,
+  drainTimeoutSeconds: 60,
+  recoveryEnabled: true,
+  compensationDelaySeconds: 30,
+  heartbeatIntervalSeconds: 15,
+  leaseDurationSeconds: 60,
+  skipIfNextFireWithinSeconds: 120,
+  catchUpStrategy: 'Latest' as CatchUpStrategy,
+  maxRecoveryAttempts: 3,
+  defaultRerunOnRecovery: true,
+  interruptedLogRetentionDays: 30,
+};
+
+// 恢复本卡片的默认配置：只改内存中的表单值，仍需保存后才会落库并重启生效
+function restoreRecoveryDefaults() {
+  const alreadyDefault =
+    shutdownMode.value === RECOVERY_DEFAULTS.shutdownMode &&
+    shutdownWaitTimeoutSeconds.value === RECOVERY_DEFAULTS.shutdownWaitTimeoutSeconds &&
+    drainTimeoutSeconds.value === RECOVERY_DEFAULTS.drainTimeoutSeconds &&
+    recoveryEnabled.value === RECOVERY_DEFAULTS.recoveryEnabled &&
+    compensationDelaySeconds.value === RECOVERY_DEFAULTS.compensationDelaySeconds &&
+    heartbeatIntervalSeconds.value === RECOVERY_DEFAULTS.heartbeatIntervalSeconds &&
+    leaseDurationSeconds.value === RECOVERY_DEFAULTS.leaseDurationSeconds &&
+    skipIfNextFireWithinSeconds.value === RECOVERY_DEFAULTS.skipIfNextFireWithinSeconds &&
+    catchUpStrategy.value === RECOVERY_DEFAULTS.catchUpStrategy &&
+    maxRecoveryAttempts.value === RECOVERY_DEFAULTS.maxRecoveryAttempts &&
+    defaultRerunOnRecovery.value === RECOVERY_DEFAULTS.defaultRerunOnRecovery &&
+    interruptedLogRetentionDays.value === RECOVERY_DEFAULTS.interruptedLogRetentionDays;
+
+  if (alreadyDefault) {
+    message.info($t('page.quartz.systemConfigPage.restoreDefaultsNoChange'));
+    return;
+  }
+
+  shutdownMode.value = RECOVERY_DEFAULTS.shutdownMode;
+  shutdownWaitTimeoutSeconds.value = RECOVERY_DEFAULTS.shutdownWaitTimeoutSeconds;
+  drainTimeoutSeconds.value = RECOVERY_DEFAULTS.drainTimeoutSeconds;
+  recoveryEnabled.value = RECOVERY_DEFAULTS.recoveryEnabled;
+  compensationDelaySeconds.value = RECOVERY_DEFAULTS.compensationDelaySeconds;
+  heartbeatIntervalSeconds.value = RECOVERY_DEFAULTS.heartbeatIntervalSeconds;
+  leaseDurationSeconds.value = RECOVERY_DEFAULTS.leaseDurationSeconds;
+  skipIfNextFireWithinSeconds.value = RECOVERY_DEFAULTS.skipIfNextFireWithinSeconds;
+  catchUpStrategy.value = RECOVERY_DEFAULTS.catchUpStrategy;
+  maxRecoveryAttempts.value = RECOVERY_DEFAULTS.maxRecoveryAttempts;
+  defaultRerunOnRecovery.value = RECOVERY_DEFAULTS.defaultRerunOnRecovery;
+  interruptedLogRetentionDays.value = RECOVERY_DEFAULTS.interruptedLogRetentionDays;
+
+  message.success($t('page.quartz.systemConfigPage.restoreDefaultsSuccess'));
+}
 
 // 启动期字段与展示名，用于「重启后生效的变化」对比
 const STARTUP_FIELD_META: Array<{
@@ -1219,6 +1272,21 @@ watch(
 
 loadMigrationOptions();
 loadMigrationStatus();
+
+// 切回页签时刷新一次快照：存在未保存改动时保留编辑内容，只刷新迁移状态
+let pageActivated = false;
+onActivated(async () => {
+  if (!pageActivated) {
+    // 首次激活与 setup 中的加载重叠，跳过
+    pageActivated = true;
+    return;
+  }
+
+  if (dirtyFields.value.length === 0) {
+    await loadConfig();
+  }
+  await loadMigrationStatus();
+});
 </script>
 
 <template>
@@ -1296,14 +1364,24 @@ loadMigrationStatus();
       </template>
 
       <template #extra>
-        <Tag
-          v-if="restartRequired"
-          color="warning"
-          :bordered="false"
-          class="!m-0"
-        >
-          {{ $t('page.quartz.systemConfigPage.restartRequiredShort') }}
-        </Tag>
+        <div class="flex items-center gap-2">
+          <Tag
+            v-if="restartRequired"
+            color="warning"
+            :bordered="false"
+            class="!m-0"
+          >
+            {{ $t('page.quartz.systemConfigPage.restartRequiredShort') }}
+          </Tag>
+          <Button
+            size="small"
+            :disabled="configLoading"
+            :title="$t('page.quartz.systemConfigPage.restoreDefaultsHint')"
+            @click="restoreRecoveryDefaults"
+          >
+            {{ $t('page.quartz.systemConfigPage.restoreDefaults') }}
+          </Button>
+        </div>
       </template>
 
       <!-- 重启后生效：一条摘要 + 可展开明细，避免「旧 → 新」铺满一整行 -->

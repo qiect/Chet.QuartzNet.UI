@@ -80,6 +80,38 @@ namespace Chet.QuartzNet.Core.Services
                 var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
                 var jobService = scope.ServiceProvider.GetRequiredService<IQuartzJobService>();
 
+                // 作业在执行期间被删除：直接收尾，不再补写日志。
+                // 否则删除后日志列表会重新出现该作业的「幽灵」记录，看起来像还在运行。
+                // 读取失败时按「仍存在」处理，保持原有日志写入行为不被存储抖动影响。
+                var jobStillExists = true;
+                try
+                {
+                    jobStillExists =
+                        await jobStorage.GetJobAsync(
+                            context.JobDetail.Key.Name,
+                            context.JobDetail.Key.Group,
+                            cancellationToken
+                        ) != null;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarn("作业执行完成", $"校验作业是否仍存在失败: {ex.Message}");
+                }
+
+                if (!jobStillExists)
+                {
+                    if (logId.HasValue)
+                    {
+                        _registry.Unregister(logId.Value);
+                    }
+
+                    _logger.LogInfo(
+                        "作业执行完成",
+                        $"作业已删除，跳过日志记录: {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}"
+                    );
+                    return;
+                }
+
                 var claimedExisting = false;
                 QuartzJobLog? jobLog = null;
                 if (logId.HasValue)
@@ -108,6 +140,28 @@ namespace Chet.QuartzNet.Core.Services
                         InstanceId = _instance.InstanceId,
                         BootId = _instance.BootId,
                     };
+                }
+
+                // 停机（立即停止/排水超时）时排水协调器已把该执行标记为「中断」，
+                // 这里不要再改写成失败，否则日志会丢掉「下次启动可补偿」的状态
+                if (
+                    claimedExisting
+                    && jobLog!.Status == LogStatus.Interrupted
+                    && executionException != null
+                    && context.CancellationToken.IsCancellationRequested
+                )
+                {
+                    if (logId.HasValue)
+                    {
+                        _registry.Unregister(logId.Value);
+                    }
+
+                    _logger.LogInfo(
+                        "作业执行",
+                        "停机导致执行被中断，保留中断状态: {JobKey}",
+                        $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}"
+                    );
+                    return;
                 }
 
                 FillExecutionResult(jobLog, context, executionException, triggerType);
@@ -257,8 +311,18 @@ namespace Chet.QuartzNet.Core.Services
                 using var scope = _scopeFactory.CreateScope();
                 var jobStorage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
 
-                // 手动触发与中断补偿：本次执行资格已在原触发时获得，跳过暂停/依赖预检
-                if (triggerType == TriggerType.Cron)
+                // 手动触发的执行资格已在触发时获得，跳过暂停/依赖预检；
+                // 定时触发与中断补偿仍需校验暂停状态
+                if (triggerType == TriggerType.Manual)
+                {
+                    _logger.LogInfo(
+                        "作业即将执行",
+                        "跳过暂停/依赖校验: {JobKey}, 来源: {TriggerType}",
+                        $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}",
+                        triggerType
+                    );
+                }
+                else
                 {
                     var jobInfo = await jobStorage.GetJobAsync(
                         context.JobDetail.Key.Name,
@@ -268,17 +332,19 @@ namespace Chet.QuartzNet.Core.Services
 
                     if (jobInfo != null && jobInfo.Status == JobStatus.Paused)
                     {
-                        _logger.LogWarn(
-                            "作业即将执行",
-                            $"作业执行被阻止: 作业已被暂停 - {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}"
-                        );
-
-                        throw new JobExecutionException(
-                            $"作业 {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name} 已被暂停，执行被阻止"
+                        // 暂停作业不执行：记为「跳过」而不是「失败」，
+                        // 避免污染失败率并触发失败通知
+                        await WriteSkippedLogAsync(
+                            jobStorage,
+                            context,
+                            triggerType,
+                            $"作业已被暂停，本次执行已跳过 - {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}",
+                            cancellationToken
                         );
                     }
 
-                    if (jobInfo != null)
+                    // 前置依赖只在定时触发时校验（补偿重跑由策略/人工决定，不再拦截）
+                    if (jobInfo != null && triggerType == TriggerType.Cron)
                     {
                         await CheckDependenciesAsync(
                             jobInfo,
@@ -287,15 +353,6 @@ namespace Chet.QuartzNet.Core.Services
                             cancellationToken
                         );
                     }
-                }
-                else
-                {
-                    _logger.LogInfo(
-                        "作业即将执行",
-                        "跳过暂停/依赖校验: {JobKey}, 来源: {TriggerType}",
-                        $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}",
-                        triggerType
-                    );
                 }
 
                 // 所有可能抛异常阻止执行的校验之后，才创建运行中记录
@@ -493,7 +550,10 @@ namespace Chet.QuartzNet.Core.Services
             // 兼容旧路径：没有 TriggerType 时按 IsManualTrigger 判断
             if (
                 context.MergedJobDataMap != null
-                && context.MergedJobDataMap.TryGetValue("IsManualTrigger", out var manualFlag)
+                && context.MergedJobDataMap.TryGetValue(
+                    QuartzJobConst.IsManualTrigger,
+                    out var manualFlag
+                )
                 && manualFlag is bool manual
                 && manual
             )
@@ -604,8 +664,27 @@ namespace Chet.QuartzNet.Core.Services
             }
 
             var reason = $"前置依赖未满足，本次执行已跳过：{string.Join("；", unmetReasons)}";
+            await WriteSkippedLogAsync(
+                jobStorage,
+                context,
+                TriggerType.Cron,
+                reason,
+                cancellationToken
+            );
+        }
 
-            // 标记跳过原因，JobWasExecuted 中据此避免重复记录失败日志
+        /// <summary>
+        /// 记录一条「跳过」日志并阻止本次执行。
+        /// JobWasExecuted 会依据 SkipLogKey 跳过收尾，因此不会被记为失败、也不会触发失败通知。
+        /// </summary>
+        private async Task WriteSkippedLogAsync(
+            IJobStorage jobStorage,
+            IJobExecutionContext context,
+            TriggerType triggerType,
+            string reason,
+            CancellationToken cancellationToken
+        )
+        {
             context.MergedJobDataMap[SkipLogKey] = reason;
 
             await jobStorage.AddJobLogAsync(
@@ -620,7 +699,7 @@ namespace Chet.QuartzNet.Core.Services
                     Duration = 0,
                     Status = LogStatus.Skipped,
                     Message = reason,
-                    TriggerType = TriggerType.Cron,
+                    TriggerType = triggerType,
                     InstanceId = _instance.InstanceId,
                     BootId = _instance.BootId,
                 },
@@ -629,7 +708,7 @@ namespace Chet.QuartzNet.Core.Services
 
             _logger.LogWarn(
                 "作业即将执行",
-                $"前置依赖未满足，跳过执行: {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}"
+                $"{reason} - {context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}"
             );
 
             throw new JobExecutionException(reason);

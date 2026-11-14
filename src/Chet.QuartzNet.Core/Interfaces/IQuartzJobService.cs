@@ -205,6 +205,13 @@ public interface IQuartzJobService
     Task<ApiResponseDto<bool>> StartSchedulerAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 把存储中启用且未暂停的作业重新加载到调度器（已存在触发器的作业会跳过）
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>操作结果</returns>
+    Task<ApiResponseDto<bool>> ReloadJobsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 停止调度器
     /// </summary>
     /// <param name="cancellationToken">取消令牌</param>

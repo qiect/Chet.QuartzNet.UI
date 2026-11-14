@@ -19,7 +19,7 @@ namespace Chet.QuartzNet.Database.Example.Jobs
         public async Task Execute(IJobExecutionContext context)
         {
             _logger.LogInformation("基础示例作业开始执行: {Time}", DateTime.Now);
-            await Task.Delay(500);
+            await Task.Delay(5 * 60 * 1000);
             _logger.LogInformation("基础示例作业执行完成: {Time}", DateTime.Now);
         }
     }

@@ -92,6 +92,87 @@ public sealed class RecoveryCoordinator
     }
 
     /// <summary>
+    /// 补偿遗留的待处理中断记录（只处理已判定中断且仍在等待补偿的记录）。
+    /// 启动扫描只跑一次，而进程被强杀留下的 Running 记录要等心跳过期后
+    /// 才会被心跳服务标记为中断；若此时没人触发补偿，就要等到下次启动才能补上。
+    /// 这里提供给周期任务调用，把「标记中断」与「补偿」接起来。
+    /// </summary>
+    public async Task RunPendingAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_options.IsInitialized)
+        {
+            return;
+        }
+
+        var options = _options.Current;
+        if (!options.RecoveryEnabled || options.CatchUpStrategy == CatchUpStrategy.None)
+        {
+            return;
+        }
+
+        try
+        {
+            var scheduler = await GetSchedulerAsync(cancellationToken);
+            if (scheduler.IsShutdown || !scheduler.IsStarted || scheduler.InStandbyMode)
+            {
+                return;
+            }
+
+            using var scope = _scopeFactory.CreateScope();
+            var storage = scope.ServiceProvider.GetRequiredService<IJobStorage>();
+            var jobService = scope.ServiceProvider.GetRequiredService<IQuartzJobService>();
+
+            var staleBefore = DateTime.Now.AddSeconds(-options.LeaseDurationSeconds);
+            var candidates = await storage.GetRecoverableLogsAsync(
+                staleBefore,
+                200,
+                cancellationToken
+            );
+
+            var pending = candidates
+                .Where(l =>
+                    l.Status == LogStatus.Interrupted
+                    && l.CompensationStatus == CompensationStatus.Pending
+                )
+                .ToList();
+
+            if (pending.Count == 0)
+            {
+                return;
+            }
+
+            var selected = await SelectByCatchUpStrategyAsync(
+                pending,
+                options,
+                storage,
+                cancellationToken
+            );
+
+            foreach (var log in selected)
+            {
+                await HandleCandidateAsync(
+                    log,
+                    options,
+                    storage,
+                    jobService,
+                    scheduler,
+                    cancellationToken
+                );
+            }
+
+            _logger.LogInformation("已处理 {Count} 条待补偿的中断记录", selected.Count);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // 应用正在停止，留下 Pending 由下次继续
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "处理待补偿中断记录失败");
+        }
+    }
+
+    /// <summary>
     /// 手动重新执行一条中断记录
     /// </summary>
     public async Task<ApiResponseDto<bool>> RerunAsync(
@@ -142,6 +223,18 @@ public sealed class RecoveryCoordinator
         if (job == null)
         {
             return ApiResponseDto<bool>.ErrorResponse("作业不存在", "JOB_NOT_FOUND");
+        }
+
+        // 暂停/禁用的作业执行会被监听器跳过，若先认领补偿再触发，
+        // 补偿资格会被白白消耗且记录停在 Triggered（前端不再允许重跑），因此提前拒绝
+        if (!job.IsEnabled || job.Status == JobStatus.Paused)
+        {
+            return ApiResponseDto<bool>.ErrorResponse(
+                job.IsEnabled
+                    ? "作业已暂停，请先恢复作业后再重新执行"
+                    : "作业已禁用，请先启用作业后再重新执行",
+                "JOB_NOT_RUNNABLE"
+            );
         }
 
         if (!await storage.TryClaimCompensationAsync(log.LogId, cancellationToken))

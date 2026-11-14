@@ -69,6 +69,13 @@ public static class RecoveryPolicy
             return (RecoveryDecision.Skip, "作业已禁用");
         }
 
+        // 暂停的作业不参与自动补偿：重跑只会被监听器判定为跳过，
+        // 白白消耗一次补偿资格
+        if (job.Status == JobStatus.Paused)
+        {
+            return (RecoveryDecision.Skip, "作业已暂停");
+        }
+
         if (job.RerunOnRecovery == false)
         {
             return (RecoveryDecision.Skip, "作业已关闭自动重跑");

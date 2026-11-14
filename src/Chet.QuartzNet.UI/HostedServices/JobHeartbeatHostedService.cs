@@ -17,7 +17,13 @@ public sealed class JobHeartbeatHostedService : BackgroundService
     private readonly JobExecutionRegistry _registry;
     private readonly RecoveryOptionsProvider _options;
     private readonly RuntimeInstance _instance;
+    private readonly RecoveryCoordinator _recoveryCoordinator;
     private readonly ILogger<JobHeartbeatHostedService> _logger;
+
+    /// <summary>
+    /// 距上次兜底补偿检查累计的秒数（避免每轮心跳都做一次补偿扫描）
+    /// </summary>
+    private int _pendingScanElapsedSeconds;
 
     /// <summary>
     /// 初始化心跳服务
@@ -27,6 +33,7 @@ public sealed class JobHeartbeatHostedService : BackgroundService
         JobExecutionRegistry registry,
         RecoveryOptionsProvider options,
         RuntimeInstance instance,
+        RecoveryCoordinator recoveryCoordinator,
         ILogger<JobHeartbeatHostedService> logger
     )
     {
@@ -34,6 +41,7 @@ public sealed class JobHeartbeatHostedService : BackgroundService
         _registry = registry;
         _options = options;
         _instance = instance;
+        _recoveryCoordinator = recoveryCoordinator;
         _logger = logger;
     }
 
@@ -55,6 +63,7 @@ public sealed class JobHeartbeatHostedService : BackgroundService
             }
 
             var activeIds = _registry.GetActiveLogIds();
+            var markedAny = false;
             try
             {
                 using var scope = _scopeFactory.CreateScope();
@@ -71,7 +80,7 @@ public sealed class JobHeartbeatHostedService : BackgroundService
 
                 // 僵尸清理每轮都要跑：调度器未运行、监听器未捕获完成事件时，
                 // 会产生没有活跃执行的 Running 记录，此时 activeIds 恰好为空。
-                await MarkStaleRunningLogsAsync(storage, activeIds, stoppingToken);
+                markedAny = await MarkStaleRunningLogsAsync(storage, activeIds, stoppingToken);
             }
             catch (OperationCanceledException)
             {
@@ -81,6 +90,29 @@ public sealed class JobHeartbeatHostedService : BackgroundService
             {
                 _logger.LogWarning(ex, "作业心跳/僵死记录清理失败");
             }
+
+            // 僵尸记录刚被标记为中断时立刻补一次补偿：
+            // 启动扫描只跑一次，被强杀的进程留下的 Running 记录往往要等心跳过期
+            // 才会在运行期被标记，若只标记不补偿，就要等到下次启动才补上。
+            // 其余情况每 60 秒兜底重试一次遗留的待补偿记录。
+            _pendingScanElapsedSeconds += interval;
+            var shouldScanPending = markedAny || _pendingScanElapsedSeconds >= 60;
+            if (shouldScanPending)
+            {
+                _pendingScanElapsedSeconds = 0;
+                try
+                {
+                    await _recoveryCoordinator.RunPendingAsync(stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "待补偿中断记录处理失败");
+                }
+            }
         }
     }
 
@@ -88,7 +120,7 @@ public sealed class JobHeartbeatHostedService : BackgroundService
     /// 把心跳已过期、且不在本进程活跃执行中的 Running 记录标记为中断，
     /// 避免调度器未运行或执行结束事件丢失时留下永不收尾的「运行中」记录。
     /// </summary>
-    private async Task MarkStaleRunningLogsAsync(
+    private async Task<bool> MarkStaleRunningLogsAsync(
         IJobStorage storage,
         IReadOnlyCollection<Guid> activeIds,
         CancellationToken cancellationToken
@@ -102,6 +134,7 @@ public sealed class JobHeartbeatHostedService : BackgroundService
             cancellationToken
         );
         var activeSet = activeIds.ToHashSet();
+        var markedAny = false;
 
         foreach (var candidate in candidates)
         {
@@ -122,6 +155,7 @@ public sealed class JobHeartbeatHostedService : BackgroundService
             );
             if (marked)
             {
+                markedAny = true;
                 _logger.LogWarning(
                     "僵死运行记录已标记为中断: {LogId} {JobGroup}.{JobName}",
                     candidate.LogId,
@@ -130,5 +164,7 @@ public sealed class JobHeartbeatHostedService : BackgroundService
                 );
             }
         }
+
+        return markedAny;
     }
 }
