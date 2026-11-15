@@ -11,12 +11,14 @@ namespace Chet.QuartzNet.File.Example.Jobs
     public class ApiCallJob : IJob
     {
         private readonly ILogger<ApiCallJob> _logger;
-        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly HttpClient _httpClient;
 
         public ApiCallJob(ILogger<ApiCallJob> logger, IHttpClientFactory httpClientFactory)
         {
             _logger = logger;
-            _httpClientFactory = httpClientFactory;
+
+            // 从工厂获取HttpClient：Handler由工厂池化并定期轮换，避免每次执行新建连接
+            _httpClient = httpClientFactory.CreateClient();
         }
 
         public async Task Execute(IJobExecutionContext context)
@@ -31,13 +33,10 @@ namespace Chet.QuartzNet.File.Example.Jobs
 
                 _logger.LogInformation("调用API: {ApiUrl}", apiUrl);
 
-                // 从工厂获取HttpClient：Handler由工厂池化并定期轮换，避免每次执行新建连接
-                var httpClient = _httpClientFactory.CreateClient();
-
                 // 设置超时时间
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-                var response = await httpClient.GetAsync(apiUrl, cts.Token);
+                var response = await _httpClient.GetAsync(apiUrl, cts.Token);
                 response.EnsureSuccessStatusCode();
 
                 var content = await response.Content.ReadAsStringAsync(cts.Token);

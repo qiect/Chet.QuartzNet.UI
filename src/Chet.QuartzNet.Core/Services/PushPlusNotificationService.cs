@@ -34,7 +34,7 @@ public class PushPlusNotificationService : INotificationService
     };
 
     private readonly IJobStorage _jobStorage;
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<PushPlusNotificationService> _logger;
 
     /// <summary>
@@ -50,8 +50,11 @@ public class PushPlusNotificationService : INotificationService
     )
     {
         _jobStorage = jobStorage;
-        _httpClientFactory = httpClientFactory;
         _logger = logger;
+
+        // 从工厂获取命名客户端：Handler 由工厂池化并定期轮换，
+        // 不能 using 释放，否则会破坏工厂对 Handler 生命周期的管理
+        _httpClient = httpClientFactory.CreateClient(HttpClientName);
     }
 
     /// <summary>
@@ -390,10 +393,6 @@ public class PushPlusNotificationService : INotificationService
     {
         try
         {
-            // 从工厂获取命名客户端：Handler 由工厂池化并定期轮换，
-            // 不能 using 释放，否则会破坏工厂对 Handler 生命周期的管理
-            var httpClient = _httpClientFactory.CreateClient(HttpClientName);
-
             // 构建请求体
             var requestBody = new Dictionary<string, object?>
             {
@@ -427,7 +426,7 @@ public class PushPlusNotificationService : INotificationService
             }
 
             // 发送请求
-            var response = await httpClient.PostAsJsonAsync(
+            var response = await _httpClient.PostAsJsonAsync(
                 PushPlusApiUrl,
                 requestBody,
                 cancellationToken

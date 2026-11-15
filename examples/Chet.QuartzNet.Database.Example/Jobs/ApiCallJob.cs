@@ -10,12 +10,14 @@ namespace Chet.QuartzNet.Database.Example.Jobs
     public class ApiCallJob : IJob
     {
         private readonly ILogger<ApiCallJob> _logger;
-        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly HttpClient _httpClient;
 
         public ApiCallJob(ILogger<ApiCallJob> logger, IHttpClientFactory httpClientFactory)
         {
             _logger = logger;
-            _httpClientFactory = httpClientFactory;
+
+            // 从工厂获取HttpClient：Handler由工厂池化并定期轮换，避免静态连接长期不刷新DNS
+            _httpClient = httpClientFactory.CreateClient();
         }
 
         public async Task Execute(IJobExecutionContext context)
@@ -24,11 +26,8 @@ namespace Chet.QuartzNet.Database.Example.Jobs
 
             try
             {
-                // 从工厂获取HttpClient：Handler由工厂池化并定期轮换，避免静态连接长期不刷新DNS
-                var httpClient = _httpClientFactory.CreateClient();
-
                 // 调用示例API
-                var response = await httpClient.GetAsync("https://jsonplaceholder.typicode.com/todos/1");
+                var response = await _httpClient.GetAsync("https://jsonplaceholder.typicode.com/todos/1");
                 response.EnsureSuccessStatusCode();
 
                 var content = await response.Content.ReadAsStringAsync();
