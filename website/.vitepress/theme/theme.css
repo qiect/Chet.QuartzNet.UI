@@ -1000,6 +1000,143 @@ body:has(.ca-landing) .VPLocalNav {
   font-size: 12.5px;
 }
 
+/* v2.7 版本亮点 */
+.ca-release {
+  padding: 64px 0 0;
+  background: var(--vp-c-bg);
+}
+
+.ca-release-card {
+  padding: 34px 36px 30px;
+  border: 1px solid rgba(78, 115, 223, 0.18);
+  border-radius: 20px;
+  background:
+    radial-gradient(30rem 16rem at 0% 0%, rgba(78, 115, 223, 0.08), transparent 65%),
+    radial-gradient(24rem 14rem at 100% 0%, rgba(34, 209, 238, 0.07), transparent 70%),
+    var(--vp-c-bg-soft);
+}
+
+.ca-release-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.ca-release-version {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 13px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #4e73df, #1f8fbf);
+  box-shadow: 0 6px 18px rgba(78, 115, 223, 0.3);
+  color: #ffffff;
+  font-family: var(--vp-font-family-mono);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.ca-release-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.ca-release-copy h2 {
+  margin: 0;
+  color: var(--vp-c-text-1);
+  font-size: clamp(20px, 2.4vw, 25px);
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+}
+
+.ca-release-copy p {
+  margin: 9px 0 0;
+  color: var(--vp-c-text-2);
+  font-size: 13.5px;
+  line-height: 1.8;
+}
+
+.ca-release-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ca-btn-sm {
+  min-height: 38px;
+  padding: 0 15px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.ca-btn-ghost-dark {
+  border: 1px solid var(--vp-c-border);
+  background: var(--vp-c-bg);
+  color: var(--vp-c-text-1);
+}
+
+.ca-btn-ghost-dark:hover {
+  border-color: var(--nm-brand);
+  background: var(--nm-brand-light);
+  color: var(--nm-brand-deep);
+}
+
+.dark .ca-btn-ghost-dark:hover {
+  background: rgba(142, 179, 255, 0.12);
+  color: #8eb3ff;
+}
+
+.ca-release-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 26px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ca-release-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  background: var(--vp-c-bg);
+  text-decoration: none;
+  transition:
+    border-color 0.22s ease,
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.ca-release-item:hover {
+  transform: translateY(-2px);
+  border-color: rgba(78, 115, 223, 0.4);
+  box-shadow: 0 10px 24px rgba(78, 115, 223, 0.1);
+}
+
+.dark .ca-release-item:hover {
+  border-color: rgba(34, 209, 238, 0.35);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+}
+
+.ca-release-item strong {
+  color: var(--vp-c-text-1);
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+.ca-release-item span {
+  color: var(--vp-c-text-2);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
 /* 深色命令区 */
 .ca-efficiency {
   padding: 88px 0 92px;
@@ -1364,7 +1501,8 @@ body:has(.ca-landing) .VPLocalNav {
 
 @media (max-width: 900px) {
   .ca-key-grid,
-  .ca-feature-grid {
+  .ca-feature-grid,
+  .ca-release-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1379,6 +1517,14 @@ body:has(.ca-landing) .VPLocalNav {
 
   .ca-cta {
     padding: 68px 0;
+  }
+
+  .ca-release-head {
+    flex-wrap: wrap;
+  }
+
+  .ca-release-actions {
+    width: 100%;
   }
 }
 
@@ -1428,8 +1574,22 @@ body:has(.ca-landing) .VPLocalNav {
 }
 
 @media (max-width: 600px) {
-  .ca-feature-grid {
+  .ca-feature-grid,
+  .ca-release-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ca-release {
+    padding-top: 48px;
+  }
+
+  .ca-release-card {
+    padding: 24px 20px 22px;
+    border-radius: 16px;
+  }
+
+  .ca-release-actions .ca-btn {
+    flex: 1;
   }
 
   .ca-section {

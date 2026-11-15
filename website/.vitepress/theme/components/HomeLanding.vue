@@ -13,25 +13,28 @@ const link = (path: string) => withBase(path)
       <div class="ca-container ca-hero-inner">
         <span class="ca-hero-badge">
           <span class="ca-badge-dot" />
-          .NET 8 / 10 · Quartz.Net · 开源免费
+          .NET 8 / 10 · Quartz.Net · v2.7.1 已发布
         </span>
         <img class="ca-hero-mark" :src="logo" alt="Chet.QuartzNet.UI" width="64" height="64" />
         <h1 class="ca-hero-title">Chet.QuartzNet.UI</h1>
         <p class="ca-hero-slogan">让 Quartz.Net 调度，<span>从未如此简单</span></p>
         <p class="ca-hero-desc">
           一个 NuGet 包，即可为 .NET 项目接入可视化任务调度：作业管理、Cron 表达式、
-          执行日志、失败重试、作业依赖与多渠道通知，文件或数据库存储随需切换。
+          执行日志、失败重试、作业依赖与多渠道通知，文件或数据库存储随需切换；
+          进程崩溃可识别中断并自动补跑，停机支持排水收尾。
         </p>
         <div class="ca-hero-actions">
           <a class="ca-btn ca-btn-primary" :href="link('/guide/quick-start')">
             快速开始<span class="ca-btn-arrow">→</span>
           </a>
-          <a class="ca-btn ca-btn-ghost" :href="link('/guide/introduction')">项目简介</a>
+          <a class="ca-btn ca-btn-ghost" :href="link('/guide/recovery')">2.7 中断恢复</a>
         </div>
         <div class="ca-hero-meta">
           <span>.NET 8 / .NET 10</span>
           <i />
           <span>Quartz.Net 3.15</span>
+          <i />
+          <a :href="link('/changelog')">v2.7.1 更新 →</a>
           <i />
           <a href="https://github.com/qiect/Chet.QuartzNet.UI" target="_blank" rel="noreferrer">
             GitHub 开源 →
@@ -40,8 +43,8 @@ const link = (path: string) => withBase(path)
       </div>
 
       <div class="ca-container ca-hero-preview">
-        <span class="ca-float ca-float-a">Cron 可视化</span>
-        <span class="ca-float ca-float-b">多渠道通知</span>
+        <span class="ca-float ca-float-a">中断自动补跑</span>
+        <span class="ca-float ca-float-b">排水式优雅停机</span>
         <div class="ca-window">
           <div class="ca-window-bar">
             <div class="ca-window-dots"><span /><span /><span /></div>
@@ -95,8 +98,58 @@ const link = (path: string) => withBase(path)
       <div class="ca-container ca-stats-grid">
         <div class="ca-stat"><strong>5<span>种</span></strong><span>存储类型自由切换</span></div>
         <div class="ca-stat"><strong>6<span>大</span></strong><span>可视化管理模块</span></div>
-        <div class="ca-stat"><strong>15<span>+</span></strong><span>版本持续迭代</span></div>
+        <div class="ca-stat"><strong>19<span>个</span></strong><span>版本持续迭代</span></div>
         <div class="ca-stat"><strong>100<span>%</span></strong><span>MIT 开源可商用</span></div>
+      </div>
+    </section>
+
+    <!-- v2.7 版本亮点 -->
+    <section class="ca-release">
+      <div class="ca-container">
+        <div class="ca-release-card">
+          <div class="ca-release-head">
+            <span class="ca-release-version">v2.7</span>
+            <div class="ca-release-copy">
+              <h2>中断恢复与排水停机：让「出事」可见、可控、可追溯</h2>
+              <p>
+                执行开始即落库并持续心跳，进程崩溃后自动识别中断并按策略补跑；停机时可先排水等待任务收尾。
+                2.7.1 进一步修正运行中计数与中断收尾，补丁升级无需数据库迁移。
+              </p>
+            </div>
+            <div class="ca-release-actions">
+              <a class="ca-btn ca-btn-primary ca-btn-sm" :href="link('/articles/16-v2.7.0')">
+                版本详解<span class="ca-btn-arrow">→</span>
+              </a>
+              <a class="ca-btn ca-btn-ghost-dark ca-btn-sm" :href="link('/changelog')">更新日志</a>
+            </div>
+          </div>
+          <div class="ca-release-grid">
+            <a class="ca-release-item" :href="link('/guide/recovery')">
+              <strong>执行日志生命周期</strong>
+              <span>执行开始即写 Running 并注册执行表，页面可看运行中任务与实时耗时。</span>
+            </a>
+            <a class="ca-release-item" :href="link('/guide/recovery')">
+              <strong>中断识别与自动补偿</strong>
+              <span>心跳超时判定中断，启动按策略补跑，支持限次与临近触发跳过。</span>
+            </a>
+            <a class="ca-release-item" :href="link('/modules/log')">
+              <strong>手动重新执行</strong>
+              <span>中断记录一键重跑，重复提交返回冲突，触发来源可回溯到源执行。</span>
+            </a>
+            <a class="ca-release-item" :href="link('/guide/recovery')">
+              <strong>排水调度与优雅停机</strong>
+              <span>停接新触发、等待执行收尾后自动停止，超时标记中断，可恢复调度。</span>
+            </a>
+            <a class="ca-release-item" :href="link('/modules/system-config')">
+              <strong>停机与恢复配置</strong>
+              <span>独立的启动期配置分区，展示「重启后生效 N 项」的旧值与新值。</span>
+            </a>
+            <a class="ca-release-item" :href="link('/modules/dashboard')">
+              <strong>分析与日志页焕新</strong>
+              <span>四张 KPI 卡实时刷新，日志页新增中断状态、触发来源与「仅看异常」。</span>
+            </a>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -181,7 +234,27 @@ const link = (path: string) => withBase(path)
               </svg>
             </div>
             <h3>执行日志<span>→</span></h3>
-            <p>完整的执行历史、耗时、错误信息与「已跳过」状态，支持自动清理。</p>
+            <p>执行历史、耗时、错误信息与「已跳过」「中断」状态，触发来源可追溯。</p>
+          </a>
+          <a class="ca-feature" :href="link('/guide/recovery')">
+            <div class="ca-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12h4l2-4 3 8 2-4h5" />
+                <path d="M20 5v6h-6" />
+                <path d="M20 5a9 9 0 0 0-7-3" />
+              </svg>
+            </div>
+            <h3>中断恢复<span>→</span></h3>
+            <p>执行中心跳续期，崩溃后可识别中断并按策略自动补跑，也可手动重跑。</p>
+          </a>
+          <a class="ca-feature" :href="link('/guide/recovery')">
+            <div class="ca-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 5h16l-6 8v6l-4 2v-8z" />
+              </svg>
+            </div>
+            <h3>排水停机<span>→</span></h3>
+            <p>停止接收新触发，等待执行中任务收尾后自动停止，超时标记中断。</p>
           </a>
           <a class="ca-feature" :href="link('/modules/notification')">
             <div class="ca-feature-icon">
@@ -213,6 +286,18 @@ const link = (path: string) => withBase(path)
             </div>
             <h3>数据迁移<span>→</span></h3>
             <p>五种存储任意互转，预检、备份、进度与迁移后校验一步到位。</p>
+          </a>
+          <a class="ca-feature" :href="link('/modules/job')">
+            <div class="ca-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 0 1 15-6l2 2" />
+                <path d="M20 4v4h-4" />
+                <path d="M21 12a9 9 0 0 1-15 6l-2-2" />
+                <path d="M4 20v-4h4" />
+              </svg>
+            </div>
+            <h3>失败重试<span>→</span></h3>
+            <p>按次数与间隔自动重试，降低偶发失败带来的告警噪音。</p>
           </a>
         </div>
       </div>
