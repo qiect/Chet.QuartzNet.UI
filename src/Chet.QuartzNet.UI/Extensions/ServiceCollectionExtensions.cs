@@ -469,6 +469,7 @@ public static class ServiceCollectionExtensions
                             Status = JobStatus.Normal,
                             IsEnabled = attribute.Enabled, // 使用特性中配置的启用状态
                             CreateTime = DateTime.Now,
+                            DisallowConcurrentExecution = jobType.GetCustomAttributes<DisallowConcurrentExecutionAttribute>(true)?.Any() ?? false // 使用Quartz.NET内置的DisallowConcurrentExecution特性
                         };
 
                         await jobStorage.AddJobAsync(jobInfo, cancellationToken);
