@@ -2733,7 +2733,25 @@ public class QuartzJobService : IQuartzJobService
         PropertyNameCaseInsensitive = true,
         // 中文等非 ASCII 字符按原文输出，避免保存成 \uXXXX 转义
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        // 枚举统一按字符串读写，避免不同宿主配置下出现数字/字符串两种形态
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
     };
+
+    /// <summary>
+    /// 归一化系统配置：历史「等待完成」已并入「排水后停止」，
+    /// 读取与保存都用 Drain 表示，避免存储中的旧值长期被当成「待重启生效的变更」
+    /// </summary>
+    /// <param name="config">系统配置</param>
+    /// <returns>归一化后的配置</returns>
+    private static SystemConfigDto NormalizeConfig(SystemConfigDto config)
+    {
+        if (config.ShutdownMode == ShutdownMode.Wait)
+        {
+            config.ShutdownMode = ShutdownMode.Drain;
+        }
+
+        return config;
+    }
 
     /// <summary>
     /// 获取系统配置
@@ -2765,6 +2783,10 @@ public class QuartzJobService : IQuartzJobService
             {
                 config = new SystemConfigDto();
             }
+
+            // 读取路径同样归一化历史「等待完成」：持久化里残留的旧值不再和
+            // 生效快照（已按 Drain 运行）反复产生「重启后生效」的差异
+            config = NormalizeConfig(config);
 
             // 兜底：未经过启动 HostedService 时（如单元测试）也能拿到生效快照
             if (!_recoveryOptions.IsInitialized)
@@ -2809,10 +2831,7 @@ public class QuartzJobService : IQuartzJobService
         try
         {
             // 「等待完成」已并入「排水后停止」，历史配置保存时统一归一化为 Drain
-            if (config.ShutdownMode == ShutdownMode.Wait)
-            {
-                config.ShutdownMode = ShutdownMode.Drain;
-            }
+            config = NormalizeConfig(config);
 
             var validationError = RecoveryOptionsProvider.Validate(config);
             if (validationError != null)
