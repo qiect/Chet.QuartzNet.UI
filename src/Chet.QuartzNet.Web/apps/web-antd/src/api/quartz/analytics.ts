@@ -56,6 +56,8 @@ export interface JobExecutionTrend {
   successCount: number;
   /** 失败执行次数 */
   failedCount: number;
+  /** 中断执行次数（进程退出/停机超时等，不含运行中、跳过） */
+  interruptedCount: number;
   /** 总执行次数 */
   totalCount: number;
 }
@@ -96,14 +98,18 @@ export interface JobHealth {
   status: string;
   /** 是否启用 */
   isEnabled: boolean;
-  /** 成功率（0-100） */
+  /** 成功率（0-100，成功数 / 总执行数） */
   successRate: number;
+  /** 失败执行次数（不含中断/运行中） */
+  failedCount: number;
   /** 平均执行耗时（毫秒） */
   avgDuration: number;
   /** 最大执行耗时（毫秒） */
   maxDuration: number;
   /** 执行次数 */
   executionCount: number;
+  /** 创建时间 */
+  createTime?: string;
   /** 最近执行时间 */
   lastExecutionTime?: string;
   /** Cron表达式 */

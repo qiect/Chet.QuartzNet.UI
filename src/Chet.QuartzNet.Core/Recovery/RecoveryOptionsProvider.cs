@@ -27,7 +27,15 @@ public sealed class RecoveryOptionsProvider
     public void Initialize(SystemConfigDto config)
     {
         ArgumentNullException.ThrowIfNull(config);
-        Volatile.Write(ref _current, Clone(config));
+        var snapshot = Clone(config);
+        // 历史「等待完成」已并入「排水后停止」，快照统一按 Drain 记录，
+        // 避免存储中的旧枚举值让生效值与持久化值长期对不上
+        if (snapshot.ShutdownMode == ShutdownMode.Wait)
+        {
+            snapshot.ShutdownMode = ShutdownMode.Drain;
+        }
+
+        Volatile.Write(ref _current, snapshot);
     }
 
     /// <summary>
@@ -42,7 +50,8 @@ public sealed class RecoveryOptionsProvider
             || persisted.LogRetentionDays != current.LogRetentionDays
             || persisted.LogMaxCount != current.LogMaxCount
             || persisted.LogCleanupIntervalHours != current.LogCleanupIntervalHours
-            || persisted.ShutdownMode != current.ShutdownMode
+            || NormalizeShutdownMode(persisted.ShutdownMode)
+                != NormalizeShutdownMode(current.ShutdownMode)
             || persisted.ShutdownWaitTimeoutSeconds != current.ShutdownWaitTimeoutSeconds
             || persisted.DrainTimeoutSeconds != current.DrainTimeoutSeconds
             || persisted.RecoveryEnabled != current.RecoveryEnabled
@@ -108,6 +117,12 @@ public sealed class RecoveryOptionsProvider
 
         return null;
     }
+
+    /// <summary>
+    /// 归一化停机模式：历史「等待完成」与「排水后停止」行为一致，比较时视为同一个值
+    /// </summary>
+    private static ShutdownMode NormalizeShutdownMode(ShutdownMode mode) =>
+        mode == ShutdownMode.Wait ? ShutdownMode.Drain : mode;
 
     private static SystemConfigDto Clone(SystemConfigDto config)
     {

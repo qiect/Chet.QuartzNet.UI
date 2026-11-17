@@ -1194,6 +1194,7 @@ public class EFCoreJobStorage : IJobStorage
                     g.Key.Hour,
                     SuccessCount = g.Count(l => l.Status == LogStatus.Success),
                     FailedCount = g.Count(l => l.Status == LogStatus.Failed),
+                    InterruptedCount = g.Count(l => l.Status == LogStatus.Interrupted),
                     TotalCount = g.Count(),
                 })
                 .ToListAsync(cancellationToken);
@@ -1204,6 +1205,7 @@ public class EFCoreJobStorage : IJobStorage
                     Time = new DateTime(t.Year, t.Month, t.Day, t.Hour, 0, 0).ToString("yyyy-MM-dd HH:00"),
                     SuccessCount = t.SuccessCount,
                     FailedCount = t.FailedCount,
+                    InterruptedCount = t.InterruptedCount,
                     TotalCount = t.TotalCount,
                 })
                 .OrderBy(t => t.Time)
@@ -1292,6 +1294,7 @@ public class EFCoreJobStorage : IJobStorage
                     g.Key.JobGroup,
                     ExecutionCount = g.Count(),
                     SuccessCount = g.Count(l => l.Status == LogStatus.Success),
+                    FailedCount = g.Count(l => l.Status == LogStatus.Failed),
                     AvgDuration = g.Where(l =>
                             l.Duration.HasValue
                             && l.Status != LogStatus.Running
@@ -1330,9 +1333,11 @@ public class EFCoreJobStorage : IJobStorage
                     Status = job.Status.ToString(),
                     IsEnabled = job.IsEnabled,
                     SuccessRate = execCount > 0 ? Math.Round((double)successCount / execCount * 100, 1) : 0,
+                    FailedCount = jobLog?.FailedCount ?? 0,
                     AvgDuration = Math.Round(jobLog?.AvgDuration ?? 0, 0),
                     MaxDuration = Math.Round(jobLog?.MaxDuration ?? 0, 0),
                     ExecutionCount = execCount,
+                    CreateTime = job.CreateTime,
                     LastExecutionTime = jobLog?.LastExecutionTime,
                     CronExpression = job.CronExpression,
                 };

@@ -1,78 +1,90 @@
 ---
-title: "Chet.QuartzNet.UI 现已支持 .NET 10 框架"
-description: "多框架目标升级过程、依赖调整与 .NET 10 下的使用方式。"
+title: "支持 .NET 10 框架"
+description: "多目标框架的实现方式、依赖版本差异、在 .NET 10 项目中的接入步骤与 AOT 说明。"
 ---
 
-# 🔥 Chet.QuartzNet.UI 现已支持 .NET 10 框架！
+# 支持 .NET 10 框架
 
-## 🎯 为什么这是个好消息？
+从 **v2.0.0**（2026-01-15）起，Chet.QuartzNet.UI 同时面向 `net8.0` 与 `net10.0` 编译。这一篇说明它具体是怎么支持的，以及在 .NET 10 项目中如何接入。
 
-作为一名 .NET 开发者，你是不是已经迫不及待想体验 .NET 10 的强大功能了？现在，好消息来了！**Chet.QuartzNet.UI** 正式支持 .NET 10 框架啦！😍
+## 1. 支持方式
 
-## ✨ .NET 10 支持带来了哪些惊喜？
+所有包都使用多目标框架：
 
-### 🚀 利用 .NET 10 最新特性
-- **性能提升**：享受 .NET 10 带来的性能优化，作业调度更高效
-- **新 API 支持**：使用 .NET 10 提供的最新 API，开发体验更佳
-- **AOT 编译**：支持 AOT 编译，启动速度更快，内存占用更低
-- **GC 优化**：受益于 .NET 10 的 GC 改进，系统稳定性更强
-
-### 💎 无缝迁移，零成本升级
-- 保持与旧版本相同的 API 接口，无需修改现有代码
-- 相同的配置方式，平滑过渡到 .NET 10
-- 向下兼容 .NET 8/9，保护你的投资
-
-
-### 📊 更好的开发体验
-- 支持 .NET 10 的新工具链
-- 与 Visual Studio 2026 完美兼容
-- 更好的调试和诊断支持
-
-## 🚀 如何在 .NET 10 项目中使用？
-
-### 1️⃣ 创建 .NET 10 项目
-
-```bash
-dotnet new web -n MyQuartzProject -f net10.0
-cd MyQuartzProject
+```xml
+<TargetFrameworks>net8.0;net10.0</TargetFrameworks>
 ```
 
-### 2️⃣ 安装最新版本的 Chet.QuartzNet.UI
+NuGet 会根据宿主项目的目标框架自动选择对应资产。对使用者来说：
+
+- 项目是 `net8.0` → 使用 net8.0 资产；
+- 项目是 `net10.0` → 使用 net10.0 资产；
+- 项目是 `net9.0` → 没有专门资产，会回退到 net8.0（未单独验证）。
+
+管理界面的静态资源只打包一份，与目标框架无关。
+
+## 2. 依赖版本差异
+
+| 依赖 | net8.0 | net10.0 |
+| ---- | ------ | ------- |
+| Quartz / Quartz.AspNetCore | 3.15.1 | 3.15.1 |
+| Microsoft.AspNetCore.Authentication.JwtBearer | 8.0.0 | 10.0.0 |
+| Microsoft.EntityFrameworkCore.Design | 8.0.0 | 9.0.0 |
+| Pomelo.EntityFrameworkCore.MySql | 8.0.0 | 9.0.0 |
+| Npgsql.EntityFrameworkCore.PostgreSQL | 8.0.0 | 9.0.0 |
+| Microsoft.EntityFrameworkCore.Sqlite | 8.0.23 | 9.0.0 |
+| Microsoft.EntityFrameworkCore.SqlServer | 8.0.23 | 9.0.0 |
+
+可以看到 .NET 10 下的 EF Core 相关依赖使用 9.x 版本，这是各数据库提供程序当前与 .NET 10 兼容的版本线。
+
+## 3. 在 .NET 10 项目中接入
+
+### 3.1 创建项目
 
 ```bash
-dotnet add package Chet.QuartzNet.UI --version 最新版本号
+dotnet new web -n MyQuartzApp -f net10.0
+cd MyQuartzApp
 ```
 
-### 3️⃣ 配置服务
+### 3.2 安装包
 
-在 `Program.cs` 中添加配置：
+```bash
+dotnet add package Chet.QuartzNet.UI --version 2.7.1
+```
+
+数据库存储再安装对应扩展包，版本保持一致：
+
+```bash
+dotnet add package Chet.QuartzNet.EFCore.SQLite --version 2.7.1
+```
+
+### 3.3 注册服务
 
 ```csharp
+using Chet.QuartzNet.UI.Extensions;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// 添加 Quartz UI 服务
+builder.Services.AddControllers();
 builder.Services.AddQuartzUI(builder.Configuration);
-
-// 可选：自动扫描并注册 ClassJob
-builder.Services.AddQuartzClassJobs();
+builder.Services.AddQuartzClassJobs();   // 可选
 
 var app = builder.Build();
 
-// 启用中间件
+app.MapControllers();
 app.UseQuartz();
-
 app.Run();
 ```
 
-### 4️⃣ 配置 JWT 认证
-
-在 `appsettings.json` 中添加配置：
+### 3.4 配置
 
 ```json
 {
   "QuartzUI": {
+    "StorageType": "File",
+    "FileStoragePath": "App_Data/QuartzJobs",
     "JwtSecret": "Y2V0aFF1YXJ6TmV0VUlBdXRoZW50aWNhdGlvblNlY3JldA==",
-    "JwtExpiresInMinutes": 60,
+    "JwtExpiresInMinutes": 360,
     "JwtIssuer": "Chet.QuartzNet.UI",
     "JwtAudience": "Chet.QuartzNet.UI",
     "UserName": "Admin",
@@ -81,71 +93,73 @@ app.Run();
 }
 ```
 
-### 5️⃣ 启动应用
+### 3.5 运行
 
 ```bash
 dotnet run
 ```
 
-访问 `http://localhost:5173/quartz-ui` 即可体验！
+访问 `http://localhost:{端口}/quartz-ui`。端口以 `Properties/launchSettings.json` 或 `ASPNETCORE_URLS` 为准；仓库示例中文件存储为 5001、数据库存储为 5002。
 
-## 💡 .NET 10 特有的优化建议
+## 4. 升级现有项目
 
-### 🎯 使用 AOT 编译提升性能
+1. 将宿主项目目标框架改为 `net10.0`；
+2. 主包与所有 `Chet.QuartzNet.EFCore.*` 扩展包升级到同一版本；
+3. 数据库存储模式启动时会自动执行 EF Core 迁移，升级前先备份；
+4. 若引用了 `Microsoft.AspNetCore.Authentication.JwtBearer`，版本需与目标框架匹配。
 
-在项目文件中添加：
+代码层面无需修改：注册方式、配置节、路由都保持不变。
 
-```xml
-<PropertyGroup>
-  <PublishAot>true</PublishAot>
-</PropertyGroup>
-```
+## 5. 可以使用的新语法
 
-然后发布：
-
-```bash
-dotnet publish -c Release -o out
-```
-
-### 📈 利用 .NET 10 的新特性优化代码
+支持 .NET 10 不等于必须改代码，但可以使用新的 C# 语法。例如主构造函数：
 
 ```csharp
-// 使用 Primary Constructors
+using Chet.QuartzNet.Core.Attributes;
+using Quartz;
+
 [QuartzJob("SampleJob", "DEFAULT", "0 0/5 * * * ?", Description = "示例作业")]
 public class SampleJob(ILogger<SampleJob> logger) : IJob
 {
-    private readonly ILogger<SampleJob> _logger = logger;
-
     public async Task Execute(IJobExecutionContext context)
     {
-        _logger.LogInformation("SampleJob 执行成功！");
+        logger.LogInformation("SampleJob 执行时间：{Time}", DateTime.Now);
         await Task.CompletedTask;
     }
 }
 ```
 
-### 🔧 配置 .NET 10 的性能选项
+这些语法在 net8.0 下同样可用（取决于 LangVersion），与是否支持 .NET 10 没有绑定关系。
 
-在 `appsettings.json` 中添加：
+## 6. 关于 AOT 与裁剪
 
-```json
-{
-  "DotNetPerformance": {
-    "GCCount": 10,
-    "GCServer": true,
-    "TieredCompilation": true
-  }
-}
+**当前不支持 Native AOT，也没有针对裁剪做适配。** 原因很直接：
+
+- Quartz.Net 通过反射创建作业实例；
+- ClassJob 扫描依赖 `Assembly.GetTypes()` 与自定义特性；
+- EF Core 与各数据库驱动大量使用反射和动态代码。
+
+因此以下配置不建议开启：
+
+```xml
+<PublishAot>true</PublishAot>
+<PublishTrimmed>true</PublishTrimmed>
 ```
 
-## 🎉 总结
+如果需要更小的发布体积，可以使用自包含发布或 ReadyToRun，但应完整回归作业注册、执行与迁移功能。
 
-Chet.QuartzNet.UI 支持 .NET 10 框架，意味着你可以在享受 .NET 10 强大功能的同时，继续使用这款优秀的任务调度 UI 工具。无缝迁移、零成本升级，让你轻松拥抱 .NET 10 的新时代！
+## 7. 常见问题
 
-如果你对 .NET 10 支持有任何建议或反馈，欢迎在 GitHub 上提出 Issue 或提交 PR，我们期待你的参与！😊
+| 问题 | 处理 |
+| ---- | ---- |
+| 还原包时找不到 net10.0 资产 | 升级到 v2.0.0 及以上版本 |
+| 升级后数据库写入报列不存在 | 同步升级 EFCore 扩展包并重启，触发自动迁移 |
+| 启动报 JwtBearer 版本冲突 | 将 JwtBearer 对齐到 10.0.0 |
+| 发布后作业类扫描不到 | 确认作业类为 `public`、实现了 `IJob` 且程序集已加载 |
+| 能否用 .NET 9 | 可以用，但会回退到 net8.0 资产，官方只验证 net8.0 / net10.0 |
 
----
+## 相关阅读
 
-**官方地址**：[https://qiect.github.io/Chet.QuartzNet.UI/](https://qiect.github.io/Chet.QuartzNet.UI/)
-**项目地址**：[https://github.com/qiect/Chet.QuartzNet.UI](https://github.com/qiect/Chet.QuartzNet.UI)
-**NuGet包**：[https://www.nuget.org/packages/Chet.QuartzNet.UI](https://www.nuget.org/packages/Chet.QuartzNet.UI)
+- [快速开始](/guide/quick-start)
+- [部署与升级](/guide/deployment)
+- [更新日志 · 2.0.0](/changelog)

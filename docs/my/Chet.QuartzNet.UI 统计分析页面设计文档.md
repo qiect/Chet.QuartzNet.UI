@@ -159,7 +159,8 @@ interface JobExecutionTrend {
   time: string;               // 时间点
   successCount: number;       // 成功执行次数
   failedCount: number;        // 失败执行次数
-  totalCount: number;         // 总执行次数
+  interruptedCount: number;   // 中断执行次数（不含运行中、跳过）
+  totalCount: number;         // 总执行次数（含运行中、跳过）
 }
 ```
 

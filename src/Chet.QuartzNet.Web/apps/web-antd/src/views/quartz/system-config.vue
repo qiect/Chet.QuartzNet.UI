@@ -241,6 +241,41 @@ const catchUpCards = computed(() =>
   })),
 );
 
+// 枚举在不同序列化配置下可能是字符串也可能是数字（0/1/2），这里统一归一化，
+// 否则卡片严格相等比较会一张都选不中，且生效快照与表单值永远对不上
+const SHUTDOWN_MODE_ALIASES: Record<string, ShutdownMode> = {
+  immediate: 'Immediate',
+  drain: 'Drain',
+  // 历史「等待完成」已并入「排水后停止」
+  wait: 'Drain',
+};
+
+const CATCH_UP_STRATEGY_ALIASES: Record<string, CatchUpStrategy> = {
+  none: 'None',
+  latest: 'Latest',
+  all: 'All',
+};
+
+/** 归一化停机模式：0=立即停止，1=排水后停止，2=历史「等待完成」（行为等同排水后停止） */
+function normalizeShutdownMode(value: unknown): ShutdownMode {
+  if (typeof value === 'number') {
+    return value === 0 ? 'Immediate' : 'Drain';
+  }
+  const key = String(value ?? '').trim().toLowerCase();
+  return SHUTDOWN_MODE_ALIASES[key] ?? 'Drain';
+}
+
+/** 归一化补偿策略：0=只标记不补偿，1=每个作业补最近一次，2=全部补偿 */
+function normalizeCatchUpStrategy(value: unknown): CatchUpStrategy {
+  if (typeof value === 'number') {
+    if (value === 0) return 'None';
+    if (value === 2) return 'All';
+    return 'Latest';
+  }
+  const key = String(value ?? '').trim().toLowerCase();
+  return CATCH_UP_STRATEGY_ALIASES[key] ?? 'Latest';
+}
+
 // 「排水后停止」的超时：立即停止模式不需要，非立即模式统一使用排水超时
 const shutdownTimeoutModel = computed<number | undefined>({
   get() {
@@ -384,14 +419,16 @@ function formatStartupValue(
 ): string {
   if (value === null || value === undefined) return '-';
   if (key === 'shutdownMode') {
+    const mode = normalizeShutdownMode(value);
     return (
-      shutdownModeOptions.value.find((item) => item.value === value)?.label ??
+      shutdownModeOptions.value.find((item) => item.value === mode)?.label ??
       String(value)
     );
   }
   if (key === 'catchUpStrategy') {
+    const strategy = normalizeCatchUpStrategy(value);
     return (
-      catchUpStrategyOptions.value.find((item) => item.value === value)
+      catchUpStrategyOptions.value.find((item) => item.value === strategy)
         ?.label ?? String(value)
     );
   }
@@ -412,13 +449,41 @@ function formatStartupValue(
   return String(value);
 }
 
+// 生效快照可能因历史配置或序列化差异与表单值类型不同（如数字写成字符串），
+// 比较前按表单值类型对齐，避免把「格式化差异」误判成「重启后生效的变更」
+function coerceStartupValue(raw: unknown, like: unknown): unknown {
+  if (raw === null || raw === undefined) return raw;
+  if (typeof like === 'number') {
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : raw;
+  }
+  if (typeof like === 'boolean') {
+    if (typeof raw === 'boolean') return raw;
+    const text = String(raw).trim().toLowerCase();
+    if (text === '1' || text === 'true') return true;
+    if (text === '0' || text === 'false') return false;
+    return raw;
+  }
+  return raw;
+}
+
+// 生效快照归一化：停机模式与补偿策略统一成表单口径，历史值不再产生永久的变更项
+function normalizeEffectiveConfig(raw: any): null | SystemConfigDto {
+  if (!raw) return null;
+  return {
+    ...raw,
+    shutdownMode: normalizeShutdownMode(raw.shutdownMode),
+    catchUpStrategy: normalizeCatchUpStrategy(raw.catchUpStrategy),
+  };
+}
+
 // 保存并重启后会发生变化的启动期字段（与当前进程生效值比较）
 const startupChanges = computed(() => {
   const eff = effectiveConfig.value;
   if (!eff) return [];
   const current = buildConfig();
   return STARTUP_FIELD_META.filter(({ key }) => {
-    const before = eff[key];
+    const before = coerceStartupValue(eff[key], current[key]);
     if (before === null || before === undefined) return false;
     return !isSameValue(current[key], before);
   }).map(({ key, labelKey }) => ({
@@ -429,32 +494,58 @@ const startupChanges = computed(() => {
   }));
 });
 
+// 数值/布尔字段同样做一次容错，避免历史接口把数字写成字符串后写进 InputNumber
+function asNumber(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function asBoolean(value: unknown, fallback: boolean): boolean {
+  if (typeof value === 'boolean') return value;
+  if (value === null || value === undefined || value === '') return fallback;
+  const text = String(value).trim().toLowerCase();
+  if (text === '1' || text === 'true') return true;
+  if (text === '0' || text === 'false') return false;
+  return fallback;
+}
+
 function applyConfigData(data: any) {
   serviceName.value = data?.serviceName || '';
   environment.value = data?.environment || 'DEV';
   serviceDescription.value = data?.serviceDescription || '';
   logSettings.value = {
-    logRetentionDays: data?.logRetentionDays ?? 0,
-    logMaxCount: data?.logMaxCount ?? 0,
-    logCleanupIntervalHours: data?.logCleanupIntervalHours ?? 6,
+    logRetentionDays: asNumber(data?.logRetentionDays, 0),
+    logMaxCount: asNumber(data?.logMaxCount, 0),
+    logCleanupIntervalHours: asNumber(data?.logCleanupIntervalHours, 6),
   };
 
-  // 历史「Wait（等待完成）」配置等价于「排水后停止」，加载时归一化
-  shutdownMode.value =
-    (data?.shutdownMode as ShutdownMode) === 'Immediate' ? 'Immediate' : 'Drain';
-  shutdownWaitTimeoutSeconds.value = data?.shutdownWaitTimeoutSeconds ?? 30;
-  drainTimeoutSeconds.value = data?.drainTimeoutSeconds ?? 60;
-  recoveryEnabled.value = data?.recoveryEnabled ?? true;
-  compensationDelaySeconds.value = data?.compensationDelaySeconds ?? 30;
-  heartbeatIntervalSeconds.value = data?.heartbeatIntervalSeconds ?? 15;
-  leaseDurationSeconds.value = data?.leaseDurationSeconds ?? 60;
-  skipIfNextFireWithinSeconds.value = data?.skipIfNextFireWithinSeconds ?? 120;
-  catchUpStrategy.value = (data?.catchUpStrategy as CatchUpStrategy) || 'Latest';
-  maxRecoveryAttempts.value = data?.maxRecoveryAttempts ?? 3;
-  defaultRerunOnRecovery.value = data?.defaultRerunOnRecovery ?? true;
-  interruptedLogRetentionDays.value = data?.interruptedLogRetentionDays ?? 30;
+  // 历史「Wait（等待完成）」配置等价于「排水后停止」，加载时归一化；
+  // 枚举可能是字符串或数字，统一走 normalize 解析
+  shutdownMode.value = normalizeShutdownMode(data?.shutdownMode);
+  shutdownWaitTimeoutSeconds.value = asNumber(
+    data?.shutdownWaitTimeoutSeconds,
+    30,
+  );
+  drainTimeoutSeconds.value = asNumber(data?.drainTimeoutSeconds, 60);
+  recoveryEnabled.value = asBoolean(data?.recoveryEnabled, true);
+  compensationDelaySeconds.value = asNumber(data?.compensationDelaySeconds, 30);
+  heartbeatIntervalSeconds.value = asNumber(data?.heartbeatIntervalSeconds, 15);
+  leaseDurationSeconds.value = asNumber(data?.leaseDurationSeconds, 60);
+  skipIfNextFireWithinSeconds.value = asNumber(
+    data?.skipIfNextFireWithinSeconds,
+    120,
+  );
+  // 注意不能用 || 兜底：None(0) 会被判成假值而错误地显示成 Latest
+  catchUpStrategy.value = normalizeCatchUpStrategy(data?.catchUpStrategy);
+  maxRecoveryAttempts.value = asNumber(data?.maxRecoveryAttempts, 3);
+  defaultRerunOnRecovery.value = asBoolean(data?.defaultRerunOnRecovery, true);
+  interruptedLogRetentionDays.value = asNumber(
+    data?.interruptedLogRetentionDays,
+    30,
+  );
 
-  effectiveConfig.value = data?.effectiveConfig ?? null;
+  // 生效快照必须与表单同口径归一化，否则历史值会让「重启后生效」的变更项永远消不掉
+  effectiveConfig.value = normalizeEffectiveConfig(data?.effectiveConfig);
   restartRequired.value = data?.restartRequired === true;
   // 基线必须在所有字段赋值之后生成，用于未保存改动判定
   baseline.value = buildConfig();

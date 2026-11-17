@@ -109,6 +109,11 @@ public class JobExecutionTrendDto
     public int FailedCount { get; set; }
 
     /// <summary>
+    /// 中断执行次数（进程退出/停机超时等未正常收尾，不含运行中、跳过）
+    /// </summary>
+    public int InterruptedCount { get; set; }
+
+    /// <summary>
     /// 总执行次数
     /// </summary>
     public int TotalCount { get; set; }
@@ -140,9 +145,14 @@ public class JobHealthDto
     public bool IsEnabled { get; set; }
 
     /// <summary>
-    /// 成功率（0-100）
+    /// 成功率（0-100，成功数 / 总执行数）
     /// </summary>
     public double SuccessRate { get; set; }
+
+    /// <summary>
+    /// 失败执行次数（不含中断/运行中）
+    /// </summary>
+    public int FailedCount { get; set; }
 
     /// <summary>
     /// 平均执行耗时（毫秒）
@@ -158,6 +168,11 @@ public class JobHealthDto
     /// 执行次数
     /// </summary>
     public int ExecutionCount { get; set; }
+
+    /// <summary>
+    /// 创建时间（用于识别新建作业，避免沉默误报）
+    /// </summary>
+    public DateTime CreateTime { get; set; }
 
     /// <summary>
     /// 最近执行时间

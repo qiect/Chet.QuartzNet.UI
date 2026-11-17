@@ -126,6 +126,65 @@ export interface LogResponseDto {
   skipReason?: string | null;
 }
 
+// 后端枚举在 STJ 宿主下是字符串（"Cron"/"Triggered"），在 Newtonsoft 宿主下会退化成数字（2），
+// 统一在接口边界归一化，页面里的字符串比较与文案映射才不会静默失效
+const TRIGGER_TYPE_VALUES: TriggerType[] = [
+  'Cron',
+  'Manual',
+  'Recovery',
+  'Unknown',
+];
+const COMPENSATION_STATUS_VALUES: CompensationStatus[] = [
+  'None',
+  'Pending',
+  'Triggered',
+  'Skipped',
+  'Failed',
+];
+
+/** 归一化触发来源：数字按枚举顺序还原，字符串忽略大小写，未知值回落 Unknown */
+export function normalizeTriggerType(value: unknown): TriggerType {
+  if (typeof value === 'number') {
+    return TRIGGER_TYPE_VALUES[value] ?? 'Unknown';
+  }
+  const key = String(value ?? '').trim().toLowerCase();
+  return TRIGGER_TYPE_VALUES.find((item) => item.toLowerCase() === key) ?? 'Unknown';
+}
+
+/** 归一化补偿状态：数字按枚举顺序还原，字符串忽略大小写，未知值回落 None */
+export function normalizeCompensationStatus(
+  value: unknown,
+): CompensationStatus {
+  if (typeof value === 'number') {
+    return COMPENSATION_STATUS_VALUES[value] ?? 'None';
+  }
+  const key = String(value ?? '').trim().toLowerCase();
+  return (
+    COMPENSATION_STATUS_VALUES.find((item) => item.toLowerCase() === key) ??
+    'None'
+  );
+}
+
+// 缺失（null/undefined）保持原样，避免把「没有触发来源」错标成 Cron
+function normalizeLogDto(log: LogResponseDto): LogResponseDto {
+  const raw = log as unknown as {
+    compensationStatus?: unknown;
+    triggerType?: unknown;
+  };
+  const normalized: LogResponseDto = { ...log };
+
+  if (raw.triggerType !== null && raw.triggerType !== undefined) {
+    normalized.triggerType = normalizeTriggerType(raw.triggerType);
+  }
+  if (raw.compensationStatus !== null && raw.compensationStatus !== undefined) {
+    normalized.compensationStatus = normalizeCompensationStatus(
+      raw.compensationStatus,
+    );
+  }
+
+  return normalized;
+}
+
 /**
  * 获取日志列表
  * @param params 查询参数
@@ -134,7 +193,18 @@ export interface LogResponseDto {
 export async function getLogList(
   params: LogQueryParams
 ): Promise<ApiResponse<PageResponse<LogResponseDto>>> {
-  return requestClient.post('/api/quartz/GetJobLogs', params);
+  const response = await requestClient.post<
+    ApiResponse<PageResponse<LogResponseDto>>
+  >('/api/quartz/GetJobLogs', params);
+
+  if (response?.data && Array.isArray(response.data.items)) {
+    response.data = {
+      ...response.data,
+      items: response.data.items.map((item) => normalizeLogDto(item)),
+    };
+  }
+
+  return response;
 }
 
 /**
@@ -144,7 +214,16 @@ export async function getLogList(
 export async function getJobLog(
   logId: string,
 ): Promise<ApiResponse<LogResponseDto>> {
-  return requestClient.get('/api/quartz/GetJobLog', { params: { logId } });
+  const response = await requestClient.get<ApiResponse<LogResponseDto>>(
+    '/api/quartz/GetJobLog',
+    { params: { logId } },
+  );
+
+  if (response?.data) {
+    response.data = normalizeLogDto(response.data);
+  }
+
+  return response;
 }
 
 /**
