@@ -1682,6 +1682,7 @@ public class FileJobStorage : IJobStorage
                     AvgDuration = Math.Round(jobLog?.AvgDuration ?? 0, 0),
                     MaxDuration = Math.Round(jobLog?.MaxDuration ?? 0, 0),
                     ExecutionCount = execCount,
+                    CreateTime = job.CreateTime,
                     LastExecutionTime = jobLog?.LastExecutionTime,
                     CronExpression = job.CronExpression,
                 };

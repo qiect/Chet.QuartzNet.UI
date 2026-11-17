@@ -302,15 +302,23 @@ const failedJobStats = computed(() =>
     .filter((j) => j.failedCount > 0 && j.failRate >= 5)
     .sort((a, b) => b.failedCount - a.failedCount),
 );
-// 沉默作业：启用但统计周期内没有任何执行记录（cron 失效 / 触发器未生效）
-const silentJobCount = computed(
-  () =>
-    jobHealthData.value.filter(
-      (j) => j.isEnabled && j.status !== 'Paused' && j.executionCount === 0,
-    ).length,
-);
+// 沉默作业：启用、未暂停/未完成、统计周期内 0 次执行（cron 失效 / 触发器未生效）
+const SILENT_GRACE_MS = 24 * 60 * 60 * 1000;
+const silentJobCount = computed(() => {
+  const now = Date.now();
+  return jobHealthData.value.filter((j) => {
+    // 暂停是人为配置，Completed 是终态，都不算沉默
+    if (!j.isEnabled || j.status === 'Paused' || j.status === 'Completed') return false;
+    if (j.executionCount !== 0) return false;
+    // 刚创建不足 24 小时的作业还没经历过触发窗口，避免误报
+    if (!j.createTime) return true;
+    return now - new Date(j.createTime).getTime() >= SILENT_GRACE_MS;
+  }).length;
+});
 const failureJobCount = computed(() => failedJobStats.value.length);
 const worstFailJob = computed(() => failedJobStats.value[0]);
+// 风险图：按失败次数取前 5 个作业，一个作业一根柱
+const topFailJobs = computed(() => failedJobStats.value.slice(0, 5));
 
 type TrendAnomalyPoint = { coord: [number, number]; value: number };
 
@@ -1044,7 +1052,7 @@ const getQualityOption = (): EChartsOption => {
     series: [
       {
         type: 'pie',
-        radius: ['58%', '74%'],
+        radius: ['70%', '86%'],
         center: ['50%', '50%'],
         silent: true,
         label: { show: false },
@@ -1079,70 +1087,80 @@ const getQualityOption = (): EChartsOption => {
   };
 };
 
+// 风险图：Top5 失败作业，一柱一作业，柱高为该作业失败次数
 const getRiskOption = (): EChartsOption => {
   const palette = chartPalette.value;
-  const silent = silentJobCount.value;
-  const failed = failureJobCount.value;
-  const hasData = silent > 0 || failed > 0;
-  const maxVal = Math.max(silent, failed, 1);
+  const list = topFailJobs.value;
+  const grid = { left: 0, right: 0, top: 14, bottom: 10, containLabel: false };
+
+  // 无失败作业时画一根灰色矮桩表示空态，避免整块空白
+  if (list.length === 0) {
+    return {
+      backgroundColor: 'transparent',
+      grid: { left: 0, right: 0, top: 0, bottom: 0, containLabel: false },
+      xAxis: { type: 'category', show: false, data: [''] },
+      yAxis: { type: 'value', show: false, min: 0, max: 1 },
+      series: [
+        {
+          type: 'bar',
+          data: [0.05],
+          barWidth: 8,
+          silent: true,
+          animation: false,
+          itemStyle: { color: palette.placeholder, borderRadius: [2, 2, 0, 0] },
+          label: { show: false },
+        },
+      ],
+    };
+  }
+
+  const maxVal = Math.max(...list.map((j) => j.failedCount), 1);
   return {
     backgroundColor: 'transparent',
-    grid: { left: 0, right: 0, top: 16, bottom: 0, containLabel: false },
-    // 两类风险分开着色：沉默作业（橙）与失败作业（红）
-    xAxis: {
-      type: 'category',
-      show: false,
-      data: [
-        $t('page.quartz.analyticsPage.silentJobs'),
-        $t('page.quartz.analyticsPage.failedJobs'),
-      ],
+    grid,
+    tooltip: {
+      trigger: 'item',
+      // 迷你图只有 88px，tooltip 挂在图表容器里会被卡片裁掉，挂到 body 上才能完整显示
+      appendToBody: true,
+      confine: false,
+      borderWidth: 0,
+      padding: [8, 10],
+      textStyle: { fontSize: 12, color: palette.text },
+      extraCssText: `z-index: 3000; max-width: 240px; white-space: normal; word-break: break-word; backdrop-filter: blur(8px); box-shadow: ${palette.shadow};`,
+      formatter: (p: any) => {
+        const job = list[p.dataIndex];
+        if (!job) return '';
+        return `<div style="font-weight:600;color:${palette.textStrong};font-size:12px;margin-bottom:4px;">${job.jobName}</div>`
+          + `<div style="font-size:12px;line-height:18px;">${$t('page.quartz.analyticsPage.failed')}: <b style="color:${palette.textStrong};">${job.failedCount}${$t('page.quartz.analyticsPage.times')}</b></div>`
+          + `<div style="font-size:12px;line-height:18px;">${$t('page.quartz.analyticsPage.successRate')}: <b style="color:${palette.textStrong};">${job.successRate}%</b></div>`;
+      },
     },
-    yAxis: { type: 'value', show: false, min: 0, max: maxVal * 1.15 },
+    xAxis: { type: 'category', show: false, data: list.map((j) => j.jobName) },
+    yAxis: { type: 'value', show: false, min: 0, max: maxVal * 1.2 },
     series: [
       {
         type: 'bar',
-        barWidth: 9,
-        silent: true,
+        data: list.map((j) => j.failedCount),
+        barWidth: 8,
         animation: false,
-        itemStyle: { borderRadius: [3, 3, 0, 0] },
+        itemStyle: {
+          color: {
+            type: 'linear',
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: '#ffa39e' },
+              { offset: 1, color: '#ff4d4f' },
+            ],
+          },
+          borderRadius: [2, 2, 0, 0],
+        },
         label: {
           show: true,
           position: 'top',
-          fontSize: 10,
+          fontSize: 9,
           fontWeight: 600,
           color: palette.text,
-          formatter: (p: any) => (Number(p.value) > 0 ? `${p.value}` : ''),
         },
-        data: hasData
-          ? [
-              {
-                value: silent,
-                itemStyle: {
-                  color: {
-                    type: 'linear',
-                    x: 0, y: 0, x2: 0, y2: 1,
-                    colorStops: [
-                      { offset: 0, color: '#ffd666' },
-                      { offset: 1, color: '#faad14' },
-                    ],
-                  },
-                },
-              },
-              {
-                value: failed,
-                itemStyle: {
-                  color: {
-                    type: 'linear',
-                    x: 0, y: 0, x2: 0, y2: 1,
-                    colorStops: [
-                      { offset: 0, color: '#ffa39e' },
-                      { offset: 1, color: '#ff4d4f' },
-                    ],
-                  },
-                },
-              },
-            ]
-          : [],
       },
     ],
   };
@@ -1472,19 +1490,20 @@ watch(isDark, () => {
               </span>
             </div>
             <div class="stat-mini-chart">
-              <div
-                class="thread-slots"
-                :data-level="threadSlotLevel"
-                :title="threadSlotTitle"
-              >
-                <div class="thread-slots__grid" :style="threadSlotGridStyle">
-                  <i
-                    v-for="(used, index) in threadSlots"
-                    :key="index"
-                    class="thread-slot"
-                    :class="{ 'thread-slot--used': used }"
-                  ></i>
+              <div class="thread-block" :title="threadSlotTitle">
+                <div class="thread-slots" :data-level="threadSlotLevel">
+                  <div class="thread-slots__grid" :style="threadSlotGridStyle">
+                    <i
+                      v-for="(used, index) in threadSlots"
+                      :key="index"
+                      class="thread-slot"
+                      :class="{ 'thread-slot--used': used }"
+                    ></i>
+                  </div>
                 </div>
+                <span class="thread-block__cap">
+                  {{ $t('page.quartz.analyticsPage.threadPoolCap') }} {{ schedulerStatus.threadPoolSize || '-' }}
+                </span>
               </div>
             </div>
           </div>
@@ -1494,9 +1513,6 @@ watch(isDark, () => {
             </span>
             <span class="stat-footer__item">
               {{ $t('page.quartz.analyticsPage.uptime') }} {{ formatUptime(schedulerStatus.runningTime) }}
-            </span>
-            <span class="stat-footer__item">
-              <i class="dot dot--muted"></i>{{ $t('page.quartz.analyticsPage.threadPoolLimit') }} {{ schedulerStatus.threadPoolSize || '-' }}
             </span>
             <span
               v-if="(schedulerStatus.pendingCompensationCount ?? 0) > 0"
@@ -1863,13 +1879,29 @@ watch(isDark, () => {
   pointer-events: none;
 }
 
-/* 线程池槽位图：一格一线程，占用点亮 */
+/* 线程池槽位图：一格一线程，占用点亮；图注说明池容量，整体高度与其他三张图对齐 */
+.thread-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: default;
+}
+
+.thread-block__cap {
+  font-size: 10px;
+  line-height: 12px;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
 .thread-slots {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 88px;
-  height: 88px;
+  height: 74px;
   box-sizing: border-box;
 }
 

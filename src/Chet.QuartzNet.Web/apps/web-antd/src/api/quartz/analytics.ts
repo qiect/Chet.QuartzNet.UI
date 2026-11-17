@@ -108,6 +108,8 @@ export interface JobHealth {
   maxDuration: number;
   /** 执行次数 */
   executionCount: number;
+  /** 创建时间 */
+  createTime?: string;
   /** 最近执行时间 */
   lastExecutionTime?: string;
   /** Cron表达式 */

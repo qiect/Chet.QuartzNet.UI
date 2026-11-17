@@ -170,6 +170,11 @@ public class JobHealthDto
     public int ExecutionCount { get; set; }
 
     /// <summary>
+    /// 创建时间（用于识别新建作业，避免沉默误报）
+    /// </summary>
+    public DateTime CreateTime { get; set; }
+
+    /// <summary>
     /// 最近执行时间
     /// </summary>
     public DateTime? LastExecutionTime { get; set; }
