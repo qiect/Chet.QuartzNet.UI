@@ -18,6 +18,12 @@ public class PushPlusNotificationService : INotificationService
     private const string PushPlusConfigKey = "PushPlusConfig";
 
     /// <summary>
+    /// PushPlus 专用命名 HttpClient：由 IHttpClientFactory 统一创建并轮换底层 Handler，
+    /// 避免每次发送都新建连接导致 TIME_WAIT 端口耗尽。超时/代理/SSL 策略在注册处配置。
+    /// </summary>
+    public const string HttpClientName = "PushPlus";
+
+    /// <summary>
     /// JSON 模板序列化选项：缩进输出、中文不转义、忽略空字段
     /// </summary>
     private static readonly JsonSerializerOptions NotificationJsonOptions = new()
@@ -28,7 +34,7 @@ public class PushPlusNotificationService : INotificationService
     };
 
     private readonly IJobStorage _jobStorage;
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<PushPlusNotificationService> _logger;
 
     /// <summary>
@@ -44,8 +50,11 @@ public class PushPlusNotificationService : INotificationService
     )
     {
         _jobStorage = jobStorage;
-        _httpClientFactory = httpClientFactory;
         _logger = logger;
+
+        // 从工厂获取命名客户端：Handler 由工厂池化并定期轮换，
+        // 不能 using 释放，否则会破坏工厂对 Handler 生命周期的管理
+        _httpClient = httpClientFactory.CreateClient(HttpClientName);
     }
 
     /// <summary>
@@ -384,24 +393,6 @@ public class PushPlusNotificationService : INotificationService
     {
         try
         {
-            // 创建HttpClient时配置显式禁用代理, 避免系统代理导致的连接问题
-            var handler = new HttpClientHandler
-            {
-                // 显式禁用代理, 解决127.0.0.1:7890连接拒绝问题
-                UseProxy = false,
-                // 禁用SSL验证（仅开发环境使用, 生产环境建议启用）
-                ServerCertificateCustomValidationCallback = (
-                    sender,
-                    cert,
-                    chain,
-                    sslPolicyErrors
-                ) => true,
-            };
-
-            using var httpClient = new HttpClient(handler);
-            httpClient.DefaultRequestHeaders.Add("User-Agent", "Chet.QuartzNet.UI");
-            httpClient.Timeout = TimeSpan.FromSeconds(30);
-
             // 构建请求体
             var requestBody = new Dictionary<string, object?>
             {
@@ -435,7 +426,7 @@ public class PushPlusNotificationService : INotificationService
             }
 
             // 发送请求
-            var response = await httpClient.PostAsJsonAsync(
+            var response = await _httpClient.PostAsJsonAsync(
                 PushPlusApiUrl,
                 requestBody,
                 cancellationToken

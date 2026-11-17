@@ -13,10 +13,12 @@ namespace Chet.QuartzNet.File.Example.Jobs
         private readonly ILogger<ApiCallJob> _logger;
         private readonly HttpClient _httpClient;
 
-        public ApiCallJob(ILogger<ApiCallJob> logger, HttpClient httpClient)
+        public ApiCallJob(ILogger<ApiCallJob> logger, IHttpClientFactory httpClientFactory)
         {
             _logger = logger;
-            _httpClient = httpClient;
+
+            // 从工厂获取HttpClient：Handler由工厂池化并定期轮换，避免每次执行新建连接
+            _httpClient = httpClientFactory.CreateClient();
         }
 
         public async Task Execute(IJobExecutionContext context)

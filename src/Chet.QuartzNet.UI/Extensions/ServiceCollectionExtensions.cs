@@ -2,6 +2,7 @@ using System.Reflection;
 using Chet.QuartzNet.Core.Configuration;
 using Chet.QuartzNet.Core.Helpers;
 using Chet.QuartzNet.Core.Interfaces;
+using Chet.QuartzNet.Core.Jobs;
 using Chet.QuartzNet.Core.Recovery;
 using Chet.QuartzNet.Core.Scheduling;
 using Chet.QuartzNet.Core.Services;
@@ -229,8 +230,37 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<SchedulerInstance>();
         services.TryAddSingleton<DrainCoordinator>();
 
-        // 添加HTTP客户端支持
-        services.AddHttpClient();
+        // 添加HTTP客户端支持，并为 PushPlus 注册命名客户端：
+        // Handler 由工厂池化并定期轮换，避免每次发送新建连接导致 TIME_WAIT 端口耗尽
+        services.AddHttpClient(
+            PushPlusNotificationService.HttpClientName,
+            client =>
+            {
+                client.DefaultRequestHeaders.Add("User-Agent", "Chet.QuartzNet.UI");
+                client.Timeout = TimeSpan.FromSeconds(30);
+            }
+        ).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        {
+            // 显式禁用代理, 解决127.0.0.1:7890连接拒绝问题
+            UseProxy = false,
+            // 禁用SSL验证（仅开发环境使用, 生产环境建议启用）
+            ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
+        });
+
+        // API 作业命名客户端：实际超时由作业级 CancellationTokenSource 控制，
+        // 这里设为无限；Handler 由工厂池化并定期轮换，避免静态连接长期不刷新 DNS
+        services.AddHttpClient(
+            ApiJob.HttpClientName,
+            client => client.Timeout = Timeout.InfiniteTimeSpan
+        );
+        services.AddHttpClient(
+            ApiJob.SkipSslHttpClientName,
+            client => client.Timeout = Timeout.InfiniteTimeSpan
+        ).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        {
+            // 作业配置 SkipSslValidation 时跳过 SSL 验证
+            ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
+        });
 
         // 注册推送通知服务
         services.TryAddScoped<INotificationService, PushPlusNotificationService>();
@@ -469,6 +499,7 @@ public static class ServiceCollectionExtensions
                             Status = JobStatus.Normal,
                             IsEnabled = attribute.Enabled, // 使用特性中配置的启用状态
                             CreateTime = DateTime.Now,
+                            DisallowConcurrentExecution = jobType.GetCustomAttributes<DisallowConcurrentExecutionAttribute>(true)?.Any() ?? false // 使用Quartz.NET内置的DisallowConcurrentExecution特性
                         };
 
                         await jobStorage.AddJobAsync(jobInfo, cancellationToken);

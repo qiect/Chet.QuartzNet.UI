@@ -15,32 +15,29 @@ namespace Chet.QuartzNet.Core.Jobs;
 /// </summary>
 public class ApiJob : IJob
 {
+    /// <summary>
+    /// API 作业专用命名 HttpClient：由 IHttpClientFactory 统一创建并轮换底层 Handler，
+    /// 避免静态连接长期不刷新 DNS。实际超时由作业级 CancellationTokenSource 控制。
+    /// </summary>
+    public const string HttpClientName = "ApiJob";
+
+    /// <summary>
+    /// 跳过 SSL 验证的命名 HttpClient，仅作业配置 SkipSslValidation 且为 https 时使用
+    /// </summary>
+    public const string SkipSslHttpClientName = "ApiJob.SkipSsl";
+
     private readonly IJobStorage _jobStorage;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<ApiJob> _logger;
 
-    // 创建一个静态HttpClient实例, 避免频繁创建和销毁
-    private static readonly HttpClient _httpClient = new HttpClient
-    {
-        // 设置足够大的超时时间，由CancellationTokenSource控制实际超时
-        Timeout = Timeout.InfiniteTimeSpan,
-    };
-
-    // 当需要跳过SSL验证时使用的处理程序
-    private static readonly HttpClientHandler _sslHandler = new HttpClientHandler
-    {
-        ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true,
-    };
-
-    // 使用处理程序的HttpClient实例（静态复用）
-    private static readonly HttpClient _sslHttpClient = new HttpClient(_sslHandler)
-    {
-        // 设置足够大的超时时间，由CancellationTokenSource控制实际超时
-        Timeout = Timeout.InfiniteTimeSpan,
-    };
-
-    public ApiJob(IJobStorage jobStorage, ILogger<ApiJob> logger)
+    public ApiJob(
+        IJobStorage jobStorage,
+        IHttpClientFactory httpClientFactory,
+        ILogger<ApiJob> logger
+    )
     {
         _jobStorage = jobStorage;
+        _httpClientFactory = httpClientFactory;
         _logger = logger;
     }
 
@@ -98,11 +95,12 @@ public class ApiJob : IJob
                 throw new InvalidOperationException("API请求方法不能为空");
             }
 
-            // 选择合适的HttpClient实例, 不修改共享实例的属性
-            var httpClient =
+            // 从工厂获取命名客户端: Handler 由工厂池化并定期轮换, 避免静态连接长期不刷新 DNS
+            var httpClient = _httpClientFactory.CreateClient(
                 jobInfo.SkipSslValidation && jobInfo.JobClassOrApi.StartsWith("https://")
-                    ? _sslHttpClient
-                    : _httpClient;
+                    ? SkipSslHttpClientName
+                    : HttpClientName
+            );
 
             // 创建请求消息
             var request = new HttpRequestMessage(
