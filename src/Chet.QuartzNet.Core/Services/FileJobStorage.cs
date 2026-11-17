@@ -1557,6 +1557,7 @@ public class FileJobStorage : IJobStorage
                     Time = group.Key.ToString("yyyy-MM-dd HH:00"),
                     SuccessCount = group.Count(l => l.Status == LogStatus.Success),
                     FailedCount = group.Count(l => l.Status == LogStatus.Failed),
+                    InterruptedCount = group.Count(l => l.Status == LogStatus.Interrupted),
                     TotalCount = group.Count(),
                 })
                 .OrderBy(t => t.Time)
@@ -1636,6 +1637,7 @@ public class FileJobStorage : IJobStorage
                     g.Key.JobGroup,
                     ExecutionCount = g.Count(),
                     SuccessCount = g.Count(l => l.Status == LogStatus.Success),
+                    FailedCount = g.Count(l => l.Status == LogStatus.Failed),
                     DurationLogs = g.Where(l => l.Duration.HasValue).ToList(),
                     AvgDuration = g.Where(l => l.Duration.HasValue).Any()
                         ? g.Where(l => l.Duration.HasValue).Average(l => (double)l.Duration!.Value)
@@ -1676,6 +1678,7 @@ public class FileJobStorage : IJobStorage
                     Status = job.Status.ToString(),
                     IsEnabled = job.IsEnabled,
                     SuccessRate = execCount > 0 ? Math.Round((double)successCount / execCount * 100, 1) : 0,
+                    FailedCount = jobLog?.FailedCount ?? 0,
                     AvgDuration = Math.Round(jobLog?.AvgDuration ?? 0, 0),
                     MaxDuration = Math.Round(jobLog?.MaxDuration ?? 0, 0),
                     ExecutionCount = execCount,

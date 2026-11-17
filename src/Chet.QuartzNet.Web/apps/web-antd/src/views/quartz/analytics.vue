@@ -128,7 +128,14 @@ const enabledRatio = computed(() =>
   (statsOverview.value.enabledJobs / (statsOverview.value.totalJobs || 1)) * 100,
 );
 const enabledPercentText = computed(() => `${Math.round(enabledRatio.value)}%`);
-type DailyTrend = { time: string; successCount: number; failedCount: number; totalCount: number };
+type DailyTrend = {
+  time: string;
+  successCount: number;
+  failedCount: number;
+  /** 中断执行（进程退出/停机超时等，不含运行中、跳过） */
+  interruptedCount: number;
+  totalCount: number;
+};
 
 // 趋势最小展示天数：后端窗口为最近 7 天，不足时补齐，避免“近 7 日”被稀疏数据缩水
 const TREND_MIN_DAYS = 7;
@@ -142,16 +149,19 @@ const dailyTrendData = computed<DailyTrend[]>(() => {
   const map = new Map<string, DailyTrend>();
   for (const item of trendData.value) {
     const day = item.time.slice(0, 10);
+    const interruptedCount = item.interruptedCount ?? 0;
     const existing = map.get(day);
     if (existing) {
       existing.successCount += item.successCount;
       existing.failedCount += item.failedCount;
+      existing.interruptedCount += interruptedCount;
       existing.totalCount += item.totalCount;
     } else {
       map.set(day, {
         time: day,
         successCount: item.successCount,
         failedCount: item.failedCount,
+        interruptedCount,
         totalCount: item.totalCount,
       });
     }
@@ -177,23 +187,34 @@ const dailyTrendData = computed<DailyTrend[]>(() => {
     date.setDate(date.getDate() - offset);
     const key = formatDayKey(date);
     result.push(
-      map.get(key) ?? { time: key, successCount: 0, failedCount: 0, totalCount: 0 },
+      map.get(key) ?? {
+        time: key,
+        successCount: 0,
+        failedCount: 0,
+        interruptedCount: 0,
+        totalCount: 0,
+      },
     );
   }
   return result;
 });
 const recent7Data = computed(() => dailyTrendData.value.slice(-7));
-const recent7TotalExecutions = computed(() =>
-  recent7Data.value.reduce((sum, d) => sum + d.totalCount, 0),
-);
 const recent7SuccessCount = computed(() =>
   recent7Data.value.reduce((sum, d) => sum + d.successCount, 0),
 );
 const recent7FailedCount = computed(() =>
   recent7Data.value.reduce((sum, d) => sum + d.failedCount, 0),
 );
+const recent7InterruptedCount = computed(() =>
+  recent7Data.value.reduce((sum, d) => sum + d.interruptedCount, 0),
+);
+// 成功率分母只统计“已有结论”的执行：成功 + 失败 + 中断，运行中/跳过不参与
+const recent7EvaluatedExecutions = computed(
+  () =>
+    recent7SuccessCount.value + recent7FailedCount.value + recent7InterruptedCount.value,
+);
 const recent7SuccessRate = computed(() => {
-  const total = recent7TotalExecutions.value;
+  const total = recent7EvaluatedExecutions.value;
   return total > 0 ? Number(((recent7SuccessCount.value / total) * 100).toFixed(1)) : 0;
 });
 // 调度运行态：执行中任务数（排水期以剩余收尾任务数计）
@@ -263,16 +284,22 @@ const schedulerDotClass = computed(() => {
 });
 
 // 风险巡检：失败率不达标的作业（按失败次数降序）
+// 直接使用后端返回的真实失败数，中断/运行中不计入失败，避免用成功率反推造成误报
 const failedJobStats = computed(() =>
   jobHealthData.value
     .filter((j) => j.executionCount > 0)
-    .map((j) => ({
-      jobName: j.jobName,
-      jobGroup: j.jobGroup,
-      successRate: j.successRate,
-      failedCount: Math.round((j.executionCount * (100 - j.successRate)) / 100),
-    }))
-    .filter((j) => j.failedCount > 0 && j.successRate < 95)
+    .map((j) => {
+      const failedCount = j.failedCount ?? 0;
+      return {
+        jobName: j.jobName,
+        jobGroup: j.jobGroup,
+        successRate: j.successRate,
+        failedCount,
+        failRate: (failedCount / j.executionCount) * 100,
+      };
+    })
+    // 阈值与原“成功率 < 95%”语义对齐：真实失败占比达到 5% 才算不达标
+    .filter((j) => j.failedCount > 0 && j.failRate >= 5)
     .sort((a, b) => b.failedCount - a.failedCount),
 );
 // 沉默作业：启用但统计周期内没有任何执行记录（cron 失效 / 触发器未生效）
@@ -282,8 +309,7 @@ const silentJobCount = computed(
       (j) => j.isEnabled && j.status !== 'Paused' && j.executionCount === 0,
     ).length,
 );
-const riskJobCount = computed(() => silentJobCount.value + failedJobStats.value.length);
-const topFailJobs = computed(() => failedJobStats.value.slice(0, 5));
+const failureJobCount = computed(() => failedJobStats.value.length);
 const worstFailJob = computed(() => failedJobStats.value[0]);
 
 type TrendAnomalyPoint = { coord: [number, number]; value: number };
@@ -344,9 +370,11 @@ const getTrendOption = (): EChartsOption => {
   const successValues = data.map((d) => d.successCount);
   const failedValues = data.map((d) => d.failedCount);
   const totalValues = data.map((d) => d.totalCount);
-  const successRateValues = data.map((d) =>
-    d.totalCount > 0 ? Number(((d.successCount / d.totalCount) * 100).toFixed(1)) : 0,
-  );
+  // 与“执行质量”卡同口径：分母排除运行中/跳过
+  const successRateValues = data.map((d) => {
+    const evaluated = d.successCount + d.failedCount + d.interruptedCount;
+    return evaluated > 0 ? Number(((d.successCount / evaluated) * 100).toFixed(1)) : 0;
+  });
   const { points: anomalyPoints, threshold: anomalyThreshold } = trendAnomalyStats.value;
 
   // 已按自然日聚合，环比口径固定为“日环比”
@@ -959,8 +987,8 @@ const getOverviewOption = (): EChartsOption => {
                 x2: 1,
                 y2: 1,
                 colorStops: [
-                  { offset: 0, color: '#73d13d' },
-                  { offset: 1, color: '#52c41a' },
+                  { offset: 0, color: '#69b1ff' },
+                  { offset: 1, color: '#1677ff' },
                 ],
               },
             },
@@ -972,7 +1000,7 @@ const getOverviewOption = (): EChartsOption => {
   const innerData =
     total > 0
       ? [
-          { value: normalCount.value, itemStyle: { color: '#1677ff' } },
+          { value: normalCount.value, itemStyle: { color: '#52c41a' } },
           { value: pausedCount.value, itemStyle: { color: '#faad14' } },
         ]
       : [{ value: 1, itemStyle: { color: palette.placeholder } }];
@@ -1009,6 +1037,7 @@ const getQualityOption = (): EChartsOption => {
   const palette = chartPalette.value;
   const success = recent7SuccessCount.value;
   const failed = recent7FailedCount.value;
+  const interrupted = recent7InterruptedCount.value;
   const rate = recent7SuccessRate.value;
   return {
     backgroundColor: 'transparent',
@@ -1020,9 +1049,15 @@ const getQualityOption = (): EChartsOption => {
         silent: true,
         label: { show: false },
         animation: false,
+        // 分母与成功率保持一致（成功 + 失败 + 中断），否则环形图会被归一化成“成功:失败”
         data: [
           { value: success, name: $t('page.quartz.analyticsPage.success'), itemStyle: { color: '#52c41a' } },
           { value: failed, name: $t('page.quartz.analyticsPage.failed'), itemStyle: { color: '#ff4d4f' } },
+          {
+            value: interrupted,
+            name: $t('page.quartz.analyticsPage.interrupted'),
+            itemStyle: { color: '#d9d9d9' },
+          },
         ],
       },
     ],
@@ -1045,42 +1080,69 @@ const getQualityOption = (): EChartsOption => {
 };
 
 const getRiskOption = (): EChartsOption => {
-  const grid = { left: 0, right: 0, top: 5, bottom: 0, containLabel: false };
-  const list = topFailJobs.value;
-  if (list.length === 0) {
-    return {
-      backgroundColor: 'transparent',
-      grid,
-      xAxis: { type: 'category', show: false },
-      yAxis: { type: 'value', show: false },
-      series: [],
-    };
-  }
-  const values = list.map((j) => j.failedCount);
-  const maxVal = Math.max(...values, 1);
+  const palette = chartPalette.value;
+  const silent = silentJobCount.value;
+  const failed = failureJobCount.value;
+  const hasData = silent > 0 || failed > 0;
+  const maxVal = Math.max(silent, failed, 1);
   return {
     backgroundColor: 'transparent',
-    grid,
-    xAxis: { type: 'category', show: false, data: list.map((j) => j.jobName) },
-    yAxis: { type: 'value', show: false, min: 0, max: maxVal * 1.2 },
+    grid: { left: 0, right: 0, top: 16, bottom: 0, containLabel: false },
+    // 两类风险分开着色：沉默作业（橙）与失败作业（红）
+    xAxis: {
+      type: 'category',
+      show: false,
+      data: [
+        $t('page.quartz.analyticsPage.silentJobs'),
+        $t('page.quartz.analyticsPage.failedJobs'),
+      ],
+    },
+    yAxis: { type: 'value', show: false, min: 0, max: maxVal * 1.15 },
     series: [
       {
         type: 'bar',
-        data: values,
-        barWidth: 8,
-        itemStyle: {
-          color: {
-            type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
-            colorStops: [
-              { offset: 0, color: '#ffa39e' },
-              { offset: 1, color: '#ff4d4f' },
-            ],
-          },
-          borderRadius: [2, 2, 0, 0],
-        },
+        barWidth: 9,
         silent: true,
         animation: false,
+        itemStyle: { borderRadius: [3, 3, 0, 0] },
+        label: {
+          show: true,
+          position: 'top',
+          fontSize: 10,
+          fontWeight: 600,
+          color: palette.text,
+          formatter: (p: any) => (Number(p.value) > 0 ? `${p.value}` : ''),
+        },
+        data: hasData
+          ? [
+              {
+                value: silent,
+                itemStyle: {
+                  color: {
+                    type: 'linear',
+                    x: 0, y: 0, x2: 0, y2: 1,
+                    colorStops: [
+                      { offset: 0, color: '#ffd666' },
+                      { offset: 1, color: '#faad14' },
+                    ],
+                  },
+                },
+              },
+              {
+                value: failed,
+                itemStyle: {
+                  color: {
+                    type: 'linear',
+                    x: 0, y: 0, x2: 0, y2: 1,
+                    colorStops: [
+                      { offset: 0, color: '#ffa39e' },
+                      { offset: 1, color: '#ff4d4f' },
+                    ],
+                  },
+                },
+              },
+            ]
+          : [],
       },
     ],
   };
@@ -1384,13 +1446,13 @@ watch(isDark, () => {
           </div>
           <div class="stat-footer">
             <span class="stat-footer__item">
-              <i class="dot dot--success"></i>{{ $t('page.quartz.analyticsPage.enabledStatus') }} {{ statsOverview.enabledJobs }}
+              <i class="dot dot--blue"></i>{{ $t('page.quartz.analyticsPage.enabledStatus') }} {{ statsOverview.enabledJobs }}
             </span>
             <span class="stat-footer__item">
               <i class="dot dot--muted"></i>{{ $t('page.quartz.analyticsPage.disabledStatus') }} {{ statsOverview.disabledJobs }}
             </span>
             <span class="stat-footer__item">
-              <i class="dot dot--blue"></i>{{ $t('page.quartz.analyticsPage.normalStatus') }} {{ normalCount }}
+              <i class="dot dot--success"></i>{{ $t('page.quartz.analyticsPage.normalStatus') }} {{ normalCount }}
             </span>
             <span class="stat-footer__item">
               <i class="dot dot--warning"></i>{{ $t('page.quartz.analyticsPage.pausedStatus') }} {{ pausedCount }}
@@ -1467,6 +1529,12 @@ watch(isDark, () => {
             <span class="stat-footer__item">
               <i class="dot dot--danger"></i>{{ $t('page.quartz.analyticsPage.failed') }} {{ recent7FailedCount }}
             </span>
+            <span
+              class="stat-footer__item"
+              :title="$t('page.quartz.analyticsPage.interruptedTip')"
+            >
+              <i class="dot dot--muted"></i>{{ $t('page.quartz.analyticsPage.interrupted') }} {{ recent7InterruptedCount }}
+            </span>
           </div>
         </Card>
       </Col>
@@ -1477,31 +1545,35 @@ watch(isDark, () => {
             <div class="stat-main">
               <span class="stat-title">{{ $t('page.quartz.analyticsPage.riskRadar') }}</span>
               <span class="stat-number">
-                {{ riskJobCount }}
-                <small class="stat-unit">{{ $t('page.quartz.analyticsPage.jobsUnit') }}</small>
+                {{ failureJobCount }}
+                <small class="stat-unit">{{ $t('page.quartz.analyticsPage.failedJobsUnit') }}</small>
               </span>
             </div>
             <div class="stat-mini-chart">
               <EchartsUI ref="riskChartRef" style="height: 88px; width: 88px" />
             </div>
           </div>
-          <div class="stat-footer">
-            <span
-              class="stat-footer__item"
-              :title="$t('page.quartz.analyticsPage.silentJobsTip')"
-            >
-              <i class="dot dot--warning"></i>{{ $t('page.quartz.analyticsPage.silentJobs') }} {{ silentJobCount }}
-            </span>
-            <span
-              class="stat-footer__item stat-footer__item--clip"
-              :title="worstFailJob?.jobName"
-            >
-              <i class="dot dot--danger"></i>{{ $t('page.quartz.analyticsPage.worstFailedJob') }}:
-              <template v-if="worstFailJob">
-                {{ worstFailJob.jobName }} {{ worstFailJob.failedCount }}{{ $t('page.quartz.analyticsPage.times') }}
-              </template>
-              <template v-else>-</template>
-            </span>
+          <div class="stat-footer stat-footer--stack">
+            <div class="stat-footer__row">
+              <span
+                class="stat-footer__item stat-footer__item--clip"
+                :title="worstFailJob?.jobName"
+              >
+                <i class="dot dot--danger"></i>{{ $t('page.quartz.analyticsPage.worstFailedJob') }}:
+                <template v-if="worstFailJob">
+                  {{ worstFailJob.jobName }} {{ worstFailJob.failedCount }}{{ $t('page.quartz.analyticsPage.times') }}
+                </template>
+                <template v-else>-</template>
+              </span>
+            </div>
+            <div class="stat-footer__row">
+              <span
+                class="stat-footer__item"
+                :title="$t('page.quartz.analyticsPage.silentJobsTip')"
+              >
+                <i class="dot dot--warning"></i>{{ $t('page.quartz.analyticsPage.silentJobs') }} {{ silentJobCount }}
+              </span>
+            </div>
           </div>
         </Card>
       </Col>
@@ -1851,6 +1923,18 @@ watch(isDark, () => {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* 多行图例：每行一类风险，避免长作业名把另一类挤掉 */
+.stat-footer--stack {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-footer__row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 
 .dot {
