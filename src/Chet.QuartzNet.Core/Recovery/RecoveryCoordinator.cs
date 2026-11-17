@@ -63,10 +63,18 @@ public sealed class RecoveryCoordinator
             return;
         }
 
+        var options = _options.Current;
+        // 关闭自动补偿时无需启动扫描与恢复汇总：过期运行记录由心跳服务标记为中断，
+        // 也不再产生「本次启动检测到 N 个中断执行」的提示
+        if (!options.RecoveryEnabled)
+        {
+            _logger.LogInformation("自动补偿已关闭，跳过启动中断恢复");
+            return;
+        }
+
         _summary.Begin();
         try
         {
-            var options = _options.Current;
             if (options.CompensationDelaySeconds > 0)
             {
                 await Task.Delay(
