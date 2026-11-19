@@ -40,6 +40,9 @@ import {
   getJobLog,
   clearLogs,
   rerunInterruptedLog,
+  interruptRunningLog,
+  isManualInterrupt,
+  manualInterruptText,
 } from '../../api/quartz/log';
 import type {
   CompensationStatus,
@@ -103,8 +106,9 @@ const compensationStatusText = (status?: CompensationStatus) => {
   }
 };
 
-// 行级重跑 loading / 补偿来源 / 运行中计时
+// 行级重跑 / 中断 loading、补偿来源、运行中计时
 const rerunningIds = ref<Set<string>>(new Set());
+const interruptingIds = ref<Set<string>>(new Set());
 const sourceLoading = ref(false);
 const sourceDetail = ref<LogResponseDto | null>(null);
 const nowTick = ref(Date.now());
@@ -243,7 +247,7 @@ const columns = computed(() => [
   {
     field: 'action',
     title: $t('page.quartz.logPage.action'),
-    width: 110,
+    width: 130,
     align: 'center' as const,
     fixed: 'right',
     slots: { default: 'action' },
@@ -681,8 +685,24 @@ const handleDetail = async (log: LogResponseDto) => {
   }
 };
 
-// 重新执行
+// 重新执行 / 中断
 const isRerunning = (logId: string) => rerunningIds.value.has(logId);
+const isInterrupting = (logId: string) => interruptingIds.value.has(logId);
+
+// 中断状态悬浮说明：手动中断与不可预期中断共用「中断」状态，靠跳过原因前缀区分
+const interruptTip = (log: LogResponseDto) => {
+  if (log.status !== LogStatusEnum.INTERRUPTED) return '';
+  return isManualInterrupt(log)
+    ? $t('page.quartz.logPage.interruptManual')
+    : $t('page.quartz.logPage.interruptUnexpected');
+};
+
+// 详情页「中断方式」：跳过原因被后续重跑覆盖时不做猜测
+const interruptModeText = (log: LogResponseDto) => {
+  if (isManualInterrupt(log)) return $t('page.quartz.logPage.interruptManual');
+  if (log.compensationStatus === 'Triggered') return '';
+  return $t('page.quartz.logPage.interruptUnexpected');
+};
 
 // 已认领过补偿（Triggered）的中断记录不允许再次重试，与后端补偿认领口径保持一致
 const canRerun = (row: LogResponseDto) =>
@@ -761,6 +781,45 @@ const handleRerun = (row: LogResponseDto) => {
         const current = new Set(rerunningIds.value);
         current.delete(row.logId);
         rerunningIds.value = current;
+      }
+    },
+  });
+};
+
+// 中断运行中的作业：会标记为中断且不自动补偿，需二次确认
+const handleInterrupt = (row: LogResponseDto) => {
+  if (isInterrupting(row.logId)) return;
+  Modal.confirm({
+    title: $t('page.quartz.logPage.confirmInterrupt'),
+    content: `${row.jobName} · ${row.jobGroup}\n${$t('page.quartz.logPage.interruptWarning')}`,
+    okText: $t('page.quartz.logPage.interruptOk'),
+    okType: 'danger',
+    cancelText: $t('page.quartz.logPage.cancel'),
+    onOk: async () => {
+      const next = new Set(interruptingIds.value);
+      next.add(row.logId);
+      interruptingIds.value = next;
+      try {
+        const response = await interruptRunningLog(row.logId);
+        if (response.success) {
+          message.success(
+            response.message || $t('page.quartz.logPage.interruptSubmitted'),
+          );
+        } else {
+          message.warning(
+            response.message || $t('page.quartz.logPage.interruptFailed'),
+          );
+        }
+        await gridApi.query();
+        await refreshDetailIfNeeded(row.logId);
+      } catch (error: any) {
+        message.error(
+          error?.message || $t('page.quartz.logPage.interruptFailed'),
+        );
+      } finally {
+        const current = new Set(interruptingIds.value);
+        current.delete(row.logId);
+        interruptingIds.value = current;
       }
     },
   });
@@ -974,11 +1033,13 @@ onMounted(async () => {
           </div>
         </template>
 
-        <!-- 日志状态 -->
+        <!-- 日志状态：中断记录补充「手动/异常」说明，文案统一为「中断」 -->
         <template #status="{ row }">
-          <Tag :color="logStatusMap[row.status as LogStatusEnum]?.status || 'default'">
-            {{ logStatusMap[row.status as LogStatusEnum]?.text?.() || $t('page.quartz.logPage.unknown') }}
-          </Tag>
+          <Tooltip :title="interruptTip(row)" :mouse-enter-delay="0.2">
+            <Tag :color="logStatusMap[row.status as LogStatusEnum]?.status || 'default'">
+              {{ logStatusMap[row.status as LogStatusEnum]?.text?.() || $t('page.quartz.logPage.unknown') }}
+            </Tag>
+          </Tooltip>
         </template>
 
         <!-- 触发来源 -->
@@ -1056,6 +1117,28 @@ onMounted(async () => {
                     : 'cursor-not-allowed opacity-50'
                 "
                 @click="canClickRerun(row) && handleRerun(row)"
+              ></i>
+            </Tooltip>
+            <!-- 中断：仅运行中可操作，终止当前执行 -->
+            <Tooltip
+              v-if="row.status === LogStatusEnum.RUNNING"
+              :title="
+                isInterrupting(row.logId)
+                  ? $t('page.quartz.logPage.interrupting')
+                  : $t('page.quartz.logPage.interrupt')
+              "
+              placement="topRight"
+            >
+              <!-- 用 vxe 字体图标：与详情图标同一 em 盒，大小天然一致；描边样式避免实心块过重 -->
+              <i
+                class="vxe-icon-no-drop px-1"
+                :style="{ color: 'hsl(var(--destructive))' }"
+                :class="
+                  isInterrupting(row.logId)
+                    ? 'cursor-not-allowed opacity-50'
+                    : 'cursor-pointer hover:opacity-80'
+                "
+                @click="!isInterrupting(row.logId) && handleInterrupt(row)"
               ></i>
             </Tooltip>
           </div>
@@ -1257,11 +1340,27 @@ onMounted(async () => {
                   {{ compensationStatusText(logDetail.compensationStatus) }}
                 </span>
               </div>
+              <div
+                v-if="
+                  logDetail.status === LogStatusEnum.INTERRUPTED &&
+                  interruptModeText(logDetail)
+                "
+                class="recovery-item"
+              >
+                <span class="recovery-item__label">
+                  {{ $t('page.quartz.logPage.interruptMode') }}
+                </span>
+                <span class="recovery-item__value">
+                  {{ interruptModeText(logDetail) }}
+                </span>
+              </div>
               <div v-if="logDetail.skipReason" class="recovery-item recovery-item--wide">
                 <span class="recovery-item__label">
                   {{ $t('page.quartz.logPage.skipReason') }}
                 </span>
-                <span class="recovery-item__value">{{ logDetail.skipReason }}</span>
+                <span class="recovery-item__value">
+                  {{ manualInterruptText(logDetail.skipReason) }}
+                </span>
               </div>
             </div>
           </div>
