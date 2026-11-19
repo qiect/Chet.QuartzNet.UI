@@ -58,6 +58,13 @@ import type {
 import { useDraggableModal } from './composables/use-draggable-modal';
 // 导入表头排序标识恢复逻辑
 import { applyGridSortIndicator } from './composables/grid-sort-indicator';
+// 导入通知内容格式识别与渲染工具
+import {
+  detectContentFormat,
+  formatJsonContent,
+  renderMarkdown,
+} from './composables/notification-content';
+import type { NotificationContentFormat } from './composables/notification-content';
 
 const { locale } = useI18n();
 
@@ -75,6 +82,71 @@ const saveLoading = ref(false);
 // 详情对话框
 const detailModalVisible = ref(false);
 const currentNotification = ref<QuartzNotificationDto | null>(null);
+
+// 历史通知记录未保存模板类型，按内容特征推断格式后分别渲染
+const detailFormat = computed<NotificationContentFormat>(() =>
+  detectContentFormat(currentNotification.value?.content),
+);
+
+// 是否显示原始内容（JSON 经格式化后即为源码，无需切换）
+const detailSourceVisible = ref(false);
+const detailCanToggleSource = computed(() =>
+  ['html', 'markdown', 'txt'].includes(detailFormat.value),
+);
+const detailFormatLabel = computed(
+  () =>
+    ({
+      html: $t('page.quartz.notificationPage.templateHtml'),
+      json: $t('page.quartz.notificationPage.templateJson'),
+      markdown: $t('page.quartz.notificationPage.templateMarkdown'),
+      txt: $t('page.quartz.notificationPage.templateTxt'),
+    })[detailFormat.value],
+);
+const detailRenderedMarkdown = computed(() =>
+  renderMarkdown(currentNotification.value?.content),
+);
+const detailFormattedJson = computed(() =>
+  formatJsonContent(currentNotification.value?.content),
+);
+
+// 复制文本：优先 Clipboard API，非 https 内网等场景降级为 execCommand
+const copyText = async (text: string): Promise<boolean> => {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // 忽略异常，走降级方案
+  }
+
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return copied;
+  } catch {
+    return false;
+  }
+};
+
+const handleCopyDetailContent = async () => {
+  const text = currentNotification.value?.content ?? '';
+  if (!text) return;
+
+  const copied = await copyText(text);
+  if (copied) {
+    message.success($t('page.quartz.notificationPage.copySuccess'));
+  } else {
+    message.error($t('page.quartz.notificationPage.copyFailed'));
+  }
+};
 
 // 发送耗时格式化：根据毫秒数自动选择合适单位（ms/s/min/h）
 const formatDuration = (ms?: number | null) => {
@@ -583,6 +655,8 @@ const handleSendTest = async () => {
 // 查看详情
 const handleDetail = (notification: QuartzNotificationDto) => {
   currentNotification.value = notification;
+  // 每次打开都回到渲染视图，避免沿用上一条记录的切换状态
+  detailSourceVisible.value = false;
   detailModalVisible.value = true;
 };
 
@@ -950,8 +1024,31 @@ onMounted(async () => {
           <!-- 内容区 -->
           <div class="detail-body">
             <section class="detail-section">
-              <div class="section-title">{{ $t('page.quartz.notificationPage.notificationContent') }}</div>
-              <div class="content-panel" v-html="currentNotification.content"></div>
+              <div class="section-title">
+                <span>{{ $t('page.quartz.notificationPage.notificationContent') }}</span>
+                <span class="section-tag section-tag--format">{{ detailFormatLabel }}</span>
+                <span class="section-actions">
+                  <Button v-if="detailCanToggleSource" type="link" size="small"
+                    @click="detailSourceVisible = !detailSourceVisible">
+                    {{ detailSourceVisible ? $t('page.quartz.notificationPage.viewRendered') : $t('page.quartz.notificationPage.viewSource') }}
+                  </Button>
+                  <Button type="link" size="small" @click="handleCopyDetailContent">
+                    {{ $t('page.quartz.notificationPage.copyContent') }}
+                  </Button>
+                </span>
+              </div>
+
+              <!-- 源码视图 -->
+              <pre v-if="detailSourceVisible" class="code-panel">{{ currentNotification.content }}</pre>
+              <!-- HTML：直接渲染富文本卡片 -->
+              <div v-else-if="detailFormat === 'html'" class="content-panel" v-html="currentNotification.content"></div>
+              <!-- Markdown：渲染为富文本 -->
+              <div v-else-if="detailFormat === 'markdown'" class="content-panel markdown-panel"
+                v-html="detailRenderedMarkdown"></div>
+              <!-- JSON：格式化缩进输出 -->
+              <pre v-else-if="detailFormat === 'json'" class="code-panel">{{ detailFormattedJson }}</pre>
+              <!-- TXT：保留原始换行与空格 -->
+              <pre v-else class="code-panel code-panel--plain">{{ currentNotification.content }}</pre>
             </section>
 
             <section v-if="currentNotification.errorMessage" class="detail-section">
@@ -1040,6 +1137,25 @@ onMounted(async () => {
   color: #ff4d4f;
 }
 
+/* 内容格式标签 */
+.section-tag--format {
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
+}
+
+/* 内容区操作：渲染/源码切换、复制 */
+.section-actions {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  margin-left: auto;
+
+  :deep(.ant-btn) {
+    padding: 0 4px;
+    font-size: 12px;
+  }
+}
+
 /* 通知内容：富文本面板 */
 .content-panel {
   padding: 14px 16px;
@@ -1070,6 +1186,109 @@ onMounted(async () => {
   border-collapse: collapse;
 }
 
+/* Markdown 渲染面板 */
+.markdown-panel :deep(h1),
+.markdown-panel :deep(h2),
+.markdown-panel :deep(h3),
+.markdown-panel :deep(h4),
+.markdown-panel :deep(h5),
+.markdown-panel :deep(h6) {
+  margin: 14px 0 8px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: hsl(var(--foreground));
+}
+
+.markdown-panel :deep(h1) {
+  font-size: 18px;
+}
+
+.markdown-panel :deep(h2) {
+  font-size: 16px;
+}
+
+.markdown-panel :deep(h3) {
+  font-size: 15px;
+}
+
+.markdown-panel :deep(h4),
+.markdown-panel :deep(h5),
+.markdown-panel :deep(h6) {
+  font-size: 14px;
+}
+
+.markdown-panel :deep(p) {
+  margin: 8px 0;
+}
+
+.markdown-panel :deep(*:first-child) {
+  margin-top: 0;
+}
+
+.markdown-panel :deep(table) {
+  width: 100%;
+  margin: 10px 0;
+  font-size: 13px;
+  border-collapse: collapse;
+}
+
+.markdown-panel :deep(th),
+.markdown-panel :deep(td) {
+  padding: 6px 10px;
+  text-align: left;
+  border: 1px solid hsl(var(--border));
+}
+
+.markdown-panel :deep(th) {
+  font-weight: 600;
+  background: hsl(var(--accent) / 0.6);
+}
+
+.markdown-panel :deep(hr) {
+  margin: 12px 0;
+  border: none;
+  border-top: 1px solid hsl(var(--border));
+}
+
+.markdown-panel :deep(ul),
+.markdown-panel :deep(ol) {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.markdown-panel :deep(li) {
+  margin: 4px 0;
+}
+
+.markdown-panel :deep(blockquote) {
+  margin: 10px 0;
+  padding: 8px 12px;
+  color: hsl(var(--muted-foreground));
+  border-left: 3px solid hsl(var(--border));
+}
+
+.markdown-panel :deep(code) {
+  padding: 1px 5px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 12.5px;
+  background: hsl(var(--accent));
+  border-radius: 4px;
+}
+
+.markdown-panel :deep(.md-code) {
+  margin: 10px 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  background: hsl(var(--accent) / 0.5);
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+}
+
+.markdown-panel :deep(.md-code code) {
+  padding: 0;
+  background: transparent;
+}
+
 /* 代码面板 */
 .code-panel {
   margin: 0;
@@ -1091,6 +1310,11 @@ onMounted(async () => {
 .code-panel--error {
   border-left: 3px solid #ff4d4f;
   background: rgba(255, 77, 79, 0.04);
+}
+
+/* 纯文本面板：保留制表符等原始排版 */
+.code-panel--plain {
+  tab-size: 4;
 }
 
 /* 底部按钮 */

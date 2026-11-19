@@ -18,6 +18,11 @@ public class PushPlusNotificationService : INotificationService
     private const string PushPlusConfigKey = "PushPlusConfig";
 
     /// <summary>
+    /// HTML 通知卡片底部说明
+    /// </summary>
+    private const string HtmlFooter = "此消息由 Chet.QuartzNET.UI 调度系统自动发送, 请勿回复。";
+
+    /// <summary>
     /// JSON 模板序列化选项：缩进输出、中文不转义、忽略空字段
     /// </summary>
     private static readonly JsonSerializerOptions NotificationJsonOptions = new()
@@ -250,22 +255,96 @@ public class PushPlusNotificationService : INotificationService
                 return JsonSerializer.Serialize(payload, NotificationJsonOptions);
             case "html":
             default:
-                return $"<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #24292f; max-width: 720px; margin: 0 auto; padding: 20px;\">"
-                    + $"<div style=\"background-color: #ffffff; border: 1px solid #e1e4e8; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;\">"
-                    + $"<div style=\"background-color: #f0fff4; border-bottom: 1px solid #e1e4e8; padding: 16px 20px;\">"
-                    + $"<h1 style=\"margin: 0; font-size: 20px; font-weight: 600; color: #2da44e;\">🔔 {title}</h1>"
-                    + $"</div>"
-                    + $"<div style=\"padding: 20px;\">"
-                    + $"<p style=\"margin: 0 0 12px 0;\">{description}</p>"
-                    + $"<p style=\"margin: 0; color: #656d76; font-size: 13px;\">发送时间: {sendTime}</p>"
-                    + $"</div>"
-                    + $"<div style=\"background-color: #f6f8fa; border-top: 1px solid #e1e4e8; padding: 16px 20px; font-size: 12px; color: #656d76;\">"
-                    + $"<p style=\"margin: 0;\">{footer}</p>"
-                    + $"</div>"
-                    + $"</div>"
-                    + $"</div>";
+                var descriptionHtml = $"<p style=\"margin: 0 0 12px 0;\">{description}</p>";
+                return BuildHtmlCard(
+                    "#2da44e",
+                    "#f0fff4",
+                    "🔔",
+                    title,
+                    null,
+                    descriptionHtml
+                        + BuildHtmlRows(("通知类型", "测试通知", null), ("发送时间", sendTime, null))
+                );
         }
     }
+
+    /// <summary>
+    /// 生成统一风格的 HTML 通知卡片（与前端「推送预览」结构保持一致）
+    /// </summary>
+    /// <param name="accentColor">主色（标题颜色）</param>
+    /// <param name="headerBg">头部背景色</param>
+    /// <param name="badge">头部徽标（emoji）</param>
+    /// <param name="title">标题</param>
+    /// <param name="subtitle">副标题，可为空</param>
+    /// <param name="bodyHtml">正文内容</param>
+    private static string BuildHtmlCard(
+        string accentColor,
+        string headerBg,
+        string badge,
+        string title,
+        string? subtitle,
+        string bodyHtml
+    )
+    {
+        var subtitleHtml = string.IsNullOrWhiteSpace(subtitle)
+            ? string.Empty
+            : "<div style=\"margin-top: 2px; font-size: 12px; color: #656d76; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break: break-all;\">"
+                + subtitle
+                + "</div>";
+
+        return "<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #24292f; max-width: 720px; margin: 0 auto; padding: 20px;\">"
+            + "<div style=\"background-color: #ffffff; border: 1px solid #e1e4e8; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: hidden;\">"
+            + $"<div style=\"background-color: {headerBg}; border-bottom: 1px dashed #e1e4e8; padding: 14px 20px;\">"
+            + "<table style=\"width: 100%; border-collapse: collapse;\"><tbody><tr>"
+            + "<td style=\"width: 28px; vertical-align: middle; font-size: 18px;\">"
+            + badge
+            + "</td>"
+            + "<td style=\"vertical-align: middle;\">"
+            + $"<div style=\"font-size: 16px; font-weight: 600; color: {accentColor}; word-break: break-word;\">{title}</div>"
+            + subtitleHtml
+            + "</td>"
+            + "</tr></tbody></table>"
+            + "</div>"
+            + $"<div style=\"padding: 16px 20px;\">{bodyHtml}</div>"
+            + "<div style=\"background-color: #f6f8fa; border-top: 1px solid #e1e4e8; padding: 12px 20px; font-size: 12px; color: #656d76;\">"
+            + $"<p style=\"margin: 0;\">{HtmlFooter}</p>"
+            + "</div>"
+            + "</div>"
+            + "</div>";
+    }
+
+    /// <summary>
+    /// 生成 HTML 通知卡片中的键值行表格
+    /// </summary>
+    /// <param name="rows">行数据：标签、内容、内容颜色（可选）</param>
+    private static string BuildHtmlRows(params (string Label, string Value, string? Color)[] rows)
+    {
+        var builder = new System.Text.StringBuilder();
+        builder.Append(
+            "<table style=\"width: 100%; border-collapse: collapse; font-size: 13.5px; line-height: 1.6;\"><tbody>"
+        );
+
+        foreach (var (label, value, color) in rows)
+        {
+            var valueColor = string.IsNullOrWhiteSpace(color) ? "#24292f" : color;
+            builder.Append("<tr style=\"border-bottom: 1px dashed #e1e4e8;\">");
+            builder.Append(
+                $"<td style=\"padding: 9px 0; width: 96px; color: #656d76; vertical-align: top;\">{label}</td>"
+            );
+            builder.Append(
+                $"<td style=\"padding: 9px 0; text-align: right; color: {valueColor}; word-break: break-all;\">{value}</td>"
+            );
+            builder.Append("</tr>");
+        }
+
+        builder.Append("</tbody></table>");
+        return builder.ToString();
+    }
+
+    /// <summary>
+    /// HTML 转义，避免作业名/消息里的特殊字符破坏页面结构
+    /// </summary>
+    private static string Html(string? value) => System.Net.WebUtility.HtmlEncode(value ?? string.Empty);
 
     /// <summary>
     /// 获取PushPlus配置
@@ -552,58 +631,29 @@ public class PushPlusNotificationService : INotificationService
         var statusColor = success ? "#2da44e" : "#cf222e";
         var headerBg = success ? "#f0fff4" : "#fff5f5";
 
-        // 使用简单的字符串拼接, 避免复杂的转义问题
-        return $"<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #24292f; max-width: 720px; margin: 0 auto; padding: 20px;\">"
-            + $"<div style=\"background-color: #ffffff; border: 1px solid #e1e4e8; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;\">"
-            + $"<div style=\"background-color: {headerBg}; border-bottom: 1px solid #e1e4e8; padding: 16px 20px;\">"
-            + $"<h1 style=\"margin: 0; font-size: 20px; font-weight: 600; color: {statusColor};\">{statusBadge} 作业执行{status}: {jobName}</h1>"
-            + $"</div>"
-            + $"<div style=\"padding: 20px;\">"
-            + $"<div style=\"margin-bottom: 24px;\">"
-            + $"<h2 style=\"margin: 0 0 16px 0; font-size: 16px; font-weight: 600;\">作业信息</h2>"
-            + $"<table style=\"width: 100%; border-collapse: collapse; font-size: 14px;\">"
-            + $"<tbody>"
-            + $"<tr style=\"border-bottom: 1px solid #e1e4e8;\">"
-            + $"<td style=\"padding: 10px 16px; width: 120px; font-weight: 500; background-color: #f6f8fa;\">作业名称</td>"
-            + $"<td style=\"padding: 10px 16px;\">{jobName}</td>"
-            + $"</tr>"
-            + $"<tr style=\"border-bottom: 1px solid #e1e4e8;\">"
-            + $"<td style=\"padding: 10px 16px; width: 120px; font-weight: 500; background-color: #f6f8fa;\">作业分组</td>"
-            + $"<td style=\"padding: 10px 16px;\">{jobGroup}</td>"
-            + $"</tr>"
-            + $"<tr style=\"border-bottom: 1px solid #e1e4e8;\">"
-            + $"<td style=\"padding: 10px 16px; width: 120px; font-weight: 500; background-color: #f6f8fa;\">执行状态</td>"
-            + $"<td style=\"padding: 10px 16px;\"><span style=\"color: {statusColor}; font-weight: 600;\">{statusBadge} {status}</span></td>"
-            + $"</tr>"
-            + $"<tr style=\"border-bottom: 1px solid #e1e4e8;\">"
-            + $"<td style=\"padding: 10px 16px; width: 120px; font-weight: 500; background-color: #f6f8fa;\">执行时间</td>"
-            + $"<td style=\"padding: 10px 16px;\">{executionTime}</td>"
-            + $"</tr>"
-            + $"<tr style=\"border-bottom: 1px solid #e1e4e8;\">"
-            + $"<td style=\"padding: 10px 16px; width: 120px; font-weight: 500; background-color: #f6f8fa;\">执行耗时</td>"
-            + $"<td style=\"padding: 10px 16px;\">{duration} 毫秒</td>"
-            + $"</tr>"
-            + $"<tr style=\"border-bottom: 1px solid #e1e4e8;\">"
-            + $"<td style=\"padding: 10px 16px; width: 120px; font-weight: 500; background-color: #f6f8fa;\">消息</td>"
-            + $"<td style=\"padding: 10px 16px;\">{message}</td>"
-            + $"</tr>"
-            + (
-                !success && !string.IsNullOrEmpty(errorMessage)
-                    ? $"<tr style=\"border-bottom: 1px solid #e1e4e8;\">"
-                        + $"<td style=\"padding: 10px 16px; width: 120px; font-weight: 500; background-color: #f6f8fa;\">错误信息</td>"
-                        + $"<td style=\"padding: 10px 16px; color: {statusColor}; word-break: break-word;\">{errorMessage}</td>"
-                        + $"</tr>"
-                    : ""
-            )
-            + $"</tbody>"
-            + $"</table>"
-            + $"</div>"
-            + $"</div>"
-            + $"<div style=\"background-color: #f6f8fa; border-top: 1px solid #e1e4e8; padding: 16px 20px; font-size: 12px; color: #656d76;\">"
-            + $"<p style=\"margin: 0;\">此消息由 Chet.QuartzNET.UI 调度系统自动发送, 请勿回复。</p>"
-            + $"</div>"
-            + $"</div>"
-            + $"</div>";
+        var rows = new List<(string Label, string Value, string? Color)>
+        {
+            ("作业名称", Html(jobName), null),
+            ("作业分组", Html(jobGroup), null),
+            ("执行状态", $"{statusBadge} {status}", statusColor),
+            ("执行时间", executionTime, null),
+            ("执行耗时", DurationFormatter.Format(duration), null),
+            ("消息", Html(message), null),
+        };
+
+        if (!success && !string.IsNullOrWhiteSpace(errorMessage))
+        {
+            rows.Add(("错误信息", Html(errorMessage), statusColor));
+        }
+
+        return BuildHtmlCard(
+            statusColor,
+            headerBg,
+            statusBadge,
+            $"作业执行{status}",
+            Html(jobName),
+            BuildHtmlRows(rows.ToArray())
+        );
     }
 
     /// <summary>
@@ -628,7 +678,7 @@ public class PushPlusNotificationService : INotificationService
 作业分组: {jobGroup}
 执行状态: {status}
 执行时间: {executionTime}
-执行耗时: {duration} 毫秒
+执行耗时: {DurationFormatter.Format(duration)}
 消息: {message}";
 
         if (!success && !string.IsNullOrEmpty(errorMessage))
@@ -674,7 +724,7 @@ public class PushPlusNotificationService : INotificationService
 | 作业分组 | {jobGroup} |
 | 执行状态 | {statusBadge} {status} |
 | 执行时间 | {executionTime} |
-| 执行耗时 | {duration} 毫秒 |
+| 执行耗时 | {DurationFormatter.Format(duration)} |
 | 消息 | {message} |";
 
         if (!success && !string.IsNullOrEmpty(errorMessage))
@@ -752,44 +802,28 @@ public class PushPlusNotificationService : INotificationService
     {
         var statusColor = "#cf222e";
 
-        // 使用简单的字符串拼接, 避免复杂的转义问题
-        return $"<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #24292f; max-width: 720px; margin: 0 auto; padding: 20px;\">"
-            + $"<div style=\"background-color: #ffffff; border: 1px solid #e1e4e8; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;\">"
-            + $"<div style=\"background-color: #fff5f5; border-bottom: 1px solid #e1e4e8; padding: 16px 20px;\">"
-            + $"<h1 style=\"margin: 0; font-size: 20px; font-weight: 600; color: {statusColor};\">⚠️ 调度器异常</h1>"
-            + $"</div>"
-            + $"<div style=\"padding: 20px;\">"
-            + $"<div style=\"margin-bottom: 24px;\">"
-            + $"<h2 style=\"margin: 0 0 16px 0; font-size: 16px; font-weight: 600;\">异常信息</h2>"
-            + $"<table style=\"width: 100%; border-collapse: collapse; font-size: 14px;\">"
-            + $"<tbody>"
-            + $"<tr style=\"border-bottom: 1px solid #e1e4e8;\">"
-            + $"<td style=\"padding: 10px 16px; width: 120px; font-weight: 500; background-color: #f6f8fa;\">异常时间</td>"
-            + $"<td style=\"padding: 10px 16px;\">{executionTime}</td>"
-            + $"</tr>"
-            + $"<tr style=\"border-bottom: 1px solid #e1e4e8;\">"
-            + $"<td style=\"padding: 10px 16px; width: 120px; font-weight: 500; background-color: #f6f8fa;\">异常类型</td>"
-            + $"<td style=\"padding: 10px 16px;\">{exception.GetType().Name}</td>"
-            + $"</tr>"
-            + $"<tr style=\"border-bottom: 1px solid #e1e4e8;\">"
-            + $"<td style=\"padding: 10px 16px; width: 120px; font-weight: 500; background-color: #f6f8fa;\">异常消息</td>"
-            + $"<td style=\"padding: 10px 16px; color: {statusColor}; word-break: break-word;\">{exception.Message}</td>"
-            + $"</tr>"
-            + $"<tr>"
-            + $"<td style=\"padding: 10px 16px; width: 120px; font-weight: 500; background-color: #f6f8fa; vertical-align: top;\">堆栈跟踪</td>"
-            + $"<td style=\"padding: 10px 16px;\">"
-            + $"<pre style=\"background-color: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 6px; padding: 16px; font-size: 12px; line-height: 1.5; font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace; overflow-x: auto; margin: 0;\">{exception.StackTrace}</pre>"
-            + $"</td>"
-            + $"</tr>"
-            + $"</tbody>"
-            + $"</table>"
-            + $"</div>"
-            + $"</div>"
-            + $"<div style=\"background-color: #f6f8fa; border-top: 1px solid #e1e4e8; padding: 16px 20px; font-size: 12px; color: #656d76;\">"
-            + $"<p style=\"margin: 0;\">此消息由 Chet.QuartzNET.UI 调度系统自动发送, 请勿回复。</p>"
-            + $"</div>"
-            + $"</div>"
-            + $"</div>";
+        var rows = new List<(string Label, string Value, string? Color)>
+        {
+            ("异常时间", executionTime, null),
+            ("异常类型", Html(exception.GetType().Name), null),
+            ("异常消息", Html(exception.Message), statusColor),
+        };
+
+        var stackTraceHtml = string.IsNullOrWhiteSpace(exception.StackTrace)
+            ? string.Empty
+            : "<div style=\"margin-top: 14px;\">"
+                + "<div style=\"margin-bottom: 6px; color: #656d76;\">堆栈跟踪</div>"
+                + $"<pre style=\"margin: 0; padding: 12px; background-color: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 6px; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;\">{Html(exception.StackTrace)}</pre>"
+                + "</div>";
+
+        return BuildHtmlCard(
+            statusColor,
+            "#fff5f5",
+            "⚠️",
+            "调度器异常",
+            null,
+            BuildHtmlRows(rows.ToArray()) + stackTraceHtml
+        );
     }
 
     /// <summary>
