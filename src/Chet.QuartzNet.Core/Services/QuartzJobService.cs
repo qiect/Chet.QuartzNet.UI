@@ -368,6 +368,7 @@ public class QuartzJobService : IQuartzJobService
                     if (triggers.Any())
                     {
                         _logger.LogInfo(
+                            "ReloadNormalJobs",
                             "作业 {JobKey} 已存在 {TriggerCount} 个触发器，跳过重新加载",
                             $"{jobInfo.JobGroup}.{jobInfo.JobName}",
                             triggers.Count
@@ -379,6 +380,7 @@ public class QuartzJobService : IQuartzJobService
                     if (!jobInfo.IsEnabled)
                     {
                         _logger.LogInfo(
+                            "ReloadNormalJobs",
                             "作业 {JobKey} 处于禁用状态，跳过重新加载",
                             $"{jobInfo.JobGroup}.{jobInfo.JobName}"
                         );
@@ -389,6 +391,7 @@ public class QuartzJobService : IQuartzJobService
                     if (jobInfo.Status == Chet.QuartzNet.Models.Entities.JobStatus.Paused)
                     {
                         _logger.LogInfo(
+                            "ReloadNormalJobs",
                             "作业 {JobKey} 处于暂停状态，跳过重新加载",
                             $"{jobInfo.JobGroup}.{jobInfo.JobName}"
                         );
@@ -1247,6 +1250,7 @@ public class QuartzJobService : IQuartzJobService
                 if (!triggers.Any())
                 {
                     _logger.LogInfo(
+                        "ResumeJob",
                         "作业 {JobKey} 恢复后没有触发器，重新调度作业",
                         $"{jobGroup}.{jobName}"
                     );
@@ -1257,6 +1261,7 @@ public class QuartzJobService : IQuartzJobService
             {
                 // 如果作业不存在，重新调度作业
                 _logger.LogInfo(
+                    "ResumeJob",
                     "作业 {JobKey} 在调度器中不存在，重新调度作业",
                     $"{jobGroup}.{jobName}"
                 );
@@ -1596,6 +1601,7 @@ public class QuartzJobService : IQuartzJobService
             if (!jobExists)
             {
                 _logger.LogInfo(
+                    "TriggerJobWithContext",
                     "作业不在调度器中，先添加作业到调度器: {JobKey}",
                     $"{jobGroup}.{jobName}"
                 );

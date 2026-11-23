@@ -322,32 +322,23 @@ const topFailJobs = computed(() => failedJobStats.value.slice(0, 5));
 
 type TrendAnomalyPoint = { coord: [number, number]; value: number };
 
-// 失败数 2σ 异常判定，同时返回阈值供 tooltip 展示
-const detectTrendAnomalies = (
-  failedValues: number[],
-  totalValues: number[],
-): { points: TrendAnomalyPoint[]; threshold: number } => {
-  const n = failedValues.length;
-  if (n === 0) return { points: [], threshold: 0 };
-  const mean = failedValues.reduce((a, b) => a + b, 0) / n;
-  const std = Math.sqrt(failedValues.reduce((sum, v) => sum + (v - mean) ** 2, 0) / n);
-  const threshold = mean + 2 * std;
+// 异常日判定：统计窗口内出现过失败记录的自然日（与日志管理"失败"口径一致）。
+// 原 2σ 统计判定在失败常态化（几乎每天都有失败）时，均值与方差被整体拉高，
+// 日常失败全部落在 mean+2σ 之内而漏标——日志里有失败记录、趋势图却不体现；
+// 改为"当日失败数 > 0 即标记"，标记点钉在失败线上，保证失败日在图中可见。
+const detectTrendAnomalies = (failedValues: number[]): TrendAnomalyPoint[] => {
   const points: TrendAnomalyPoint[] = [];
-  for (let i = 0; i < n; i++) {
-    if (failedValues[i]! > threshold && failedValues[i]! > 0) {
-      points.push({ coord: [i, totalValues[i]!], value: failedValues[i]! });
+  for (let i = 0; i < failedValues.length; i++) {
+    if (failedValues[i]! > 0) {
+      points.push({ coord: [i, failedValues[i]!], value: failedValues[i]! });
     }
   }
-  return { points, threshold };
+  return points;
 };
 
-const trendAnomalyStats = computed(() => {
-  const data = dailyTrendData.value;
-  return detectTrendAnomalies(
-    data.map((d) => d.failedCount),
-    data.map((d) => d.totalCount),
-  );
-});
+const trendAnomalyStats = computed(() =>
+  detectTrendAnomalies(dailyTrendData.value.map((d) => d.failedCount)),
+);
 
 // 趋势摘要：基于补齐后的自然日；窗口只有 7 天，环比取“最近一天 vs 前一天”
 const trendSummary = computed(() => {
@@ -367,7 +358,7 @@ const trendSummary = computed(() => {
   return {
     recent7Avg: Number(recentAvg.toFixed(1)),
     changePercent,
-    anomalyCount: trendAnomalyStats.value.points.length,
+    anomalyCount: trendAnomalyStats.value.length,
   };
 });
 
@@ -383,7 +374,7 @@ const getTrendOption = (): EChartsOption => {
     const evaluated = d.successCount + d.failedCount + d.interruptedCount;
     return evaluated > 0 ? Number(((d.successCount / evaluated) * 100).toFixed(1)) : 0;
   });
-  const { points: anomalyPoints, threshold: anomalyThreshold } = trendAnomalyStats.value;
+  const anomalyPoints = trendAnomalyStats.value;
 
   // 已按自然日聚合，环比口径固定为“日环比”
   const periodLabel = $t('page.quartz.analyticsPage.dayOverDay');
@@ -512,11 +503,18 @@ const getTrendOption = (): EChartsOption => {
             formatter: (params: any) => {
               const idx = params.coord?.[0] ?? params.dataIndex;
               const dateStr = typeof idx === 'number' && dates[idx] ? dates[idx] : '';
-              const failVal = typeof idx === 'number' && failedValues[idx] ? failedValues[idx] : params.value;
+              const failVal =
+                typeof idx === 'number' && failedValues[idx] !== undefined
+                  ? failedValues[idx]
+                  : params.value;
+              const totalVal =
+                typeof idx === 'number' && totalValues[idx] !== undefined
+                  ? totalValues[idx]
+                  : '-';
               return `<b style="color:#ff4d4f;">${$t('page.quartz.analyticsPage.anomalyDay')}</b><br/>
                 <span style="color:${palette.text};">${dateStr}</span><br/>
                 <span style="color:#ff4d4f;">${$t('page.quartz.analyticsPage.failed')}: <b>${failVal}</b></span><br/>
-                <span style="color:${palette.text};">${$t('page.quartz.analyticsPage.threshold')}: <b>${anomalyThreshold.toFixed(1)}</b></span>`;
+                <span style="color:${palette.text};">${$t('page.quartz.analyticsPage.total')}: <b>${totalVal}</b></span>`;
             },
           },
         } : undefined,
