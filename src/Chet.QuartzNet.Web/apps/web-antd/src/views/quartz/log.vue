@@ -187,6 +187,44 @@ const formatJsonField = (value: any): string => {
   }
 };
 
+// 复制文本：优先 Clipboard API，非 https 内网等场景降级为 execCommand
+const copyText = async (text: string): Promise<boolean> => {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // 忽略异常，走降级方案
+  }
+
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return copied;
+  } catch {
+    return false;
+  }
+};
+
+// 详情内容复制：与通知详情页保持一致的交互反馈
+const handleCopyDetailContent = async (text?: string | null) => {
+  if (!text) return;
+  const copied = await copyText(text);
+  if (copied) {
+    message.success($t('page.quartz.logPage.copySuccess'));
+  } else {
+    message.error($t('page.quartz.logPage.copyFailed'));
+  }
+};
+
 // 搜索条件由 VbenForm 自动注入到 query 的 formValues
 
 
@@ -280,6 +318,11 @@ const savedSearch = (() => {
   }
 })();
 
+// 查询序号与最近总数：并发查询（快速切页签/切页）时丢弃过期响应，
+// 避免旧请求晚到把新数据覆盖回去，表现为「切回页签表格没有刷新」
+let querySeq = 0;
+let lastQueryTotal = 0;
+
 // 构造 Vxe Grid 配置
 const gridOptions: VxeTableGridOptions<LogResponseDto> = {
   id: 'quartz-log-grid',
@@ -300,6 +343,7 @@ const gridOptions: VxeTableGridOptions<LogResponseDto> = {
     autoLoad: false,
     ajax: {
       query: async ({ page, sort }: any, formValues: any) => {
+        const seq = ++querySeq;
         // 代理 reload（搜索/刷新）会清空列头排序，回退到当前生效的排序
         const sortField = sort?.field ?? currentSort.field;
         const sortOrderRaw = sort?.order ?? currentSort.order;
@@ -360,6 +404,13 @@ const gridOptions: VxeTableGridOptions<LogResponseDto> = {
 
         try {
           const response = await getLogList(params);
+          // 已有更新的查询时丢弃本次过期响应，保留表格现有数据，避免旧数据覆盖新数据
+          if (seq !== querySeq) {
+            return {
+              result: currentRows.value,
+              page: { total: lastQueryTotal },
+            };
+          }
           if (response.success) {
             // 根据API定义，响应数据应该包含data字段，其中包含items和totalCount，现在还包含totalPages
             if (
@@ -371,15 +422,17 @@ const gridOptions: VxeTableGridOptions<LogResponseDto> = {
               hasRunningRows.value = response.data.items.some(
                 (item) => item.status === LogStatusEnum.RUNNING,
               );
+              lastQueryTotal = response.data.totalCount || 0;
               return {
                 result: response.data.items,
                 page: {
-                  total: response.data.totalCount || 0,
+                  total: lastQueryTotal,
                 },
               };
             }
             currentRows.value = [];
             hasRunningRows.value = false;
+            lastQueryTotal = 0;
             return { result: [], page: { total: 0 } };
           }
           // 处理错误情况，包括可能的errorCode
@@ -389,6 +442,13 @@ const gridOptions: VxeTableGridOptions<LogResponseDto> = {
           message.error(errorMsg);
           return { result: [], page: { total: 0 } };
         } catch (error) {
+          // 过期请求的失败静默处理：不弹错、不清空表格
+          if (seq !== querySeq) {
+            return {
+              result: currentRows.value,
+              page: { total: lastQueryTotal },
+            };
+          }
           console.log($t('page.quartz.logPage.loadListFailed'), error);
           message.error(
             typeof error === 'object' && error !== null && 'message' in error
@@ -949,13 +1009,27 @@ const applyRouteFilter = async (): Promise<boolean> => {
   return true;
 };
 
-let pageMounted = false;
+// 首次挂载加载流程的 Promise：onActivated 等它完成后再决定是否刷新，
+// 避免首次加载（含排序标识恢复的轮询等待）未结束就切走再切回时，onActivated 被标记挡住而漏刷新
+let mountPromise: Promise<void> = Promise.resolve();
+// 是否已完成首次激活（首次激活的数据由 onMounted 加载，跳过重复刷新）
+let pageActivated = false;
 
 onActivated(async () => {
-  if (!pageMounted) return;
-  const applied = await applyRouteFilter();
-  if (!applied) {
-    // 切回页面时只刷新一次
+  // 等首次加载完成；若加载期间切走又切回，这里结束后照样刷新
+  await mountPromise;
+  if (!pageActivated) {
+    pageActivated = true;
+    return;
+  }
+  try {
+    const applied = await applyRouteFilter();
+    if (!applied) {
+      // 切回页面时只刷新一次
+      await gridApi.query();
+    }
+  } catch {
+    // 筛选应用异常时仍兜底刷新列表，避免停留在旧数据
     await gridApi.query();
   }
   await restoreSortIndicator();
@@ -966,32 +1040,37 @@ onActivated(async () => {
 });
 
 // 恢复表格排序视觉状态（列头箭头）
-onMounted(async () => {
-  const routeFilterApplied = await applyRouteFilter();
-  // 恢复搜索条件到表单（日期范围从 ISO 字符串反序列化为 Day.js 对象）
-  if (!routeFilterApplied && savedSearch) {
+onMounted(() => {
+  mountPromise = (async () => {
     try {
-      const restored: Record<string, any> = { ...savedSearch };
-      if (Array.isArray(savedSearch.startTimeRange)) {
-        restored.startTimeRange = savedSearch.startTimeRange.map((s: string) =>
-          s ? dayjs(s) : null,
-        );
+      const routeFilterApplied = await applyRouteFilter();
+      // 恢复搜索条件到表单（日期范围从 ISO 字符串反序列化为 Day.js 对象）
+      if (!routeFilterApplied && savedSearch) {
+        try {
+          const restored: Record<string, any> = { ...savedSearch };
+          if (Array.isArray(savedSearch.startTimeRange)) {
+            restored.startTimeRange = savedSearch.startTimeRange.map(
+              (s: string) => (s ? dayjs(s) : null),
+            );
+          }
+          if (Array.isArray(savedSearch.endTimeRange)) {
+            restored.endTimeRange = savedSearch.endTimeRange.map(
+              (s: string) => (s ? dayjs(s) : null),
+            );
+          }
+          await gridApi.formApi.setValues(restored);
+        } catch {}
       }
-      if (Array.isArray(savedSearch.endTimeRange)) {
-        restored.endTimeRange = savedSearch.endTimeRange.map((s: string) =>
-          s ? dayjs(s) : null,
-        );
+      // 手动触发首次查询（autoLoad: false，此时 formApi 已回填搜索条件）
+      if (!routeFilterApplied) {
+        await gridApi.query();
       }
-      await gridApi.formApi.setValues(restored);
-    } catch {}
-  }
-  // 手动触发首次查询（autoLoad: false，此时 formApi 已回填搜索条件）
-  if (!routeFilterApplied) {
-    await gridApi.query();
-  }
-  // defaultSort 未生效时兜底恢复排序标识
-  await restoreSortIndicator();
-  pageMounted = true;
+      // defaultSort 未生效时兜底恢复排序标识
+      await restoreSortIndicator();
+    } catch {
+      // 首次加载异常不阻塞激活流程，切回时 onActivated 会兜底刷新
+    }
+  })();
 });
 </script>
 
@@ -1384,6 +1463,11 @@ onMounted(async () => {
               <div class="section-title">
                 {{ $t('page.quartz.logPage.exceptionInfo') }}
                 <span class="section-tag section-tag--error">Exception</span>
+                <span class="section-actions">
+                  <Button type="link" size="small" @click="handleCopyDetailContent(logDetail?.exception)">
+                    {{ $t('page.quartz.logPage.copyContent') }}
+                  </Button>
+                </span>
               </div>
               <pre class="code-panel code-panel--error">{{ logDetail.exception }}</pre>
             </section>
@@ -1397,7 +1481,14 @@ onMounted(async () => {
             </section>
 
             <section v-if="logDetail.jobData" class="detail-section">
-              <div class="section-title">{{ $t('page.quartz.logPage.jobData') }}</div>
+              <div class="section-title">
+                <span>{{ $t('page.quartz.logPage.jobData') }}</span>
+                <span class="section-actions">
+                  <Button type="link" size="small" @click="handleCopyDetailContent(formatJsonField(logDetail?.jobData))">
+                    {{ $t('page.quartz.logPage.copyContent') }}
+                  </Button>
+                </span>
+              </div>
               <pre class="code-panel">{{ formatJsonField(logDetail.jobData) }}</pre>
             </section>
           </div>
@@ -1639,6 +1730,19 @@ onMounted(async () => {
 .section-tag--success {
   background: rgba(82, 196, 26, 0.1);
   color: #52c41a;
+}
+
+/* 内容区操作：复制按钮靠右，缩小为标题辅助操作 */
+.section-actions {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.section-actions :deep(.ant-btn) {
+  padding: 0 4px;
+  font-size: 12px;
 }
 
 /* 代码面板 */

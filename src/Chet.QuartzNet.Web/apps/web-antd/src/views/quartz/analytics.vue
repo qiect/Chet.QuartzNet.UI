@@ -1272,8 +1272,14 @@ const disableHealthBubbleZLift = (chart: any): number => {
   return patched;
 };
 
-const fetchData = async () => {
-  loading.value = true;
+const fetchData = async (options: { silent?: boolean } = {}) => {
+  // silent：切回页签/语言切换时的静默刷新，不切换 loading。
+  // Skeleton 的 loading 切换会销毁重建图表 DOM，而 useEcharts 的实例
+  // 仍指向旧 DOM，会把图表画在分离的旧 canvas 上，导致切回页签后图表全部空白
+  const { silent = false } = options;
+  if (!silent) {
+    loading.value = true;
+  }
   const query: StatsQueryDto = {};
 
   try {
@@ -1314,7 +1320,9 @@ const fetchData = async () => {
   } catch (error) {
     console.error('Analytics Render Error:', error);
   } finally {
-    loading.value = false;
+    if (!silent) {
+      loading.value = false;
+    }
   }
 };
 
@@ -1392,13 +1400,18 @@ onActivated(async () => {
     pageActivated = true;
     return;
   }
-  await Promise.all([fetchData(), refreshSchedulerStatus()]);
+  try {
+    await Promise.all([fetchData({ silent: true }), refreshSchedulerStatus()]);
+  } catch {
+    // 刷新失败不打断激活流程，避免未捕获异常影响页签交互
+  }
 });
 onDeactivated(stopRuntimePolling);
 onUnmounted(stopRuntimePolling);
 
 watch(locale, () => {
-  fetchData();
+  // 语言切换只需重绘图表文案，静默刷新避免 Skeleton 闪烁导致图表实例 DOM 分离
+  fetchData({ silent: true });
 });
 
 // 主题切换：useEcharts 内部会用旧的 option 重建实例，这里再用新配色重绘一次

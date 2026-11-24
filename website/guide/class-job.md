@@ -167,4 +167,6 @@ public async Task Execute(IJobExecutionContext context)
 - 不要吞掉 `OperationCanceledException`，否则日志会被记成「成功」；
 - 未接令牌的作业会继续跑完，日志最终被真实结果覆盖。
 
+按上述方式抛出的原生取消异常，平台会在作业工厂层自动包装成 `JobExecutionException` 再交给监听器，作业代码无需自行包装。
+
 完整的写法对照、坑位与收尾规则见 [手动中断运行中的作业](/guide/manual-interrupt)。

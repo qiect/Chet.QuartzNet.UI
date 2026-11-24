@@ -10,6 +10,8 @@ const routes: RouteRecordRaw[] = [
     meta: {
       affixTab: true,
       icon: 'lucide:area-chart',
+      // 页签缓存 + onActivated 静默刷新，与其他页签行为一致
+      keepAlive: true,
       title: $t('page.quartz.analytics'),
     },
   },
