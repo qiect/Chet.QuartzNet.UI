@@ -13,7 +13,7 @@ const link = (path: string) => withBase(path)
       <div class="ca-container ca-hero-inner">
         <span class="ca-hero-badge">
           <span class="ca-badge-dot" />
-          .NET 8 / 10 · Quartz.Net · v2.7.1 已发布
+          .NET 8 / 10 · Quartz.Net · 开箱即用
         </span>
         <img class="ca-hero-mark" :src="logo" alt="Chet.QuartzNet.UI" width="64" height="64" />
         <h1 class="ca-hero-title">Chet.QuartzNet.UI</h1>
@@ -27,14 +27,16 @@ const link = (path: string) => withBase(path)
           <a class="ca-btn ca-btn-primary" :href="link('/guide/quick-start')">
             快速开始<span class="ca-btn-arrow">→</span>
           </a>
-          <a class="ca-btn ca-btn-ghost" :href="link('/guide/recovery')">2.7 中断恢复</a>
+          <a class="ca-btn ca-btn-ghost" :href="link('/modules/overview')">浏览功能模块</a>
         </div>
         <div class="ca-hero-meta">
           <span>.NET 8 / .NET 10</span>
           <i />
           <span>Quartz.Net 3.15</span>
           <i />
-          <a :href="link('/changelog')">v2.7.1 更新 →</a>
+          <a href="https://www.nuget.org/packages/Chet.QuartzNet.UI" target="_blank" rel="noreferrer">
+            NuGet 包 →
+          </a>
           <i />
           <a href="https://github.com/qiect/Chet.QuartzNet.UI" target="_blank" rel="noreferrer">
             GitHub 开源 →
@@ -98,58 +100,8 @@ const link = (path: string) => withBase(path)
       <div class="ca-container ca-stats-grid">
         <div class="ca-stat"><strong>5<span>种</span></strong><span>存储类型自由切换</span></div>
         <div class="ca-stat"><strong>6<span>大</span></strong><span>可视化管理模块</span></div>
-        <div class="ca-stat"><strong>19<span>个</span></strong><span>版本持续迭代</span></div>
+        <div class="ca-stat"><strong>1<span>个</span></strong><span>NuGet 包覆盖全部功能</span></div>
         <div class="ca-stat"><strong>100<span>%</span></strong><span>MIT 开源可商用</span></div>
-      </div>
-    </section>
-
-    <!-- v2.7 版本亮点 -->
-    <section class="ca-release">
-      <div class="ca-container">
-        <div class="ca-release-card">
-          <div class="ca-release-head">
-            <span class="ca-release-version">v2.7</span>
-            <div class="ca-release-copy">
-              <h2>中断恢复与排水停机：让「出事」可见、可控、可追溯</h2>
-              <p>
-                执行开始即落库并持续心跳，进程崩溃后自动识别中断并按策略补跑；停机时可先排水等待任务收尾。
-                2.7.1 进一步修正运行中计数与中断收尾，补丁升级无需数据库迁移。
-              </p>
-            </div>
-            <div class="ca-release-actions">
-              <a class="ca-btn ca-btn-primary ca-btn-sm" :href="link('/articles/16-v2.7.0')">
-                版本详解<span class="ca-btn-arrow">→</span>
-              </a>
-              <a class="ca-btn ca-btn-ghost-dark ca-btn-sm" :href="link('/changelog')">更新日志</a>
-            </div>
-          </div>
-          <div class="ca-release-grid">
-            <a class="ca-release-item" :href="link('/guide/recovery')">
-              <strong>执行日志生命周期</strong>
-              <span>执行开始即写 Running 并注册执行表，页面可看运行中任务与实时耗时。</span>
-            </a>
-            <a class="ca-release-item" :href="link('/guide/recovery')">
-              <strong>中断识别与自动补偿</strong>
-              <span>心跳超时判定中断，启动按策略补跑，支持限次与临近触发跳过。</span>
-            </a>
-            <a class="ca-release-item" :href="link('/modules/log')">
-              <strong>手动重新执行</strong>
-              <span>中断记录一键重跑，重复提交返回冲突，触发来源可回溯到源执行。</span>
-            </a>
-            <a class="ca-release-item" :href="link('/guide/recovery')">
-              <strong>排水调度与优雅停机</strong>
-              <span>停接新触发、等待执行收尾后自动停止，超时标记中断，可恢复调度。</span>
-            </a>
-            <a class="ca-release-item" :href="link('/modules/system-config')">
-              <strong>停机与恢复配置</strong>
-              <span>独立的启动期配置分区，展示「重启后生效 N 项」的旧值与新值。</span>
-            </a>
-            <a class="ca-release-item" :href="link('/modules/dashboard')">
-              <strong>分析与日志页焕新</strong>
-              <span>四张 KPI 卡实时刷新，日志页新增中断状态、触发来源与「仅看异常」。</span>
-            </a>
-          </div>
-        </div>
       </div>
     </section>
 
