@@ -72,6 +72,8 @@ Content-Type: application/json
 | 自定义 DLL 作业，代码里接了令牌 | 在下一个等待点/检查点退出，**推荐做法** |
 | 自定义 DLL 作业，代码里没接令牌 | 令牌只是被置位，作业**继续跑完**，最终日志会被真实结果覆盖 |
 
+> 平台已保证取消异常对日志收尾可见：令牌取消时作业抛出的原生 `OperationCanceledException` 默认会被 Quartz 吞掉，监听器无法区分「因取消而结束」与「忽略令牌后正常完成」。平台在作业工厂层自动把这类异常包装成 `JobExecutionException` 再交给监听器，因此 DLL 作业按 3.2 节的方式直接抛**原生**异常即可，无需自行包装；自行包装成 `JobExecutionException` 也不会有问题。
+
 ### 3.2 最小改造：三个动作
 
 ```csharp

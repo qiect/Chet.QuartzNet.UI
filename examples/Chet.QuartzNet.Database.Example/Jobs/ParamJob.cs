@@ -25,6 +25,15 @@ namespace Chet.QuartzNet.Database.Example.Jobs
             var jobDataJson = context.JobDetail.JobDataMap.GetJobDataJson();
             _logger.LogInformation("作业数据JSON: {JobDataJson}", jobDataJson);
 
+            // 作业未配置参数时 GetJobDataJson 返回 null，直接反序列化会抛 ArgumentNullException
+            if (string.IsNullOrEmpty(jobDataJson))
+            {
+                _logger.LogInformation("作业未配置参数，跳过参数解析");
+                await Task.Delay(800);
+                _logger.LogInformation("带参数的作业执行完成: {Time}", DateTime.Now);
+                return;
+            }
+
             var jobDataDict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(jobDataJson);
 
             if (jobDataDict != null)
