@@ -16,6 +16,11 @@ obj/
 # Log files
 *.log
 
+# 全局 gitignore 中常见的 Logs/ 规则会误伤源码目录，此处显式放行
+!src/Chet.QuartzNet.Models/DTOs/Logs/
+!src/Chet.QuartzNet.Models/DTOs/Logs/**
+!**/DTOs/Logs/
+
 # Database files
 App_Data/
 # SQLite 运行时文件（数据库本体 + WAL/SHM），不进版本库
