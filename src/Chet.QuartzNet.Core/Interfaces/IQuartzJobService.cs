@@ -263,6 +263,18 @@ public interface IQuartzJobService
     );
 
     /// <summary>
+    /// 手动中断一条运行中日志对应的执行实例（仅当前节点、协作式取消）。
+    /// 中断后记录标记为「中断」且不进入自动补偿。
+    /// </summary>
+    /// <param name="logId">运行中日志ID</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>操作结果</returns>
+    Task<ApiResponseDto<bool>> InterruptRunningJobAsync(
+        Guid logId,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
     /// 清除所有作业
     /// </summary>
     /// <param name="cancellationToken">取消令牌</param>

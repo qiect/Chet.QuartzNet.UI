@@ -2,6 +2,7 @@ using System.Reflection;
 using Chet.QuartzNet.Core.Configuration;
 using Chet.QuartzNet.Core.Helpers;
 using Chet.QuartzNet.Core.Interfaces;
+using Chet.QuartzNet.Core.Jobs;
 using Chet.QuartzNet.Core.Recovery;
 using Chet.QuartzNet.Core.Scheduling;
 using Chet.QuartzNet.Core.Services;
@@ -243,6 +244,12 @@ public static class ServiceCollectionExtensions
             {
                 tp.MaxConcurrency = options.ThreadPoolSize > 0 ? options.ThreadPoolSize : 10;
             });
+
+            // 作业实例外层包取消可见性装饰器：Quartz 会吞掉令牌取消时作业抛出的
+            // 原生 OperationCanceledException（监听器收到的异常为 null），若不包装，
+            // 监听器无法区分「因取消而结束」与「忽略令牌后正常完成」，会把已标记
+            // 中断的日志覆盖成成功（手动中断与停机排水两条路径都受影响）
+            q.UseJobFactory<CancellationWrappingJobFactory>();
 
             q.AddJobListener<QuartzJobListener>(GroupMatcher<JobKey>.AnyGroup());
         });

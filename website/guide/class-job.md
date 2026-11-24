@@ -125,6 +125,7 @@ public async Task Execute(IJobExecutionContext context)
 - **作业保持无状态**：不要在作业实例中保存跨次执行的业务状态；
 - **幂等设计**：失败重试与手动补跑都可能造成重复执行；
 - **控制执行时长**：长任务应拆分或改为异步队列，避免阻塞调度线程；
+- **支持取消**：长耗时作业应观察 `context.CancellationToken`，否则手动中断无法立即生效；
 - **日志简洁**：框架已记录开始、结束、耗时与异常，作业内只需补充业务上下文；
 - **异常要抛出**：抛出异常才会被标记为失败并触发重试与通知；
 - **依赖注入按需**：只注入作业真正需要的服务，避免扩大生命周期。
@@ -139,3 +140,33 @@ public async Task Execute(IJobExecutionContext context)
 | 适合 | 业务内聚、需要 DI | 跨服务、轻量触发 |
 
 两种作业都可以在同一个界面中管理和监控。
+
+## 8. 支持手动中断
+
+日志页对「运行中」的记录提供中断按钮（v2.8.0）。Quartz 的 `Interrupt` 是**协作式取消**：它只把 `context.CancellationToken` 置为已取消，不会强杀线程，因此作业内部必须观察这个令牌。
+
+```csharp
+public async Task Execute(IJobExecutionContext context)
+{
+    var token = context.CancellationToken;
+
+    await Task.Delay(TimeSpan.FromSeconds(10), token);
+
+    foreach (var item in items)
+    {
+        token.ThrowIfCancellationRequested();
+        await ProcessAsync(item, token);
+    }
+}
+```
+
+要点：
+
+- `Thread.Sleep` 换成 `await Task.Delay(..., token)`；
+- HTTP、EF Core、文件等异步调用都传令牌；
+- 不要吞掉 `OperationCanceledException`，否则日志会被记成「成功」；
+- 未接令牌的作业会继续跑完，日志最终被真实结果覆盖。
+
+按上述方式抛出的原生取消异常，平台会在作业工厂层自动包装成 `JobExecutionException` 再交给监听器，作业代码无需自行包装。
+
+完整的写法对照、坑位与收尾规则见 [手动中断运行中的作业](/guide/manual-interrupt)。

@@ -7,7 +7,12 @@ namespace Chet.QuartzNet.Database.Example.Jobs
     /// <summary>
     /// 示例作业类
     /// </summary>
-    [QuartzJob("SampleJob", "SmapleExampleGroup", "0 0/5 * * * ?", Description = "这是一个示例作业，每5分钟执行一次")]
+    [QuartzJob(
+        "SampleJob",
+        "SmapleExampleGroup",
+        "0 0/5 * * * ?",
+        Description = "这是一个示例作业，每5分钟执行一次"
+    )]
     public class SampleJob : IJob
     {
         private readonly ILogger<SampleJob> _logger;
@@ -30,7 +35,6 @@ namespace Chet.QuartzNet.Database.Example.Jobs
                 if (!string.IsNullOrEmpty(jobDataJson))
                 {
                     _logger.LogInformation("获取到作业数据JSON: {JobDataJson}", jobDataJson);
-
                 }
 
                 _logger.LogInformation("SampleJob执行完成");
@@ -42,10 +46,16 @@ namespace Chet.QuartzNet.Database.Example.Jobs
             }
         }
     }
+
     /// <summary>
     /// 示例1作业类
     /// </summary>
-    [QuartzJob("SampleJob1", "SmapleExampleGroup", "0 0/5 * * * ?", Description = "这是一个示例作业，每5分钟执行一次")]
+    [QuartzJob(
+        "SampleJob1",
+        "SmapleExampleGroup",
+        "0 0/5 * * * ?",
+        Description = "这是一个示例作业，每5分钟执行一次"
+    )]
     public class SampleJob1 : IJob
     {
         private readonly ILogger<SampleJob> _logger;
@@ -69,7 +79,6 @@ namespace Chet.QuartzNet.Database.Example.Jobs
                 if (!string.IsNullOrEmpty(jobDataJson))
                 {
                     _logger.LogInformation("获取到作业数据JSON: {JobDataJson}", jobDataJson);
-
                 }
 
                 _logger.LogInformation("SampleJob执行完成");
@@ -81,10 +90,16 @@ namespace Chet.QuartzNet.Database.Example.Jobs
             }
         }
     }
+
     /// <summary>
     /// 示例2作业类
     /// </summary>
-    [QuartzJob("SampleJob2", "SmapleExampleGroup", "0 0/5 * * * ?", Description = "这是一个示例作业，每5分钟执行一次")]
+    [QuartzJob(
+        "SampleJob2",
+        "SmapleExampleGroup",
+        "0 0/5 * * * ?",
+        Description = "这是一个示例作业，每5分钟执行一次"
+    )]
     public class SampleJob2 : IJob
     {
         private readonly ILogger<SampleJob> _logger;
@@ -108,7 +123,6 @@ namespace Chet.QuartzNet.Database.Example.Jobs
                 if (!string.IsNullOrEmpty(jobDataJson))
                 {
                     _logger.LogInformation("获取到作业数据JSON: {JobDataJson}", jobDataJson);
-
                 }
 
                 _logger.LogInformation("SampleJob执行完成");

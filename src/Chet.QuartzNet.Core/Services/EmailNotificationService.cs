@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Mail;
 using Chet.QuartzNet.Core.Configuration;
+using Chet.QuartzNet.Core.Helpers;
 using Chet.QuartzNet.Core.Interfaces;
 using Microsoft.Extensions.Logging;
 
@@ -330,7 +331,7 @@ public class EmailNotificationService : IEmailNotificationService
             </tr>
             <tr>
                 <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 80px;'><strong>执行耗时：</strong></td>
-                <td style='padding: 10px; border-bottom: 1px solid #dee2e6;'>{duration} 毫秒</td>
+                <td style='padding: 10px; border-bottom: 1px solid #dee2e6;'>{DurationFormatter.Format(duration)}</td>
             </tr>
             <tr>
                 <td style='padding: 10px; border-bottom: 1px solid #dee2e6; width: 80px;'><strong>消息：</strong></td>

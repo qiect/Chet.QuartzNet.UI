@@ -76,6 +76,7 @@ export default withMermaid(
               { text: 'ClassJob 代码作业', link: '/guide/class-job' },
               { text: '作业依赖', link: '/guide/dependency' },
               { text: '中断恢复与排水', link: '/guide/recovery' },
+              { text: '手动中断作业', link: '/guide/manual-interrupt' },
               { text: '通知配置', link: '/guide/notification' },
             ],
           },

@@ -237,6 +237,33 @@ export async function rerunInterruptedLog(
 }
 
 /**
+ * 手动中断一条运行中的作业
+ * @param logId 运行中日志ID
+ */
+export async function interruptRunningLog(
+  logId: string,
+): Promise<ApiResponse<boolean>> {
+  return requestClient.post('/api/quartz/InterruptJob', { logId });
+}
+
+/**
+ * 手动中断在 SkipReason 中的固定前缀。
+ * 手动中断与不可预期中断共用「中断」状态，仅靠此前缀在展示层区分，不能用于查询过滤。
+ */
+export const MANUAL_INTERRUPT_PREFIX = '【手动中断】';
+
+/** 是否为用户手动中断：状态为中断，且跳过原因带手动中断前缀 */
+export const isManualInterrupt = (log: LogResponseDto) =>
+  log.status === LogStatusEnum.INTERRUPTED &&
+  !!log.skipReason?.startsWith(MANUAL_INTERRUPT_PREFIX);
+
+/** 展示用：裁掉手动中断前缀 */
+export const manualInterruptText = (reason?: string | null) =>
+  reason?.startsWith(MANUAL_INTERRUPT_PREFIX)
+    ? reason.slice(MANUAL_INTERRUPT_PREFIX.length)
+    : (reason ?? '');
+
+/**
  * 获取日志详情
  * 注：此接口在后端未实现，暂时使用模拟数据
  * @param logId 日志ID

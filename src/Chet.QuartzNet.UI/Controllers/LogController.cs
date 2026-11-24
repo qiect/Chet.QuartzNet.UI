@@ -105,6 +105,41 @@ public class LogController : ControllerBase
     }
 
     /// <summary>
+    /// 手动中断一条运行中的作业日志
+    /// </summary>
+    [HttpPost("InterruptJob")]
+    public async Task<ActionResult<ApiResponseDto<bool>>> InterruptJob(
+        [FromBody] InterruptRunningLogRequestDto request,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var result = await _jobService.InterruptRunningJobAsync(
+                request.LogId,
+                cancellationToken
+            );
+            if (result.Success)
+            {
+                _logger.LogSuccess("中断作业", request.LogId.ToString());
+            }
+            else
+            {
+                _logger.LogWarn(
+                    "中断作业",
+                    $"失败, 原因: {result.Message}, 错误码: {result.ErrorCode}"
+                );
+            }
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFailure("中断作业", ex);
+            return Ok(ApiResponseDto<bool>.ErrorResponse("中断作业失败: " + ex.Message));
+        }
+    }
+
+    /// <summary>
     /// 清空作业日志
     /// </summary>
     [HttpPost("ClearLogs")]
