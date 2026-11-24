@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <PackageReference Include="Quartz" Version="3.22.10" />
+    <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.22.10" />
   </ItemGroup>
   
   <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">

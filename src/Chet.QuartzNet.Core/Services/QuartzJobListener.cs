@@ -142,8 +142,9 @@ namespace Chet.QuartzNet.Core.Services
                     };
                 }
 
-                // 停机（立即停止/排水超时）时排水协调器已把该执行标记为「中断」，
-                // 这里不要再改写成失败，否则日志会丢掉「下次启动可补偿」的状态
+                // 手动中断 / 停机（立即停止/排水超时）时，收尾前已把该执行标记为「中断」，
+                // 且作业因令牌取消而抛出异常：保留中断状态，不要改写成失败/成功，
+                // 否则手动中断会显示成「成功」、停机场景会丢掉「下次启动可补偿」的状态
                 if (
                     claimedExisting
                     && jobLog!.Status == LogStatus.Interrupted
@@ -158,7 +159,7 @@ namespace Chet.QuartzNet.Core.Services
 
                     _logger.LogInfo(
                         "作业执行",
-                        "停机导致执行被中断，保留中断状态: {JobKey}",
+                        "执行被中断，保留中断状态: {JobKey}",
                         $"{context.JobDetail.Key.Group}.{context.JobDetail.Key.Name}"
                     );
                     return;
