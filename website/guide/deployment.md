@@ -60,14 +60,14 @@ dotnet ef database update
 
 ## 5. 版本升级清单
 
-以 v2.7.0 为例：
+以 v2.8.1 为例：
 
 ```bash
 # 1. 更新主包
-dotnet add package Chet.QuartzNet.UI --version 2.7.0
+dotnet add package Chet.QuartzNet.UI --version 2.8.1
 
 # 2. 同步更新数据库扩展包
-dotnet add package Chet.QuartzNet.EFCore.MySQL --version 2.7.0
+dotnet add package Chet.QuartzNet.EFCore.MySQL --version 2.8.1
 
 # 3. 数据库结构升级
 dotnet ef database update

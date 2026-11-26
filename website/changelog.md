@@ -1,10 +1,30 @@
 ---
-description: Chet.QuartzNet.UI 全部版本更新记录，从 1.1.4 到 2.8.0。
+description: Chet.QuartzNet.UI 全部版本更新记录，从 1.1.4 到 2.8.1。
 ---
 
 # 更新日志
 
 > 版本号与 NuGet 包版本保持一致。数据库存储模式升级时，请同步更新对应的 EFCore 扩展包并执行数据库迁移。
+
+## 2.8.1 · 2026-11-26
+
+**修复**
+
+- **MySQL 扩展包运行时报错**：net8.0 / net10.0 下依赖会解析到低于编译时的 EF Core 版本（Pomelo 的依赖区间下限为 `9.0.0`），安装后启动报 `FileNotFoundException: Microsoft.EntityFrameworkCore, Version=9.0.23.0`。现由 MySQL、PostgreSQL（net8.0）扩展包显式声明编译时的 `Microsoft.EntityFrameworkCore.Relational` 版本。
+- .NET 8 目标下的依赖安全漏洞：EF Core `8.0.23` → `8.0.34`、Npgsql `8.0.0` → `8.0.11`、JwtBearer `8.0.0` → `8.0.34`、Pomelo `8.0.0` → `8.0.3`，并显式将 `MySqlConnector` 提升到 `2.6.2`。
+- .NET 10 目标下的依赖安全漏洞：EF Core Sqlite / SqlServer `9.0.0` → `10.0.15`（依赖声明），Npgsql `9.0.0` → `10.0.4`。
+
+**优化**
+
+- 数据库扩展包改为声明对主包 `Chet.QuartzNet.UI` 的依赖，漏装主包时可在还原阶段就暴露，而不是运行期缺程序集。
+- 数据库扩展包不再重复打包 `Chet.QuartzNet.EFCore.dll`（由主包提供），避免同一程序集被多个包重复投放。
+- 数据库扩展包移除 `Microsoft.EntityFrameworkCore.Tools / Design` 的依赖声明，项目侧改为 `PrivateAssets="all"`，减少消费者的无谓安装。
+- `sync-version.ps1` 与发布流水线在改版本号时同步更新数据库包对主包的依赖版本。
+
+**兼容性**
+
+- 无公共 API 变更，无数据库结构变更，可直接替换升级。
+- MySQL 扩展包在 net10.0 下仍使用 Pomelo `9.0.0`（Pomelo 尚未支持 EF Core 10），请避免在同一应用中同时引用 MySQL 与其他数据库扩展包。
 
 ## 2.8.0 · 2026-11-24
 

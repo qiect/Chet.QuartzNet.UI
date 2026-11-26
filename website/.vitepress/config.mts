@@ -126,6 +126,7 @@ export default withMermaid(
               { text: '14 · v2.4 ~ v2.5.1 连更', link: '/articles/14-v2.5.1' },
               { text: '15 · v2.6.0 作业依赖', link: '/articles/15-v2.6.0' },
               { text: '16 · v2.7.0 中断恢复', link: '/articles/16-v2.7.0' },
+              { text: '17 · v2.8.0 手动中断', link: '/articles/17-v2.8.0' },
             ],
           },
         ],

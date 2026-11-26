@@ -41,6 +41,8 @@ foreach ($nuspecFile in $nuspecFiles) {
         $content = Get-Content -Path $nuspecFile -Raw -Encoding UTF8
         $content = $content -replace '<version>(.*?)</version>', "<version>$version</version>"
         $content = $content -replace '<releaseNotes>(.*?)</releaseNotes>', "<releaseNotes>https://github.com/qiect/Chet.QuartzNet.UI/releases/tag/${version}</releaseNotes>"
+        # 同步数据库扩展包对主包 Chet.QuartzNet.UI 的依赖版本
+        $content = $content -replace 'id="Chet\.QuartzNet\.UI" version="[^"]*"', "id=`"Chet.QuartzNet.UI`" version=`"$version`""
         Set-Content -Path $nuspecFile -Value $content -Encoding UTF8
         Write-Host "Updated: $nuspecFile"
     } else {
