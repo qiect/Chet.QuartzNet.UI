@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>Chet.QuartzNet.Core</PackageId>
-    <Version>2.8.0</Version>
+    <Version>2.8.1</Version>
     <Authors>Chet</Authors>
     <Description>Quartz.Net UI 核心业务逻辑库</Description>
     <PackageTags>Quartz;Scheduler;Core</PackageTags>
@@ -37,6 +37,7 @@
   </ItemGroup>
 
 </Project>
+
 
 
 

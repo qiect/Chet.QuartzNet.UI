@@ -22,7 +22,7 @@ Chet.QuartzNet.UI 把这部分做成了一个 Razor Class Library：安装一个
 
 | 项目 | 说明 |
 | ---- | ---- |
-| 技术栈 | ASP.NET Core + Quartz.Net 3.15.1 + VbenAdmin（Vue 3 / Ant Design Vue） |
+| 技术栈 | ASP.NET Core + Quartz.Net 3.22.10 + VbenAdmin（Vue 3 / Ant Design Vue） |
 | 目标框架 | `net8.0`、`net10.0` |
 | 集成方式 | NuGet 包（RCL），静态资源嵌入包内 |
 | 管理入口 | `/quartz-ui` |

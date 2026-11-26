@@ -27,15 +27,15 @@ NuGet 会根据宿主项目的目标框架自动选择对应资产。对使用�
 
 | 依赖 | net8.0 | net10.0 |
 | ---- | ------ | ------- |
-| Quartz / Quartz.AspNetCore | 3.15.1 | 3.15.1 |
-| Microsoft.AspNetCore.Authentication.JwtBearer | 8.0.0 | 10.0.0 |
-| Microsoft.EntityFrameworkCore.Design | 8.0.0 | 9.0.0 |
-| Pomelo.EntityFrameworkCore.MySql | 8.0.0 | 9.0.0 |
-| Npgsql.EntityFrameworkCore.PostgreSQL | 8.0.0 | 9.0.0 |
-| Microsoft.EntityFrameworkCore.Sqlite | 8.0.23 | 9.0.0 |
-| Microsoft.EntityFrameworkCore.SqlServer | 8.0.23 | 9.0.0 |
+| Quartz / Quartz.AspNetCore | 3.22.10 | 3.22.10 |
+| Microsoft.AspNetCore.Authentication.JwtBearer | 8.0.34 | 10.0.0 |
+| Microsoft.EntityFrameworkCore.Design | 8.0.34 | 9.0.23 |
+| Pomelo.EntityFrameworkCore.MySql | 8.0.3 | 9.0.0 |
+| Npgsql.EntityFrameworkCore.PostgreSQL | 8.0.11 | 10.0.4 |
+| Microsoft.EntityFrameworkCore.Sqlite | 8.0.34 | 10.0.15 |
+| Microsoft.EntityFrameworkCore.SqlServer | 8.0.34 | 10.0.15 |
 
-可以看到 .NET 10 下的 EF Core 相关依赖使用 9.x 版本，这是各数据库提供程序当前与 .NET 10 兼容的版本线。
+SQLite、SQL Server、PostgreSQL 在 .NET 10 下已声明 EF Core 10.x；MySQL 受 Pomelo 限制（其依赖区间为 `9.0.x`）仍停留在 EF Core 9，因此**不要在同一个应用里同时引用 MySQL 与其他数据库扩展包**，否则还原会报版本冲突。库自身在 net10.0 下按 EF Core 9.0.23 编译，其余提供程序声明的 10.x 运行时向下兼容，已实测可正常运行。
 
 ## 3. 在 .NET 10 项目中接入
 
@@ -49,13 +49,13 @@ cd MyQuartzApp
 ### 3.2 安装包
 
 ```bash
-dotnet add package Chet.QuartzNet.UI --version 2.7.1
+dotnet add package Chet.QuartzNet.UI --version 2.8.1
 ```
 
 数据库存储再安装对应扩展包，版本保持一致：
 
 ```bash
-dotnet add package Chet.QuartzNet.EFCore.SQLite --version 2.7.1
+dotnet add package Chet.QuartzNet.EFCore.SQLite --version 2.8.1
 ```
 
 ### 3.3 注册服务
